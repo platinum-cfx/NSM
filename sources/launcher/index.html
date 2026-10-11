@@ -1659,21 +1659,24 @@ button,input{font:inherit;color:inherit;font-family:inherit}
     ? (window.location.origin)
     : 'http://127.0.0.1:9987';
 
-  // Auto-probing fetch that automatically connects to whichever port NSM.exe is bound to (9987-9995)
+  // Auto-probing fetch that automatically connects to whichever port NSM.exe is bound to (9987-10005)
   async function apiFetch(path, options = {}) {
     const defaultEp = (API || window.location.origin || 'http://127.0.0.1:9987') + path;
     try {
-      const res = await fetch(defaultEp, options);
+      const res = await fetch(defaultEp, { ...options, mode: 'cors' });
       return res;
     } catch (err) {
-      for (const p of [9987, 9988, 9989, 9990, 9991, 9992, 9993, 9994, 9995]) {
-        const candidate = `http://127.0.0.1:${p}`;
-        if (candidate === API) continue;
-        try {
-          const res = await fetch(candidate + path, options);
-          API = candidate;
-          return res;
-        } catch (_) {}
+      for (const h of ['127.0.0.1', 'localhost']) {
+        for (let p = 9987; p <= 10005; p++) {
+          const candidate = `http://${h}:${p}`;
+          try {
+            const res = await fetch(candidate + path, { ...options, mode: 'cors' });
+            if (res.ok) {
+              API = candidate;
+              return res;
+            }
+          } catch (_) {}
+        }
       }
       throw err;
     }

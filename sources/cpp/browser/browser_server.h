@@ -137,19 +137,7 @@ inline int TcpPingMs(const std::string& host, int port, int timeoutMs = 2000) {
     return result;
 }
 
-inline bool IsPortAvailable(int port) {
-    bs_socket_t s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s == BS_INVALID) return false;
-    int opt = 1;
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
-    sockaddr_in sa = {};
-    sa.sin_family = AF_INET;
-    sa.sin_addr.s_addr = inet_addr("127.0.0.1");
-    sa.sin_port = htons(port);
-    int r = bind(s, (sockaddr*)&sa, sizeof(sa));
-    bs_close(s);
-    return (r == 0);
-}
+// IsPortAvailable removed
 
 #ifdef _WIN32
 inline std::string FindBrowserAppExe() {
@@ -394,14 +382,7 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
     g_uiDir = baseDir + "/launcher";
 #endif
 
-    int boundPort = -1;
-    for (int p = GTAMP_LAUNCHER_PORT; p < GTAMP_LAUNCHER_PORT + 20; p++) {
-        if (IsPortAvailable(p)) {
-            boundPort = p;
-            break;
-        }
-    }
-    if (boundPort == -1) boundPort = GTAMP_LAUNCHER_PORT;
+    int boundPort = GTAMP_LAUNCHER_PORT;
     g_launcherPort = boundPort;
 
     g_pLauncherSvr = std::make_unique<httplib::Server>();
@@ -672,22 +653,43 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
     svr.Options("/api/heartbeat", handleCorsOptions);
     svr.Options("/api/launcher/ping", handleCorsOptions);
 
-    if (!svr.bind_to_port("127.0.0.1", boundPort)) {
-        for (int p = boundPort + 1; p < GTAMP_LAUNCHER_PORT + 30; p++) {
-            if (svr.bind_to_port("127.0.0.1", p)) {
+    boundPort = -1;
+    for (int p = GTAMP_LAUNCHER_PORT; p < GTAMP_LAUNCHER_PORT + 30; p++) {
+        svr.stop();
+        if (svr.bind_to_port("127.0.0.1", p)) {
+            boundPort = p;
+            break;
+        }
+    }
+    if (boundPort == -1) {
+        for (int p = GTAMP_LAUNCHER_PORT; p < GTAMP_LAUNCHER_PORT + 30; p++) {
+            svr.stop();
+            if (svr.bind_to_port("0.0.0.0", p)) {
                 boundPort = p;
                 break;
             }
         }
     }
 
+    if (boundPort == -1) {
+#ifdef _WIN32
+        MessageBoxA(NULL, "Could not bind to any launcher port (9987-10017). Please close any conflicting applications.", "NSM Error", MB_ICONERROR);
+#endif
+        return false;
+    }
+
+    g_launcherPort = boundPort;
+
     g_launcherSvrThread = std::thread([]() {
         if (g_pLauncherSvr) {
             g_pLauncherSvr->listen_after_bind();
         }
     });
+
     g_pLauncherSvr->wait_until_ready();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < 20 && !g_pLauncherSvr->is_running(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
 
 #ifdef _WIN32
     if (openBrowser) OpenInAppWindow("http://127.0.0.1:" + std::to_string(boundPort) + "/", &g_hUiProcess);

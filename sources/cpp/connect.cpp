@@ -580,24 +580,43 @@ inline void EnsureGtaPathConfigured(const string& baseDir) {
 
 // Ensures game files are extracted into local target directory when launching GTA
 bool EnsureGameFilesReady(const string& baseDir, const string& targetDir) {
-    DWORD attr = GetFileAttributesA(targetDir.c_str());
-    bool dirExists = (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY));
-    if (dirExists) {
-        return true;
-    }
+    bool dirValid = true;
+    int manifestSize = sizeof(g_Manifest) / sizeof(g_Manifest[0]);
+    for (int i = 0; i < manifestSize; ++i) {
+        string filePath = targetDir + g_Manifest[i].relPath;
+        if (filePath.find("skin.bin") != string::npos) continue;
 
-    string testPack = baseDir + "\\packs\\mp1.pack";
-    if (GetFileAttributesA(testPack.c_str()) == INVALID_FILE_ATTRIBUTES) {
-        // Packs not adjacent, check current directory or client-new
-        testPack = baseDir + "\\client-new\\packs\\mp1.pack";
-        if (GetFileAttributesA(testPack.c_str()) == INVALID_FILE_ATTRIBUTES) {
-            return false;
+        size_t actualSize = GetFileSizeStr(filePath);
+        if (actualSize != g_Manifest[i].expectedSize) {
+            dirValid = false;
+            break;
         }
     }
 
+    if (dirValid) {
+        string altvPath = targetDir + "\\altv.exe";
+        DWORD attr = GetFileAttributesA(altvPath.c_str());
+        if (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
+            WriteLog("Game files verified and ready in " + targetDir);
+            return true;
+        }
+    }
+
+    WriteLog("Extracting game packs into " + targetDir + "...");
+
     string packsFolder = baseDir + "\\packs";
-    if (GetFileAttributesA(packsFolder.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    string testPack = packsFolder + "\\mp1.pack";
+    if (GetFileAttributesA(testPack.c_str()) == INVALID_FILE_ATTRIBUTES) {
         packsFolder = baseDir + "\\client-new\\packs";
+        testPack = packsFolder + "\\mp1.pack";
+        if (GetFileAttributesA(testPack.c_str()) == INVALID_FILE_ATTRIBUTES) {
+            packsFolder = baseDir;
+            testPack = packsFolder + "\\mp1.pack";
+            if (GetFileAttributesA(testPack.c_str()) == INVALID_FILE_ATTRIBUTES) {
+                WriteLog("mp1.pack not found in: " + baseDir);
+                return false;
+            }
+        }
     }
 
     CreateDirectoryA(targetDir.c_str(), NULL);
@@ -623,9 +642,11 @@ bool EnsureGameFilesReady(const string& baseDir, const string& targetDir) {
             }
             DeleteFileA(mpDllPath.c_str());
         } else {
+            WriteLog("Failed to decrypt: " + mpPackPath);
             return false;
         }
     }
+    WriteLog("Packs successfully extracted.");
     return true;
 }
 
