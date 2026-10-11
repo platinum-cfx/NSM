@@ -25,4 +25,10 @@ end)
 SetConvar('nsm_test_convar', 'hello')
 print('convar reads back: ' .. GetConvar('nsm_test_convar', 'unset'))
 print('hash of "austi" = ' .. GetHashKey('austi'))
+
+-- server-side export (FiveM syntax: exports('name', fn))
+exports('addStuff', function(a, b)
+    return (tonumber(a) or 0) + (tonumber(b) or 0)
+end)
+
 print('example-hello server.lua loaded OK')
