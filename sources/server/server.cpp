@@ -126,6 +126,31 @@ static int HttpPostJson(const string& url, const string& body, const string& ser
     return status;
 }
 
+void EnsureServerDependencies(const string& dir) {
+    string libnodePath = dir + "\\libnode.dll";
+    if (GetFileAttributesA(libnodePath.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        string zipPath = dir + "\\libnode.zip";
+        if (GetFileAttributesA(zipPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            cout << "[gtamp-server] Extracting libnode.dll from libnode.zip..." << endl;
+            string cmd = "cd /d \"" + dir + "\" && tar -xf libnode.zip 2>nul || powershell -Command \"Expand-Archive -Path 'libnode.zip' -DestinationPath '.' -Force\"";
+            system(cmd.c_str());
+        }
+    }
+    if (GetFileAttributesA(libnodePath.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        CreateDirectoryA((dir + "\\modules").c_str(), NULL);
+        CreateDirectoryA((dir + "\\modules\\js-module").c_str(), NULL);
+        CopyFileA(libnodePath.c_str(), (dir + "\\modules\\libnode.dll").c_str(), FALSE);
+        CopyFileA(libnodePath.c_str(), (dir + "\\modules\\js-module\\libnode.dll").c_str(), FALSE);
+    }
+    string jsModPath = dir + "\\modules\\js-module.dll";
+    string jsModSub = dir + "\\modules\\js-module\\js-module.dll";
+    if (GetFileAttributesA(jsModPath.c_str()) != INVALID_FILE_ATTRIBUTES && GetFileAttributesA(jsModSub.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        CopyFileA(jsModPath.c_str(), jsModSub.c_str(), FALSE);
+    } else if (GetFileAttributesA(jsModSub.c_str()) != INVALID_FILE_ATTRIBUTES && GetFileAttributesA(jsModPath.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        CopyFileA(jsModSub.c_str(), jsModPath.c_str(), FALSE);
+    }
+}
+
 void UpdateServerToml(const string& configPath, const string& tomlPath) {
     ifstream cfgFile(configPath);
     if (!cfgFile.is_open()) return;
@@ -457,6 +482,7 @@ int main(int argc, char* argv[]) {
     string exeDir = string(exePath);
     exeDir = exeDir.substr(0, exeDir.find_last_of("\\/"));
     UpdateServerToml(exeDir + "\\.cfg", exeDir + "\\server.toml");
+    EnsureServerDependencies(exeDir);
     ParseServerTomlForDiscord(exeDir + "\\server.toml");
 
     if (g_discordPresence) {
