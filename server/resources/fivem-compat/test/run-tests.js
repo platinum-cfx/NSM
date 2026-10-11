@@ -59,6 +59,7 @@ check('runtime dispatches primitive client events', mock.clientEvents.some((e) =
 check('runtime marshals Lua tables to plain objects', mock.clientEvents.some((e) => e.name === 'nsm:obj' && e.args[0] && typeof e.args[0] === 'object' && e.args[0].a === 1));
 check('runtime passes Lua functions through', mock.clientEvents.some((e) => e.name === 'nsm:cb' && typeof e.args[0] === 'function'));
 check('fxmanifest name directive accepted (no warning)', !mock.logs.some((l) => l.includes('unsupported directive') && l.includes('example-emit')));
+check('onesync convar reports on (ESX connection gate)', mock.logs.some((l) => l.includes('onesync convar: on')));
 
 console.log('== adapter emit whitelist (exact server code path) ==');
 const amockBase = makeMockAlt();

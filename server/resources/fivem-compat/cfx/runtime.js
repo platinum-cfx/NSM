@@ -1184,7 +1184,11 @@ export class CfxCompatRuntime {
     this.engines = new Map();   // name -> { name, dir, env, lua }  (kept name for compat)
     this.handlers = new Map();  // eventName -> [{ resource, fn, isNet }]
     this.commands = new Map();  // cmd -> resourceName
-    this.convars = new Map(Object.entries(adapter.convars || {}));
+    // Server convar defaults. `onesync` reports 'on' because this layer IS
+    // the OneSync equivalent here — entity natives are backed by real alt:V
+    // entities and statebags by synced meta. es_extended's playerConnecting
+    // gate rejects every connection when it reads 'off'/'legacy'.
+    this.convars = new Map(Object.entries({ onesync: 'on', ...Object(adapter.convars || {}) }));
     this.wiredNet = new Set();
     this.entities = new Map();  // compat handle -> { kind, ref }
     this.timers = new Map();    // resourceName -> Set<timeout id> (stop cancels them)
