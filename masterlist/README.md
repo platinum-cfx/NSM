@@ -17,7 +17,8 @@ ADMIN_KEY=change-me PORT=8080 node server.js
 | `PORT` | `8080` | Listen port |
 | `HOST` | `0.0.0.0` | Bind address |
 | `ADMIN_KEY` | *(unset)* | Required to mint server keys via `POST /keys`. If unset, key creation is disabled. |
-| `OPEN_ANNOUNCE` | `0` | Set `1` to accept announces without a key (dev/testing only) |
+| `OPEN_ANNOUNCE` | `0` | Set `1` to accept announces without a key (dev/testing only). Strict by default. |
+| `TRUST_PROXY` | `0` | Set `1` only when running behind a reverse proxy you control, so `X-Forwarded-For` is honored for rate limiting and announce attribution. The header is client-controlled and ignored otherwise. |
 | `TIMEOUT_MS` | `90000` | Drop a server after this many ms without a heartbeat |
 | `VERIFY_PORT` | `1` | TCP-probe the game port on first announce (set `0` to disable, e.g. behind NAT in dev) |
 | `DATA_DIR` | `./data` | Where `keys.json` is stored |
@@ -73,6 +74,19 @@ Sent automatically by `gtamp-server.exe` when `announce = true` in `.cfg`.
 ```
 `host` defaults to the announcing IP. A key may register multiple servers; a `host:port`
 stays bound to the key that first registered it.
+
+### `DELETE /servers/:id` (or `POST /servers/:id/delete`) — authorized
+
+Deleting a server requires either the **admin key** (`X-Admin-Key`) or the
+**server key** (`X-Server-Key`) whose owner registered that `host:port`.
+Records created under `OPEN_ANNOUNCE=1` (no owner) can only be deleted with
+the admin key. Anonymous deletes are always rejected (403).
+
+### `POST /servers/:id/upvote` — rate limited
+
+One upvote per source address per server (best effort, in-memory, resets on
+restart), plus the general per-IP rate limit. Boost ordering is the ranking
+signal, so it must not be freely scriptable.
 
 ### `POST /keys` — header `X-Admin-Key: <ADMIN_KEY>`
 ```bash

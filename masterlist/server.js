@@ -30,8 +30,9 @@ const net = require('net');
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const ADMIN_KEY = process.env.ADMIN_KEY || '';            // required to mint server keys
-const OPEN_ANNOUNCE = process.env.OPEN_ANNOUNCE !== '0';  // default to open announce for easy setup (set 0 for strict key auth)
-const TIMEOUT_MS = parseInt(process.env.TIMEOUT_MS || '25000', 10);   // drop after 90 s silence
+const OPEN_ANNOUNCE = process.env.OPEN_ANNOUNCE === '1';  // strict key auth by default (set 1 only for local dev)
+const TIMEOUT_MS = parseInt(process.env.TIMEOUT_MS || '90000', 10);   // drop after 90 s silence
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';      // honor X-Forwarded-For only behind a proxy you control
 const VERIFY_PORT = process.env.VERIFY_PORT !== '0';      // TCP-probe the game port before listing
 const BASE_DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
 const DATA_DIR = process.env.DATA_DIR || path.join(BASE_DIR, 'data');
@@ -47,6 +48,8 @@ const servers = new Map();
 let keys = loadKeys();
 /** ip -> { count, resetAt } */
 const rate = new Map();
+/** 'ip|serverId' -> lastAt (best-effort anonymous upvote dedup; resets on restart) */
+const upvoteSeen = new Map();
 const startedAt = Date.now();
 
 // Active NSM.exe launchers and playing clients presence tracking
@@ -133,9 +136,16 @@ function readBody(req, limit = 16 * 1024) {
 }
 
 function clientIp(req) {
-  const xf = req.headers['x-forwarded-for'];
+  // X-Forwarded-For is only honored when TRUST_PROXY=1: the header is
+  // client-controlled and must never be trusted for rate limiting or
+  // "announce from this address" logic otherwise.
+  const xf = TRUST_PROXY ? req.headers['x-forwarded-for'] : null;
   const ip = (xf ? String(xf).split(',')[0].trim() : req.socket.remoteAddress) || '';
   return ip.replace(/^::ffff:/, '');
+}
+
+function isLoopback(ip) {
+  return ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
 }
 
 function rateLimited(ip) {
@@ -221,7 +231,10 @@ async function handleAnnounce(req, res) {
   }
 
   let verified = existing ? existing.verified : false;
-  if (host === '127.0.0.1' || host === 'localhost' || host === '::1' || host.startsWith('192.168.') || host.startsWith('10.')) {
+  // Loopback/LAN hosts are auto-verified ONLY when the announce itself comes
+  // from a loopback address — otherwise anyone could list a "verified" server
+  // by announcing host=127.0.0.1.
+  if (isLoopback(ip) && (host === '127.0.0.1' || host === 'localhost' || host === '::1' || host.startsWith('192.168.') || host.startsWith('10.'))) {
     verified = true;
   } else if (VERIFY_PORT && (!existing || Date.now() - existing.verifiedAt > 5 * 60_000)) {
     verified = await probe(host, port);
@@ -314,7 +327,7 @@ const srv = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') return json(res, 204, {});
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/health')) {
       prune();
-      return json(res, 200, { ok: true, servers: servers.size, players: getTotalOnline(), activeLaunchers: activeLaunchers.size, serverPlayers: [...servers.values()].reduce((a, s) => a + s.players, 0), uptime: Math.floor((Date.now() - startedAt) / 1000) });
+      return json(res, 200, { ok: true, servers: servers.size, players: getTotalOnline(), activeLaunchers: activeLaunchers.size, serverPlayers: [...servers.values()].reduce((a, s) => a + s.players, 0), uptime: Math.floor((Date.now() - startedAt) / 1000), config: { openAnnounce: OPEN_ANNOUNCE, timeoutMs: TIMEOUT_MS, trustProxy: TRUST_PROXY, adminKeySet: !!ADMIN_KEY } });
     }
     if ((req.method === 'GET' || req.method === 'HEAD') && p === '/servers') return handleList(req, res, url);
     if (req.method === 'GET' && p === '/api/news') {
@@ -344,6 +357,8 @@ const srv = http.createServer(async (req, res) => {
       });
     }
     if (req.method === 'POST' && p.startsWith('/servers/') && p.endsWith('/upvote')) {
+      const ip = clientIp(req);
+      if (rateLimited(ip)) return json(res, 429, { error: 'rate limited' });
       const sId = p.slice(9, -7);
       let s = servers.get(sId);
       if (!s) {
@@ -355,6 +370,14 @@ const srv = http.createServer(async (req, res) => {
         }
       }
       if (s) {
+        // anonymous upvotes: one per source address per server (best effort,
+        // in-memory). Boost ordering is the ranking signal, so it must not be
+        // freely scriptable.
+        const seenKey = `${ip}|${s.id}`;
+        if (upvoteSeen.has(seenKey)) {
+          return json(res, 409, { error: 'already upvoted from this address', id: s.id, upvotes: s.upvotes || 0 });
+        }
+        upvoteSeen.set(seenKey, Date.now());
         s.upvotes = (s.upvotes || 0) + 1;
         return json(res, 200, { ok: true, id: s.id, upvotes: s.upvotes });
       }
@@ -478,19 +501,36 @@ const srv = http.createServer(async (req, res) => {
       });
     }
     if ((req.method === 'DELETE' || (req.method === 'POST' && p.endsWith('/delete'))) && p.startsWith('/servers/')) {
+      const ip = clientIp(req);
+      if (rateLimited(ip)) return json(res, 429, { error: 'rate limited' });
       let sId = p.slice(9);
       if (sId.endsWith('/delete')) sId = sId.slice(0, -7);
-      let found = servers.delete(sId);
-      if (!found) {
-        for (const [id, candidate] of servers) {
-          if (`${candidate.host}:${candidate.port}` === sId || candidate.id === sId) {
-            servers.delete(id);
-            found = true;
-            break;
-          }
+      // find the record first (by id or by host:port)
+      let record = servers.get(sId) || null;
+      if (!record) {
+        for (const candidate of servers.values()) {
+          if (`${candidate.host}:${candidate.port}` === sId || candidate.id === sId) { record = candidate; break; }
         }
       }
-      return json(res, 200, { ok: true, deleted: sId });
+      // authorization: the admin key, or a server key whose owner registered
+      // this host:port. Records created via OPEN_ANNOUNCE (no owner) can only
+      // be deleted with the admin key. No anonymous deletes.
+      let authorized = false;
+      if (ADMIN_KEY && req.headers['x-admin-key'] === ADMIN_KEY) {
+        authorized = true;
+      } else {
+        const key = req.headers['x-server-key'];
+        if (key && keys.has(key)) {
+          const owner = keys.get(key).owner;
+          keys.get(key).lastUsed = Date.now();
+          if (record && record.owner && record.owner === owner) authorized = true;
+        }
+      }
+      if (!authorized) {
+        return json(res, 403, { error: 'deleting a server requires the admin key (X-Admin-Key) or the server key (X-Server-Key) that registered it' });
+      }
+      if (record) servers.delete(record.id);
+      return json(res, 200, { ok: true, deleted: record ? record.id : sId });
     }
     if (req.method === 'GET' && p.startsWith('/servers/')) {
       prune();
@@ -508,7 +548,7 @@ const srv = http.createServer(async (req, res) => {
 
 srv.listen(PORT, HOST, () => {
   console.log(`[masterlist] listening on http://${HOST}:${PORT}`);
-  console.log(`[masterlist] announce auth: ${OPEN_ANNOUNCE ? 'OPEN (dev mode)' : 'server key required'}`);
+  console.log(`[masterlist] announce auth: ${OPEN_ANNOUNCE ? 'OPEN (dev mode — set OPEN_ANNOUNCE=0 or unset it for strict key auth)' : 'server key required (default; set OPEN_ANNOUNCE=1 only for local dev)'}`);
   console.log(`[masterlist] admin key: ${ADMIN_KEY ? 'set' : 'NOT SET — POST /keys disabled'}`);
   console.log(`[masterlist] known server keys: ${keys.size}`);
 });

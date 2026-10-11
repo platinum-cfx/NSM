@@ -57,22 +57,26 @@ listed server can flap out between announces).
 
 ## 2. Additional security findings (discovered during this audit, verified)
 
-| # | Severity | Location | Finding |
-|---|----------|----------|---------|
-| S1 | High | `masterlist/server.js` (DELETE routes, ~line 482) | `DELETE /servers/:id` (and `POST …/delete`) require **no authentication whatsoever** — anyone can remove any server from the public list. Contrast: announce itself checks keys (when open-announce is off). |
-| S2 | High | `website/server.js:408-437` | Claim B above (backdoor delete). |
-| S3 | High | `website/server.js:18-27` | CORS middleware reflects the request `Origin` header **with `Access-Control-Allow-Credentials: true`** — any origin can make credentialed (session-cookie) requests to every route, enabling full cross-site account actions. |
-| S4 | High | `website/server.js` (`/admin/badges/grant`, requireStaff) | Staff can grant **any** badge id including `b_owner`/`b_founder`; `isUserOwner()` treats those badges as owner. A staff member can self-grant owner → full takeover of the site. |
-| S5 | Medium | `sources/server/server.cpp:371-433` | Token-verification proxy binds `0.0.0.0:7799` (Claim A) and `GET /updateOnline` is unauthenticated — remote state spoofing. |
-| S6 | Medium | `masterlist/server.js` (upvote route) | `POST /servers/:id/upvote` has no auth, no rate limit, no dedup → trivially scriptable boost inflation (boosting is the ranking signal). |
-| S7 | Medium | `masterlist/server.js` (`/api/player/heartbeat`, `/api/server/playing`) | Presence is keyed by client-supplied `clientId`/`server` with no auth → fabricated player counts; counts feed the public list and website. |
-| S8 | Medium | `website/server.js` (`/api/servers/report`) | Unauthenticated endpoint creates/edits server records (name/desc/players/ownerId) in the website store — poisoned server list on the site. |
-| S9 | Medium | `website/server.js` (`/api/auth/avatar`) | With no session, looking up the target **by username** lets anyone set any user's avatar (`user.avatar = avatar` — also no type/size check on what is stored/rendered). |
-| S10 | Low | `website/server.js:31` | Session secret defaults to `'gtamp-dev-secret-change-me'` — forgeable sessions if env var unset. |
-| S11 | Low | `masterlist/server.js` (`clientIp`) | Trusts `X-Forwarded-For` unconditionally → rate-limit and “announce from own IP” logic bypassable behind a spoofable header. |
-| S12 | Low | `masterlist/server.js` (announce, verified flag) | `host` in `127.0.0.1`/`localhost`/`::1`/`192.168.*`/`10.*` is auto-`verified = true` → anyone can list a “verified” fake server with a loopback host. |
-| S13 | Info | `sources/server/server.cpp` (RunPE) | Wrapper uses process hollowing (`runpe.h`) to launch the embedded alt:V server — antivirus false positives are expected and should be documented for users, not “fixed”. |
-| S14 | Info | `server/server.toml` | `debug = true` is shipped enabled (CEF debugger / debug functions allowed in production config). |
+*(Status column updated 2026-10-11 after the Milestone-2 fix pass; details and
+operator guidance in `SECURITY.md`. Fixed items carry regression-test suites:
+`masterlist/test-security.js` 22/22, `website/test-security.js` 24/24.)*
+
+| # | Severity | Location | Finding | Status |
+|---|----------|----------|---------|--------|
+| S1 | High | `masterlist/server.js` (DELETE routes, ~line 482) | `DELETE /servers/:id` (and `POST …/delete`) required **no authentication whatsoever** — anyone could remove any server from the public list. | **FIXED** — admin key or owning server key required; rate limited |
+| S2 | High | `website/server.js:408-437` | Claim B above (backdoor delete). | **FIXED** — backdoors removed; session admin or `ADMIN_KEY` |
+| S3 | High | `website/server.js:18-27` | CORS middleware reflected the request `Origin` header **with `Access-Control-Allow-Credentials: true`** — any origin could make credentialed (session-cookie) requests to every route. | **FIXED** — same-origin default; explicit `ALLOWED_ORIGINS` only |
+| S4 | High | `website/server.js` (`/admin/badges/grant`, requireStaff) | Staff could grant **any** badge id including `b_owner`/`b_founder`; `isUserOwner()` treats those badges as owner → full takeover. | **FIXED** — owner-tier badges owner-only |
+| S5 | Medium | `sources/server/server.cpp:371-433` | Token-verification proxy binds `0.0.0.0:7799` (Claim A) and `GET /updateOnline` is unauthenticated — remote state spoofing. | **OPEN** — deliberate mechanism; hardening needs the Windows C++ rebuild (see `SECURITY.md`) |
+| S6 | Medium | `masterlist/server.js` (upvote route) | `POST /servers/:id/upvote` had no auth, no rate limit, no dedup → trivially scriptable boost inflation. | **FIXED** — per-IP-per-server dedup + rate limit |
+| S7 | Medium | `masterlist/server.js` (`/api/player/heartbeat`, `/api/server/playing`) | Presence is keyed by client-supplied `clientId`/`server` with no auth → fabricated player counts. | **OPEN** — needs signed-presence protocol (launcher/wrapper changes) |
+| S8 | Medium | `website/server.js` (`/api/servers/report`) | Unauthenticated endpoint creates/edits server records in the website store. | **OPEN** — needs report-to-announce tying (protocol change) |
+| S9 | Medium | `website/server.js` (`/api/auth/avatar`) | With no session, looking up the target **by username** let anyone set any user's avatar. | **FIXED** — session-only + size cap |
+| S10 | Low | `website/server.js:31` | Session secret defaulted to `'gtamp-dev-secret-change-me'`. | **FIXED** — random per-boot fallback + warning |
+| S11 | Low | `masterlist/server.js` (`clientIp`) | Trusted `X-Forwarded-For` unconditionally. | **FIXED** — `TRUST_PROXY=1` opt-in |
+| S12 | Low | `masterlist/server.js` (announce, verified flag) | Loopback/LAN announced hosts were auto-`verified = true` from anywhere. | **FIXED** — auto-verify only from loopback sources |
+| S13 | Info | `sources/server/server.cpp` (RunPE) | Wrapper uses process hollowing (`runpe.h`) to launch the embedded alt:V server — antivirus false positives expected; document, don't "fix". | Documented (`ARCHITECTURE.md`) |
+| S14 | Info | `server/server.toml` | `debug = true` shipped enabled. | OPEN — flip before next public server package |
 
 ## 3. Implementation status matrix (what exists and works vs. what doesn't)
 
@@ -107,7 +111,8 @@ Legend: **Tested** = executed and verified in this workspace with a repeatable c
 exports + single-VM runtime, dependency-ordered loading, manifest
 diagnostics — are implemented, tested, and shipped.)*
 
-1. **Security fixes for S1–S9** with regression tests (see §5 plan) — in progress.
+1. **Security fixes S5/S7/S8/S14** — blocked on the Windows C++ rebuild and the
+   presence/report protocol redesign (documented in `SECURITY.md`).
 2. **Resource lifecycle beyond load** — stop/restart of a single resource,
    handler/timer/export cleanup on stop (Phase 3.2 of the dev plan).
 3. **oxmysql→real-DB wiring for framework SQL flows** — the MySQL API exists and
@@ -121,7 +126,10 @@ diagnostics — are implemented, tested, and shipped.)*
 
 1. ~~Runtime work first~~ — **DONE** (v3 `6af03b7`: one-VM/live-exports,
    dependency-ordered loading, manifest diagnostics; 69/69 + 17/17 + 62/62).
-2. Security fixes in one pass with tests, server-side of the repo — **in progress**:
+2. Security fixes in one pass with tests, server-side of the repo — **DONE for
+   every Node-reachable finding** (S1–S4, S6, S9–S12 + claim C defaults; 46 new
+   regression checks, all passing; see `SECURITY.md`). Remaining OPEN items are
+   the C++-rebuild and protocol-change ones:
    - masterlist: require key/admin on delete; auth+ratelimit on upvote; fix defaults
      (`OPEN_ANNOUNCE` default off, `TIMEOUT_MS` default 90000) and README agreement;
    - website: remove backdoor delete paths (`CravenzOwnerKey`, bare `Authorization`,

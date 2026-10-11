@@ -2,9 +2,19 @@
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const path = require('path');
 const http = require('http');
 const { WebSocketServer } = require('ws');
+
+// Optional machine authorization for server deletion (independent of accounts):
+// set ADMIN_KEY to allow X-Admin-Key on the delete routes. Unset = disabled.
+const ADMIN_KEY = process.env.ADMIN_KEY || '';
+// Cross-origin access is SAME-ORIGIN ONLY by default. If a legitimate
+// cross-origin client needs credentialed access, allowlist it explicitly:
+//   ALLOWED_ORIGINS="https://launcher.example.com,https://site.example.com"
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
 
 const store = require('./lib/store');
 const { seed } = require('./lib/seed');
@@ -16,10 +26,17 @@ const server = http.createServer(app);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  // SECURITY: never reflect an arbitrary Origin with Allow-Credentials — that
+  // would let any website act as the visitor's authenticated session. Only
+  // explicitly allowlisted origins get CORS headers at all.
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  }
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
@@ -31,8 +48,13 @@ app.get('/launcher-ui', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'client-new', 'launcher', 'index.html'));
 });
 app.use((req, res, next) => { res.locals.page = req.path; next(); });
+const GTAMP_SECRET = process.env.GTAMP_SECRET || '';
+if (!GTAMP_SECRET) {
+  console.warn('[website] GTAMP_SECRET is not set — using a random session secret. ' +
+    'Sessions will NOT survive restarts. Set GTAMP_SECRET to a long random string in production.');
+}
 app.use(session({
-  secret: process.env.GTAMP_SECRET || 'gtamp-dev-secret-change-me',
+  secret: GTAMP_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false, saveUninitialized: false,
   cookie: { maxAge: 1000 * 60 * 60 * 24 * 30 }
 }));
@@ -370,16 +392,16 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 app.post('/api/auth/avatar', (req, res) => {
-  const { username, avatar } = req.body || {};
+  // SECURITY (audit S9): the old code also allowed setting ANY user's avatar
+  // by passing their username without being logged in. Session only now.
+  if (!req.session.uid) return res.status(401).json({ error: 'Not logged in' });
   const list = users();
-  let user = null;
-  if (req.session.uid) {
-    user = list.find(u => String(u.id) === String(req.session.uid));
+  const user = list.find(u => String(u.id) === String(req.session.uid));
+  if (!user) return res.status(401).json({ error: 'User not found' });
+  const avatar = req.body && req.body.avatar;
+  if (typeof avatar !== 'string' || avatar.length > 200000) {
+    return res.status(400).json({ error: 'Invalid avatar' });
   }
-  if (!user && username) {
-    user = list.find(u => u.username.toLowerCase() === username.toLowerCase());
-  }
-  if (!user) return res.status(401).json({ error: 'User not found or not logged in' });
   user.avatar = avatar;
   store.save('users', list);
   res.json({ ok: true, user: publicUser(user) });
@@ -408,39 +430,30 @@ app.post('/admin/users/:id/promote', requireStaff, (req, res) => {
   res.redirect('/admin/badges');
 });
 
-// Delete Server Endpoint (Only Owners and Admins)
-app.post(['/api/servers/:id/delete', '/servers/:id/delete'], (req, res) => {
-  let authorized = false;
-  if (req.session.uid) {
-    if (isUserAdmin(req.session.uid)) authorized = true;
-  } else if (req.headers['x-admin-key'] === 'CravenzOwnerKey' || req.body.adminKey === 'CravenzOwnerKey' || req.body.username === 'Cravenz') {
-    authorized = true;
-  }
-  if (!authorized) return res.status(403).json({ error: 'Only owners and admins can delete servers' });
-
+// Delete Server Endpoint (Only Owners and Admins).
+// SECURITY (audit S2): the old code accepted a hardcoded key committed to a
+// public repo, a bare username field, and ANY Authorization header value as
+// authorization. Deletion now requires an authenticated admin/owner session
+// or the machine ADMIN_KEY (X-Admin-Key) — nothing else.
+function authorizeServerDeletion(req) {
+  if (req.session && req.session.uid && isUserAdmin(req.session.uid)) return true;
+  if (ADMIN_KEY && req.headers['x-admin-key'] === ADMIN_KEY) return true;
+  return false;
+}
+function deleteServerById(res, id) {
   const list = servers();
-  const id = req.params.id;
   const filtered = list.filter(s => String(s.id) !== String(id) && s.addr !== id);
   saveServers(filtered);
-
   res.json({ ok: true, deleted: id });
+}
+app.post(['/api/servers/:id/delete', '/servers/:id/delete'], (req, res) => {
+  if (!authorizeServerDeletion(req)) return res.status(403).json({ error: 'Only owners and admins can delete servers' });
+  deleteServerById(res, req.params.id);
 });
 
 app.delete(['/api/servers/:id', '/servers/:id'], (req, res) => {
-  let authorized = false;
-  if (req.session.uid) {
-    if (isUserAdmin(req.session.uid)) authorized = true;
-  } else if (req.headers['x-admin-key'] === 'CravenzOwnerKey' || req.headers['authorization']) {
-    authorized = true;
-  }
-  if (!authorized) return res.status(403).json({ error: 'Only owners and admins can delete servers' });
-
-  const list = servers();
-  const id = req.params.id;
-  const filtered = list.filter(s => String(s.id) !== String(id) && s.addr !== id);
-  saveServers(filtered);
-
-  res.json({ ok: true, deleted: id });
+  if (!authorizeServerDeletion(req)) return res.status(403).json({ error: 'Only owners and admins can delete servers' });
+  deleteServerById(res, req.params.id);
 });
 
 app.get('/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
@@ -575,8 +588,15 @@ app.get('/artifacts/:file', (req, res) => {
 app.get('/admin/badges', requireStaff, (req, res) => {
   res.render('admin_badges', { user: publicUser(userById(req.session.uid)), settings: settings(), badges: badgeDefs(), users: users().map(publicUser) });
 });
+// SECURITY (audit S4): b_owner / b_founder badges confer OWNER authority
+// (isUserOwner checks them). Staff must not be able to grant them to
+// themselves or anyone else — that was a full-takeover escalation path.
+const OWNER_TIER_BADGES = ['b_owner', 'b_founder'];
 app.post('/admin/badges/grant', requireStaff, (req, res) => {
   const { uid, bid } = req.body;
+  if (OWNER_TIER_BADGES.includes(bid) && !isUserOwner(req.session.uid)) {
+    return res.status(403).send('Only the owner can grant owner-tier badges');
+  }
   const ub = store.load('user_badges', []);
   if (!ub.find(b => String(b.uid) === String(uid) && b.bid === bid)) ub.push({ uid, bid });
   store.save('user_badges', ub);
@@ -584,6 +604,9 @@ app.post('/admin/badges/grant', requireStaff, (req, res) => {
 });
 app.post('/admin/badges/remove', requireStaff, (req, res) => {
   const { uid, bid } = req.body;
+  if (OWNER_TIER_BADGES.includes(bid) && !isUserOwner(req.session.uid)) {
+    return res.status(403).send('Only the owner can remove owner-tier badges');
+  }
   store.save('user_badges', store.load('user_badges', []).filter(b => !(String(b.uid) === String(uid) && b.bid === bid)));
   res.redirect('/admin/badges');
 });
