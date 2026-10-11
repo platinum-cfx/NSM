@@ -1,10 +1,9 @@
 // browser_server.h — GTAMP launcher server browser
 //
-// Hosts the launcher UI (client-new/launcher/index.html) on http://127.0.0.1:9987,
-// opens it in the default browser, and blocks until the player picks a server.
+// Hosts the launcher UI on http://127.0.0.1:9987,
+// opens it in a dedicated FiveM-style app window, and maintains the launcher session.
 //
 //   std::string addr = RunServerBrowser(baseDir, masterlistUrl);
-//   // addr == "ip:port" or "" if the player closed the launcher
 //
 // Local API consumed by the UI:
 //   GET  /                       -> launcher/index.html
@@ -12,8 +11,10 @@
 //   GET  /api/config             -> { masterlistUrl, version }
 //   GET  /api/ping?host=&port=   -> { ms }  (TCP connect time, -1 = unreachable)
 //   POST /api/connect            -> { host, port } -> launcher proceeds
+//   POST /api/disconnect         -> disconnects from game and returns to launcher
+//   GET  /api/gamestate          -> { state, server, serverName, clientId }
 //   POST /api/quit               -> launcher exits
-//   GET  /api/heartbeat          -> UI polls this; if the tab closes we time out and exit
+//   GET  /api/heartbeat          -> UI polls this
 #pragma once
 
 #include <string>
@@ -24,6 +25,7 @@
 #include <fstream>
 #include <sstream>
 #include <atomic>
+#include <vector>
 
 #ifdef _WIN32
   #ifndef WIN32_LEAN_AND_MEAN
@@ -33,6 +35,7 @@
   #include <ws2tcpip.h>
   #include <windows.h>
   #include <shellapi.h>
+  #include <tlhelp32.h>
   typedef SOCKET bs_socket_t;
   #define BS_INVALID INVALID_SOCKET
   #define bs_close closesocket
@@ -50,6 +53,7 @@
 #endif
 
 #include "../httplib.h"
+#include "launcher_html_data.h"
 
 #ifndef GTAMP_LAUNCHER_PORT
 #define GTAMP_LAUNCHER_PORT 9987
@@ -82,7 +86,7 @@ inline std::string JsonStr(const std::string& s) {
     return o + "\"";
 }
 
-// Crude field extractor for the tiny JSON bodies the UI sends: {"host":"1.2.3.4","port":7788}
+// Extract small JSON string/number fields: {"host":"1.2.3.4","port":7788}
 inline std::string JsonField(const std::string& body, const std::string& key) {
     std::string k = "\"" + key + "\"";
     size_t p = body.find(k);
@@ -140,6 +144,21 @@ inline int TcpPingMs(const std::string& host, int port, int timeoutMs = 2000) {
     }
     freeaddrinfo(res);
     return result;
+}
+
+// Non-destructive socket test to check if a TCP port is free to bind
+inline bool IsPortAvailable(int port) {
+    bs_socket_t s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s == BS_INVALID) return false;
+    int opt = 1;
+    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+    sockaddr_in sa = {};
+    sa.sin_family = AF_INET;
+    sa.sin_addr.s_addr = inet_addr("127.0.0.1");
+    sa.sin_port = htons(port);
+    int r = bind(s, (sockaddr*)&sa, sizeof(sa));
+    bs_close(s);
+    return (r == 0);
 }
 
 #ifdef _WIN32
@@ -205,10 +224,14 @@ inline bool OpenInAppWindow(const std::string& url, HANDLE* outProcess = nullptr
         GetTempPathA(MAX_PATH, tempPath);
         std::string profileDir = std::string(tempPath) + "gtamp_launcher_ui";
 
-        // --app=URL creates a dedicated standalone application window
-        // --window-size sets FiveM launcher dimensions
-        // --user-data-dir keeps it completely isolated from any open browser tabs
-        std::string cmd = "\"" + exe + "\" --app=\"" + url + "\" --window-size=1280,820 --user-data-dir=\"" + profileDir + "\"";
+        // Clean stale profile lock files from any earlier crashed or terminated sessions
+        DeleteFileA((profileDir + "\\SingletonLock").c_str());
+        DeleteFileA((profileDir + "\\SingletonCookie").c_str());
+        DeleteFileA((profileDir + "\\SingletonSocket").c_str());
+
+        // Launch in standalone application window mode with isolated profile
+        // --no-proxy-server prevents Chrome/Edge from trying to connect via proxies or VPN loopbacks
+        std::string cmd = "\"" + exe + "\" --app=\"" + url + "\" --window-size=1280,820 --no-first-run --no-default-browser-check --no-proxy-server --user-data-dir=\"" + profileDir + "\"";
 
         STARTUPINFOA si = { sizeof(si) };
         PROCESS_INFORMATION pi;
@@ -278,7 +301,7 @@ inline void KillProcessByName(const std::string& processName) {
     PROCESSENTRY32 entry;
     entry.dwSize = sizeof(PROCESSENTRY32);
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (Process32First(snapshot, &entry)) {
+    if (snapshot != INVALID_HANDLE_VALUE && Process32First(snapshot, &entry)) {
         do {
             if (_stricmp(entry.szExeFile, processName.c_str()) == 0) {
                 HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
@@ -288,8 +311,8 @@ inline void KillProcessByName(const std::string& processName) {
                 }
             }
         } while (Process32Next(snapshot, &entry));
+        CloseHandle(snapshot);
     }
-    CloseHandle(snapshot);
 #endif
 }
 
@@ -311,20 +334,31 @@ inline std::string GetEmbeddedLauncherHtml() {
 }
 
 inline std::string GetLauncherHtml(const std::string& uiDir, const std::string& baseDir) {
-    std::string html = ReadTextFile(uiDir + "\\index.html");
+    // 1. Try local disk path if present (useful for direct edits)
+    if (!uiDir.empty()) {
+        std::string html = ReadTextFile(uiDir + "\\index.html");
+        if (!html.empty()) return html;
+    }
+
+    if (!baseDir.empty()) {
+        std::string html = ReadTextFile(baseDir + "\\launcher\\index.html");
+        if (!html.empty()) return html;
+
+        html = ReadTextFile(baseDir + "\\client-new\\launcher\\index.html");
+        if (!html.empty()) return html;
+
+        html = ReadTextFile(baseDir + "\\index.html");
+        if (!html.empty()) return html;
+    }
+
+    // 2. Try Win32 PE RCDATA resource 201
+    std::string html = GetEmbeddedLauncherHtml();
     if (!html.empty()) return html;
 
-    html = ReadTextFile(baseDir + "\\launcher\\index.html");
-    if (!html.empty()) return html;
-
-    html = ReadTextFile(baseDir + "\\client-new\\launcher\\index.html");
-    if (!html.empty()) return html;
-
-    html = ReadTextFile(baseDir + "\\index.html");
-    if (!html.empty()) return html;
-
-    html = GetEmbeddedLauncherHtml();
-    if (!html.empty()) return html;
+    // 3. Guaranteed embedded compiled C++ data (zero disk or Win32 API dependency)
+    if (GetEmbeddedHtmlSize() > 0) {
+        return std::string(GetEmbeddedHtmlData(), GetEmbeddedHtmlSize());
+    }
 
     return "<!doctype html><meta charset=utf-8><body style='background:#111;color:#eee;padding:40px'><h2>GTAMP Launcher</h2></body>";
 }
@@ -360,7 +394,7 @@ inline void NotifyPlayerLeave(const std::string& masterlistUrl, const std::strin
         size_t mcol = mlHostPort.find(':');
         if (mcol != std::string::npos) {
             mlHost = mlHostPort.substr(0, mcol);
-            try { mlPort = std::stoi(mlHostPort.substr(mcol + 1)); } catch (...) {}
+            try { mlPort = std::stoi(mlHostPort.substr(col + 1)); } catch (...) {}
         } else if (!mlHostPort.empty()) {
             mlHost = mlHostPort;
         }
@@ -372,13 +406,24 @@ inline void NotifyPlayerLeave(const std::string& masterlistUrl, const std::strin
     } catch (...) {}
 }
 
-inline bool StartLauncherServer(const std::string& baseDir, const std::string& masterlistUrl, bool openBrowser = true, int idleTimeoutSec = 30) {
+inline bool StartLauncherServer(const std::string& baseDir, const std::string& masterlistUrl, bool openBrowser = true, int idleTimeoutSec = 0) {
+    // Find an available port starting at GTAMP_LAUNCHER_PORT (9987)
+    int boundPort = -1;
+    for (int p = GTAMP_LAUNCHER_PORT; p < GTAMP_LAUNCHER_PORT + 20; p++) {
+        if (IsPortAvailable(p)) {
+            boundPort = p;
+            break;
+        }
+    }
+    if (boundPort == -1) boundPort = GTAMP_LAUNCHER_PORT;
+
     g_pLauncherSvr = std::make_unique<httplib::Server>();
     auto& svr = *g_pLauncherSvr;
 
-    static std::atomic<long long> lastHeartbeat{ 0 };
-    auto nowSec = []() { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); };
-    lastHeartbeat = nowSec();
+    svr.set_socket_options([](socket_t sock) {
+        int opt = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+    });
 
 #ifdef _WIN32
     const std::string sep = "\\";
@@ -386,6 +431,23 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
     const std::string sep = "/";
 #endif
     const std::string uiDir = baseDir + sep + "launcher";
+
+    // Global exception & error safety handlers so 500 internal server error is NEVER served
+    svr.set_exception_handler([uiDir, baseDir](const auto&, auto& res, std::exception_ptr) {
+        res.status = 200;
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Cache-Control", "no-store");
+        res.set_content(GetLauncherHtml(uiDir, baseDir), "text/html; charset=utf-8");
+    });
+
+    svr.set_error_handler([uiDir, baseDir](const auto&, auto& res) {
+        if (res.status == 404 || res.status >= 500) {
+            res.status = 200;
+            res.set_header("Access-Control-Allow-Origin", "*");
+            res.set_header("Cache-Control", "no-store");
+            res.set_content(GetLauncherHtml(uiDir, baseDir), "text/html; charset=utf-8");
+        }
+    });
 
     auto cors = [](httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
@@ -431,7 +493,6 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
     });
 
     svr.Get("/api/heartbeat", [&](const httplib::Request&, httplib::Response& res) {
-        lastHeartbeat = nowSec();
         cors(res); res.set_content("{\"ok\":true}", "application/json");
     });
 
@@ -508,68 +569,66 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
 
     svr.Get("/api/localserver", [&](const httplib::Request&, httplib::Response& res) {
         cors(res);
-        int pingMs = TcpPingMs("127.0.0.1", 7799, 200);
-        if (pingMs >= 0) {
-            httplib::Client proxyCli("127.0.0.1", 7799);
-            proxyCli.set_connection_timeout(0, 300000);
-            proxyCli.set_read_timeout(0, 300000);
-            if (auto r = proxyCli.Get("/discord.json")) {
-                if (r->status == 200 && !r->body.empty()) {
-                    res.set_content("{\"running\":true,\"host\":\"127.0.0.1\",\"port\":7788,\"info\":" + r->body + "}", "application/json");
-                    return;
-                }
+        try {
+            httplib::Client localCli("127.0.0.1", 7799);
+            localCli.set_connection_timeout(0, 500000);
+            localCli.set_read_timeout(0, 500000);
+            if (auto r = localCli.Get("/discord.json")) {
+                res.status = r->status;
+                res.set_content(r->body, "application/json");
+                return;
             }
-            res.set_content("{\"running\":true,\"host\":\"127.0.0.1\",\"port\":7788,\"name\":\"Local Server\",\"players\":0,\"maxPlayers\":1052}", "application/json");
-            return;
-        }
-        int pingGame = TcpPingMs("127.0.0.1", 7788, 200);
-        if (pingGame >= 0) {
-            res.set_content("{\"running\":true,\"host\":\"127.0.0.1\",\"port\":7788,\"name\":\"Local Server\",\"players\":0,\"maxPlayers\":1052}", "application/json");
-            return;
-        }
-        res.set_content("{\"running\":false}", "application/json");
+        } catch (...) {}
+        res.status = 502;
+        res.set_content("{\"error\":\"Local server not running\"}", "application/json");
     });
 
     svr.Post("/api/auth/login", [&](const httplib::Request& req, httplib::Response& res) {
         cors(res);
-        httplib::Client webCli("127.0.0.1", 3000);
-        webCli.set_connection_timeout(1, 0);
-        webCli.set_read_timeout(2, 0);
-        if (auto r = webCli.Post("/api/auth/login", req.body, "application/json")) {
-            res.status = r->status;
-            res.set_content(r->body, "application/json");
-        } else {
-            res.status = 502;
-            res.set_content("{\"error\":\"Website backend not reachable\"}", "application/json");
-        }
+        try {
+            httplib::Client webCli("127.0.0.1", 3000);
+            webCli.set_connection_timeout(1, 0);
+            webCli.set_read_timeout(2, 0);
+            if (auto r = webCli.Post("/api/auth/login", req.body, "application/json")) {
+                res.status = r->status;
+                res.set_content(r->body, "application/json");
+                return;
+            }
+        } catch (...) {}
+        res.status = 502;
+        res.set_content("{\"error\":\"Website backend not reachable\"}", "application/json");
     });
 
     svr.Post("/api/auth/register", [&](const httplib::Request& req, httplib::Response& res) {
         cors(res);
-        httplib::Client webCli("127.0.0.1", 3000);
-        webCli.set_connection_timeout(1, 0);
-        webCli.set_read_timeout(2, 0);
-        if (auto r = webCli.Post("/api/auth/register", req.body, "application/json")) {
-            res.status = r->status;
-            res.set_content(r->body, "application/json");
-        } else {
-            res.status = 502;
-            res.set_content("{\"error\":\"Website backend not reachable\"}", "application/json");
-        }
+        try {
+            httplib::Client webCli("127.0.0.1", 3000);
+            webCli.set_connection_timeout(1, 0);
+            webCli.set_read_timeout(2, 0);
+            if (auto r = webCli.Post("/api/auth/register", req.body, "application/json")) {
+                res.status = r->status;
+                res.set_content(r->body, "application/json");
+                return;
+            }
+        } catch (...) {}
+        res.status = 502;
+        res.set_content("{\"error\":\"Website backend not reachable\"}", "application/json");
     });
 
     svr.Post("/api/auth/avatar", [&](const httplib::Request& req, httplib::Response& res) {
         cors(res);
-        httplib::Client webCli("127.0.0.1", 3000);
-        webCli.set_connection_timeout(1, 0);
-        webCli.set_read_timeout(2, 0);
-        if (auto r = webCli.Post("/api/auth/avatar", req.body, "application/json")) {
-            res.status = r->status;
-            res.set_content(r->body, "application/json");
-        } else {
-            res.status = 502;
-            res.set_content("{\"error\":\"Website backend not reachable\"}", "application/json");
-        }
+        try {
+            httplib::Client webCli("127.0.0.1", 3000);
+            webCli.set_connection_timeout(1, 0);
+            webCli.set_read_timeout(2, 0);
+            if (auto r = webCli.Post("/api/auth/avatar", req.body, "application/json")) {
+                res.status = r->status;
+                res.set_content(r->body, "application/json");
+                return;
+            }
+        } catch (...) {}
+        res.status = 502;
+        res.set_content("{\"error\":\"Website backend not reachable\"}", "application/json");
     });
 
     svr.Get("/api/launcher/ping", [&](const httplib::Request& req, httplib::Response& res) {
@@ -609,28 +668,20 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
         res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     });
 
-    int boundPort = GTAMP_LAUNCHER_PORT;
-    bool bound = false;
-    for (int p = GTAMP_LAUNCHER_PORT; p < GTAMP_LAUNCHER_PORT + 20; p++) {
-        if (svr.bind_to_port("127.0.0.1", p)) {
-            boundPort = p;
-            bound = true;
-            break;
+    // Bind to the identified port
+    if (!svr.bind_to_port("127.0.0.1", boundPort)) {
+        // Fallback: search next ports
+        for (int p = boundPort + 1; p < GTAMP_LAUNCHER_PORT + 30; p++) {
+            if (svr.bind_to_port("127.0.0.1", p)) {
+                boundPort = p;
+                break;
+            }
         }
     }
 
-    if (!bound) {
-#ifdef _WIN32
-        if (openBrowser) OpenInAppWindow("http://127.0.0.1:" + std::to_string(GTAMP_LAUNCHER_PORT) + "/", &g_hUiProcess);
-#else
-        if (openBrowser) OpenInBrowser("http://127.0.0.1:" + std::to_string(GTAMP_LAUNCHER_PORT) + "/");
-#endif
-        return false;
-    }
-
     g_launcherSvrThread = std::thread([&]() { svr.listen_after_bind(); });
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
-    lastHeartbeat = nowSec();
+    svr.wait_until_ready();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
 #ifdef _WIN32
     if (openBrowser) OpenInAppWindow("http://127.0.0.1:" + std::to_string(boundPort) + "/", &g_hUiProcess);
@@ -638,25 +689,29 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
     if (openBrowser) OpenInBrowser("http://127.0.0.1:" + std::to_string(boundPort) + "/");
 #endif
 
-    // Idle monitor thread: if UI tab closed for > idleTimeoutSec and gameState == "idle", exit
-    std::thread([idleTimeoutSec, nowSec]() {
+    // UI Window process monitor: quit only if player closes the launcher window while not in game
+    std::thread([]() {
         while (!g_launcherState.shouldQuit) {
-            std::this_thread::sleep_for(std::chrono::seconds(2));
+            std::this_thread::sleep_for(std::chrono::seconds(1));
             if (g_launcherState.shouldQuit) break;
-            
-            bool isIdle = false;
-            {
-                std::lock_guard<std::mutex> lk(g_launcherState.m);
-                isIdle = (g_launcherState.gameState == "idle");
-            }
-            if (isIdle && idleTimeoutSec > 0 && (nowSec() - lastHeartbeat.load()) > idleTimeoutSec) {
-                {
-                    std::lock_guard<std::mutex> lk(g_launcherState.m);
-                    g_launcherState.shouldQuit = true;
+#ifdef _WIN32
+            if (g_hUiProcess != NULL) {
+                DWORD exitCode = 0;
+                if (GetExitCodeProcess(g_hUiProcess, &exitCode) && exitCode != STILL_ACTIVE) {
+                    bool isInGame = false;
+                    {
+                        std::lock_guard<std::mutex> lk(g_launcherState.m);
+                        isInGame = (g_launcherState.gameState == "in_game" || g_launcherState.gameState == "connecting");
+                    }
+                    if (!isInGame) {
+                        std::lock_guard<std::mutex> lk(g_launcherState.m);
+                        g_launcherState.shouldQuit = true;
+                        g_launcherState.cv.notify_all();
+                        break;
+                    }
                 }
-                g_launcherState.cv.notify_all();
-                break;
             }
+#endif
         }
     }).detach();
 
@@ -696,7 +751,7 @@ inline void StopLauncherServer() {
 }
 
 inline std::string RunServerBrowser(const std::string& baseDir, const std::string& masterlistUrl,
-                                    bool openBrowser = true, int idleTimeoutSec = 30) {
+                                    bool openBrowser = true, int idleTimeoutSec = 0) {
     if (!StartLauncherServer(baseDir, masterlistUrl, openBrowser, idleTimeoutSec)) {
         return "";
     }
