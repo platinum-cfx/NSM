@@ -4,6 +4,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <shellapi.h>
+#include <commdlg.h>
 #include <string>
 #include <vector>
 #include <tlhelp32.h>
@@ -16,6 +17,7 @@
 #include <iomanip>
 #include "httplib.h"
 #include "manifest.h"
+#include "browser/browser_server.h"
 
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "ws2_32.lib")
@@ -479,13 +481,88 @@ static string ReadConfigValue(const string& baseDir, const string& key, const st
     return def;
 }
 
-inline string DetectGtaPath() {
+inline void SetConfigGtaPath(const string& cfgPath, const string& gtaDir) {
+    ifstream in(cfgPath);
+    vector<string> lines;
+    string line;
+    bool found = false;
+    if (in.is_open()) {
+        while (getline(in, line)) {
+            size_t eq = line.find('=');
+            if (eq != string::npos) {
+                string k = line.substr(0, eq);
+                auto trim = [](string& x) {
+                    size_t a = x.find_first_not_of(" \t\r\n"), b = x.find_last_not_of(" \t\r\n");
+                    x = (a == string::npos) ? "" : x.substr(a, b - a + 1);
+                };
+                trim(k);
+                if (k == "gta_path") {
+                    lines.push_back("gta_path = '" + gtaDir + "'");
+                    found = true;
+                    continue;
+                }
+            }
+            lines.push_back(line);
+        }
+        in.close();
+    }
+    if (!found) {
+        lines.insert(lines.begin(), "gta_path = '" + gtaDir + "'");
+    }
+
+    ofstream out(cfgPath, ios::trunc);
+    if (out.is_open()) {
+        for (const auto& l : lines) {
+            out << l << "\n";
+        }
+        out.close();
+    }
+}
+
+inline string BrowseForGtaExe() {
+    char szFile[MAX_PATH] = {0};
+    OPENFILENAMEA ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = NULL;
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrFilter = "GTA5.exe (Grand Theft Auto V)\0GTA5.exe\0All Executables (*.exe)\0*.exe\0All Files (*.*)\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrTitle = "Locate GTA5.exe - Grand Theft Auto V";
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+    MessageBoxW(
+        NULL,
+        L"Please select your GTA5.exe so NSM can launch Grand Theft Auto V.",
+        L"NSM Launcher - Locate GTA V",
+        MB_ICONINFORMATION | MB_OK | MB_TOPMOST | MB_SETFOREGROUND
+    );
+
+    if (GetOpenFileNameA(&ofn)) {
+        string s(szFile);
+        size_t p = s.find_last_of("\\/");
+        if (p != string::npos) return s.substr(0, p);
+    }
+    return "";
+}
+
+inline string DetectGtaPath(const string& baseDir) {
     auto checkDir = [](const string& dir) -> bool {
         if (dir.empty()) return false;
         string exe = dir + "\\GTA5.exe";
         DWORD attr = GetFileAttributesA(exe.c_str());
         return (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY));
     };
+
+    // 0. Check baseDir and parent directories (if NSM is inside GTA or GTAMP folder)
+    if (checkDir(baseDir)) return baseDir;
+    string cur = baseDir;
+    for (int i = 0; i < 4; ++i) {
+        size_t p = cur.find_last_of("\\/");
+        if (p == string::npos) break;
+        cur = cur.substr(0, p);
+        if (checkDir(cur)) return cur;
+    }
 
     auto queryReg = [](HKEY root, const char* subkey, const char* valName) -> string {
         HKEY hKey = NULL;
@@ -515,6 +592,39 @@ inline string DetectGtaPath() {
     if (!steamPath.empty()) {
         string steamGta = steamPath + "\\steamapps\\common\\Grand Theft Auto V";
         if (checkDir(steamGta)) return steamGta;
+
+        // Check Steam libraryfolders.vdf
+        auto checkSteamVdf = [&](const string& vdfPath) -> string {
+            ifstream f(vdfPath);
+            if (!f.is_open()) return "";
+            string line;
+            while (getline(f, line)) {
+                size_t pos = line.find("\"path\"");
+                if (pos != string::npos) {
+                    size_t q1 = line.find('"', pos + 6);
+                    if (q1 != string::npos) {
+                        size_t q2 = line.find('"', q1 + 1);
+                        if (q2 != string::npos) {
+                            string rawP = line.substr(q1 + 1, q2 - q1 - 1);
+                            string cleanP = "";
+                            for (size_t ci = 0; ci < rawP.size(); ++ci) {
+                                if (rawP[ci] == '\\' && ci + 1 < rawP.size() && rawP[ci+1] == '\\') {
+                                    cleanP += '\\'; ci++;
+                                } else cleanP += rawP[ci];
+                            }
+                            string candidate = cleanP + "\\steamapps\\common\\Grand Theft Auto V";
+                            if (checkDir(candidate)) return candidate;
+                        }
+                    }
+                }
+            }
+            return "";
+        };
+
+        string found = checkSteamVdf(steamPath + "\\steamapps\\libraryfolders.vdf");
+        if (!found.empty()) return found;
+        found = checkSteamVdf(steamPath + "\\config\\libraryfolders.vdf");
+        if (!found.empty()) return found;
     }
 
     // 2. Scan all drives for GTA V installations
@@ -546,26 +656,37 @@ inline string DetectGtaPath() {
     return "";
 }
 
-inline void EnsureGtaPathConfigured(const string& baseDir) {
-    string currentGta = ReadConfigValue(baseDir, "gta_path", "");
-    bool valid = false;
-    if (!currentGta.empty()) {
-        string exe = currentGta + "\\GTA5.exe";
+inline bool EnsureGtaPathConfigured(const string& baseDir) {
+    auto checkDir = [](const string& dir) -> bool {
+        if (dir.empty()) return false;
+        string exe = dir + "\\GTA5.exe";
         DWORD attr = GetFileAttributesA(exe.c_str());
-        valid = (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY));
+        return (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY));
+    };
+
+    string cfgPath = baseDir + "\\.config";
+    string currentGta = ReadConfigValue(baseDir, "gta_path", "");
+
+    if (checkDir(currentGta)) {
+        return true;
     }
 
-    if (!valid) {
-        string detected = DetectGtaPath();
-        if (!detected.empty()) {
-            string cfgPath = baseDir + "\\.config";
-            ofstream cfgOut(cfgPath, ios::app);
-            if (cfgOut.is_open()) {
-                cfgOut << "\ngta_path = '" << detected << "'\n";
-                cfgOut.close();
-            }
-        }
+    string detected = DetectGtaPath(baseDir);
+    if (!detected.empty()) {
+        SetConfigGtaPath(cfgPath, detected);
+        WriteLog("Detected and saved GTA path: " + detected);
+        return true;
     }
+
+    // Prompt user to browse for GTA5.exe
+    string userChosen = BrowseForGtaExe();
+    if (!userChosen.empty() && checkDir(userChosen)) {
+        SetConfigGtaPath(cfgPath, userChosen);
+        WriteLog("User selected GTA path: " + userChosen);
+        return true;
+    }
+
+    return false;
 }
 
 // Ensures game files are extracted into local target directory when launching GTA
@@ -640,47 +761,6 @@ bool EnsureGameFilesReady(const string& baseDir, const string& targetDir) {
     return true;
 }
 
-inline void NotifyPlayerLeave(const string& masterlistUrl, const string& serverAddr, const string& clientId) {
-    try {
-        httplib::Client proxyCli("127.0.0.1", 7799);
-        proxyCli.set_connection_timeout(0, 500000);
-        proxyCli.set_read_timeout(0, 500000);
-        proxyCli.Get(("/playerLeave?clientId=" + clientId).c_str());
-    } catch (...) {}
-
-    try {
-        string sHost = "127.0.0.1";
-        int sPort = 7788;
-        size_t col = serverAddr.find(':');
-        if (col != string::npos) {
-            sHost = serverAddr.substr(0, col);
-            try { sPort = stoi(serverAddr.substr(col + 1)); } catch (...) {}
-        } else if (!serverAddr.empty()) {
-            sHost = serverAddr;
-        }
-
-        string mlHost = "127.0.0.1";
-        int mlPort = 8080;
-        string u = masterlistUrl;
-        if (u.rfind("http://", 0) == 0) u = u.substr(7);
-        else if (u.rfind("https://", 0) == 0) u = u.substr(8);
-        size_t slash = u.find('/');
-        string mlHostPort = (slash != string::npos) ? u.substr(0, slash) : u;
-        size_t mcol = mlHostPort.find(':');
-        if (mcol != string::npos) {
-            mlHost = mlHostPort.substr(0, mcol);
-            try { mlPort = stoi(mlHostPort.substr(mcol + 1)); } catch (...) {}
-        } else if (!mlHostPort.empty()) {
-            mlHost = mlHostPort;
-        }
-
-        httplib::Client mlCli(mlHost.c_str(), mlPort);
-        mlCli.set_connection_timeout(1, 0);
-        mlCli.set_read_timeout(1, 0);
-        mlCli.Get(("/api/player/leave?host=" + sHost + "&port=" + to_string(sPort) + "&clientId=" + clientId).c_str());
-    } catch (...) {}
-}
-
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -742,13 +822,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     EnsureGtaPathConfigured(baseDir);
     string masterlistUrl = ReadConfigValue(baseDir, "masterlist_url", "http://127.0.0.1:8080");
 
-    // If no explicit connection argument was passed, connect to local/configured server directly
-    if (!hasConnect) {
-        string defaultServer = ReadConfigValue(baseDir, "default_server", "127.0.0.1:7788");
-        connectArgs = "-connecturl altv://connect/" + defaultServer;
-        size_t colon = defaultServer.find(':');
-        serverIp = (colon != string::npos) ? defaultServer.substr(0, colon) : defaultServer;
-        hasConnect = true;
+    // Start embedded launcher server and open dedicated FiveM-styled launcher window
+    if (!gtamp::StartLauncherServer(baseDir, masterlistUrl, !hasConnect)) {
+        return 0;
     }
 
     // Initialize Discord RPC DLL if present
@@ -758,7 +834,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     InitDiscordFunc initDiscord = hDiscord ? (InitDiscordFunc)GetProcAddress(hDiscord, "InitDiscordRPC") : nullptr;
     if (initDiscord) {
         initDiscord();
-        StartDiscordPolling(serverIp);
     }
     
     // Determine Local app directory
@@ -769,129 +844,196 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     
     CreateDirectoryA((targetDir + "\\logs").c_str(), NULL);
     g_logFilePath = targetDir + "\\logs\\connect.log";
-    WriteLog("Starting connect.exe / NSM.exe -> connecting to: " + serverIp);
+    WriteLog("Starting connect.exe / NSM.exe");
 
-    // Ensure game engine packs are verified and ready
-    if (!EnsureGameFilesReady(baseDir, targetDir)) {
-        MessageBoxW(
-            NULL,
-            L"GTAMP game packs (packs/mp1.pack) not found.\nPlease make sure NSM.exe is located inside your GTAMP folder.",
-            L"NSM Launcher",
-            MB_ICONERROR | MB_OK
-        );
-        return 1;
-    }
+    // ========================================================
+    // Main FiveM Session Loop:
+    // Keeps NSM.exe running across connects, in-game sessions,
+    // and returns cleanly to the server browser on disconnect!
+    // ========================================================
+    while (!gtamp::g_launcherState.shouldQuit) {
+        string pickedServer = "";
+        string pickedName = "";
 
-    MarkForDeleteOnReboot(targetDir);
-
-    string skinBinPath = targetDir + "\\cache\\skin.bin";
-    ifstream skinIn(skinBinPath, ios::binary);
-    if (skinIn.good()) {
-        string skinContent((istreambuf_iterator<char>(skinIn)), istreambuf_iterator<char>());
-        skinIn.close();
-        
-        size_t urlStart = skinContent.find("\"customUiUrl\": [");
-        if (urlStart != string::npos) {
-            size_t urlEnd = skinContent.find("]", urlStart);
-            if (urlEnd != string::npos) {
-                string hashCustomUiStr = ComputeSHA256(customUiStr);
-                string replaceStr = "\"customUiUrl\": [\"" + hashCustomUiStr + "\"]";
-                skinContent.replace(urlStart, urlEnd - urlStart + 1, replaceStr);
-                ofstream skinOut(skinBinPath, ios::binary);
-                skinOut.write(skinContent.c_str(), skinContent.size());
-                skinOut.close();
-            }
-        }
-    }
-
-    // Load proxy.dll and start proxy
-    string proxyPath = targetDir + "\\proxy\\proxy.dll";
-    HMODULE hProxy = LoadLibraryA(proxyPath.c_str());
-    if (hProxy) {
-        typedef void (*StartProxyFunc)();
-        StartProxyFunc startProxy = (StartProxyFunc)GetProcAddress(hProxy, "StartProxyAsync");
-        if (startProxy) startProxy();
-    } else {
-        WriteLog("Warning: Could not load proxy.dll");
-    }
-
-    Sleep(100);
-
-    // Load config.dll and generate altv.toml
-    string configPath = targetDir + "\\config.dll";
-    HMODULE hConfig = LoadLibraryA(configPath.c_str());
-    if (hConfig) {
-        typedef bool (*GenerateConfigFunc)(const char*, const char*, const char*);
-        GenerateConfigFunc generateConfig = (GenerateConfigFunc)GetProcAddress(hConfig, "GenerateConfig");
-        if (generateConfig) {
-            bool success = generateConfig(baseDir.c_str(), targetDir.c_str(), customCache.c_str());
-            if (!success) {
-                ShowCustomError();
-                FreeLibrary(hConfig);
-                if (hProxy) FreeLibrary(hProxy);
-                return 1;
-            }
-        }
-        FreeLibrary(hConfig);
-    }
-
-    // Start altv.exe
-    string altvExe = targetDir + "\\altv.exe";
-    string cmdLine = "\"" + altvExe + "\" " + connectArgs + " -directlaunch -customui " + customUiStr;
-    STARTUPINFOA si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
-    SetEnvironmentVariableA("SteamAppId", "271590");
-
-    WriteLog("Launching: " + cmdLine);
-
-    if (CreateProcessA(NULL, (LPSTR)cmdLine.c_str(), NULL, NULL, FALSE, 0, NULL, targetDir.c_str(), &si, &pi)) {
-        CloseHandle(pi.hThread);
-
-        bool gtaStarted = false;
-        while (true) {
-            bool altvRunning = IsProcessRunning("altv.exe");
-            bool gtaRunning = IsProcessRunning("GTA5.exe");
-
-            if (gtaRunning) {
-                gtaStarted = true;
+        if (!hasConnect) {
+            // Reset launcher state to idle so server list is visible
+            {
+                std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
+                gtamp::g_launcherState.gameState = "idle";
+                gtamp::g_launcherState.currentServer = "";
+                gtamp::g_launcherState.serverName = "";
+                gtamp::g_launcherState.disconnectRequested = false;
+                gtamp::g_launcherState.hasConnectPending = false;
             }
 
-            if (!gtaStarted && !altvRunning) {
-                // altv.exe might be initializing GTA. Wait to confirm.
-                Sleep(3000);
-                if (!IsProcessRunning("altv.exe") && !IsProcessRunning("GTA5.exe")) {
-                    break;
-                }
-            }
-
-            if (gtaStarted && !gtaRunning) {
-                // GTA5 has exited
+            // Wait for player to choose a server from the launcher UI
+            if (!gtamp::WaitForConnect(pickedServer, pickedName)) {
+                // UI closed or user clicked quit
                 break;
             }
-
-            Sleep(1000);
+        } else {
+            pickedServer = serverIp;
+            pickedName = serverIp;
         }
-        CloseHandle(pi.hProcess);
-    } else {
-        string err = "Failed to launch altv.exe from: " + altvExe;
-        WriteLog(err);
-        MessageBoxA(NULL, err.c_str(), "Error", MB_ICONERROR);
+
+        size_t colon = pickedServer.find(':');
+        serverIp = (colon != string::npos) ? pickedServer.substr(0, colon) : pickedServer;
+        connectArgs = "-connecturl altv://connect/" + pickedServer;
+
+        if (initDiscord) {
+            StartDiscordPolling(serverIp);
+        }
+
+        // Set state to connecting
+        {
+            std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
+            gtamp::g_launcherState.gameState = "connecting";
+            gtamp::g_launcherState.currentServer = pickedServer;
+            gtamp::g_launcherState.serverName = pickedName.empty() ? pickedServer : pickedName;
+            gtamp::g_launcherState.disconnectRequested = false;
+        }
+
+        // Ensure game engine packs are ready
+        if (!EnsureGameFilesReady(baseDir, targetDir)) {
+            MessageBoxW(
+                NULL,
+                L"GTAMP game packs (packs/mp1.pack) not found in launcher directory.\nPlease place NSM.exe inside your GTAMP folder to launch GTA V.",
+                L"NSM Launcher",
+                MB_ICONINFORMATION | MB_OK
+            );
+            // Stay in launcher session, reset to idle
+            {
+                std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
+                gtamp::g_launcherState.gameState = "idle";
+                gtamp::g_launcherState.currentServer = "";
+            }
+            if (hasConnect) break;
+            continue;
+        }
+
+        MarkForDeleteOnReboot(targetDir);
+
+        string skinBinPath = targetDir + "\\cache\\skin.bin";
+        ifstream skinIn(skinBinPath, ios::binary);
+        if (skinIn.good()) {
+            string skinContent((istreambuf_iterator<char>(skinIn)), istreambuf_iterator<char>());
+            skinIn.close();
+            
+            size_t urlStart = skinContent.find("\"customUiUrl\": [");
+            if (urlStart != string::npos) {
+                size_t urlEnd = skinContent.find("]", urlStart);
+                if (urlEnd != string::npos) {
+                    string hashCustomUiStr = ComputeSHA256(customUiStr);
+                    string replaceStr = "\"customUiUrl\": [\"" + hashCustomUiStr + "\"]";
+                    skinContent.replace(urlStart, urlEnd - urlStart + 1, replaceStr);
+                    ofstream skinOut(skinBinPath, ios::binary);
+                    skinOut.write(skinContent.c_str(), skinContent.size());
+                    skinOut.close();
+                }
+            }
+        }
+
+        // Load proxy.dll and start proxy
+        string proxyPath = targetDir + "\\proxy\\proxy.dll";
+        HMODULE hProxy = LoadLibraryA(proxyPath.c_str());
+        if (hProxy) {
+            typedef void (*StartProxyFunc)();
+            StartProxyFunc startProxy = (StartProxyFunc)GetProcAddress(hProxy, "StartProxyAsync");
+            if (startProxy) startProxy();
+        }
+
+        Sleep(100);
+
+        // Load config.dll and generate altv.toml
+        string configPath = targetDir + "\\config.dll";
+        HMODULE hConfig = LoadLibraryA(configPath.c_str());
+        if (hConfig) {
+            typedef bool (*GenerateConfigFunc)(const char*, const char*, const char*);
+            GenerateConfigFunc generateConfig = (GenerateConfigFunc)GetProcAddress(hConfig, "GenerateConfig");
+            if (generateConfig) {
+                bool success = generateConfig(baseDir.c_str(), targetDir.c_str(), customCache.c_str());
+                if (!success) {
+                    string chosen = BrowseForGtaExe();
+                    if (!chosen.empty()) {
+                        SetConfigGtaPath(baseDir + "\\.config", chosen);
+                        success = generateConfig(baseDir.c_str(), targetDir.c_str(), customCache.c_str());
+                    }
+                    if (!success) {
+                        ShowCustomError();
+                        FreeLibrary(hConfig);
+                        if (hProxy) FreeLibrary(hProxy);
+                        break;
+                    }
+                }
+            }
+            FreeLibrary(hConfig);
+        }
+
+        // Start altv.exe
+        string altvExe = targetDir + "\\altv.exe";
+        string cmdLine = "\"" + altvExe + "\" " + connectArgs + " -directlaunch -customui " + customUiStr;
+        STARTUPINFOA si = { sizeof(si) };
+        PROCESS_INFORMATION pi;
+        SetEnvironmentVariableA("SteamAppId", "271590");
+
+        WriteLog("Launching: " + cmdLine);
+
+        if (CreateProcessA(NULL, (LPSTR)cmdLine.c_str(), NULL, NULL, FALSE, 0, NULL, targetDir.c_str(), &si, &pi)) {
+            CloseHandle(pi.hThread);
+
+            bool gtaStarted = false;
+            while (!gtamp::g_launcherState.disconnectRequested && !gtamp::g_launcherState.shouldQuit) {
+                bool altvRunning = IsProcessRunning("altv.exe");
+                bool gtaRunning = IsProcessRunning("GTA5.exe");
+
+                if (gtaRunning && !gtaStarted) {
+                    gtaStarted = true;
+                    std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
+                    gtamp::g_launcherState.gameState = "in_game";
+                }
+
+                if (!gtaStarted && !altvRunning) {
+                    Sleep(3000);
+                    if (!IsProcessRunning("altv.exe") && !IsProcessRunning("GTA5.exe")) {
+                        break;
+                    }
+                }
+
+                if (gtaStarted && !gtaRunning) {
+                    break;
+                }
+
+                Sleep(500);
+            }
+            CloseHandle(pi.hProcess);
+        } else {
+            string err = "Failed to launch altv.exe from: " + altvExe;
+            WriteLog(err);
+            MessageBoxA(NULL, err.c_str(), "Error", MB_ICONERROR);
+        }
+
+        // Notify leave immediately to update masterlist & server decrements
+        gtamp::NotifyPlayerLeave(masterlistUrl, pickedServer, gtamp::g_launcherState.clientId);
+        KillProcessSilent("altv.exe");
+        KillProcessSilent("GTA5.exe");
+
+        if (hProxy) {
+            typedef void (*StopProxyFunc)();
+            StopProxyFunc stopProxy = (StopProxyFunc)GetProcAddress(hProxy, "StopProxy");
+            if (stopProxy) {
+                stopProxy();
+                Sleep(300);
+            }
+            FreeLibrary(hProxy);
+            hProxy = NULL;
+        }
+
+        // If launcher was invoked directly with command-line -connect, exit after game closes.
+        if (hasConnect) {
+            break;
+        }
     }
 
-    // Notify leave immediately when game exits
-    NotifyPlayerLeave(masterlistUrl, serverIp, "player");
-    KillProcessSilent("altv.exe");
-    KillProcessSilent("GTA5.exe");
-
-    if (hProxy) {
-        typedef void (*StopProxyFunc)();
-        StopProxyFunc stopProxy = (StopProxyFunc)GetProcAddress(hProxy, "StopProxy");
-        if (stopProxy) {
-            stopProxy();
-            Sleep(300);
-        }
-        FreeLibrary(hProxy);
-    }
-
+    gtamp::StopLauncherServer();
     return 0;
 }
