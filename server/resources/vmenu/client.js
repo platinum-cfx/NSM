@@ -69,8 +69,10 @@ function initWebView() {
 
     webview.on('vmenu:clearWanted', () => {
       try {
-        native.setPlayerWantedLevel(alt.Player.local.scriptID, 0, false);
-        native.setPlayerWantedLevelNow(alt.Player.local.scriptID, false);
+        // FIX: SET_PLAYER_WANTED_LEVEL takes the PLAYER handle, not the ped handle
+        const player = native.playerId();
+        native.setPlayerWantedLevel(player, 0, false);
+        native.setPlayerWantedLevelNow(player, false);
       } catch (e) {}
       showNotification('~g~Wanted level cleared.');
     });
@@ -173,9 +175,16 @@ function initWebView() {
     webview.on('vmenu:refillAmmo', () => {
       try {
         const ped = alt.Player.local.scriptID;
-        const curWeapon = native.getCurrentPedWeapon(ped, 1);
-        native.setPedAmmo(ped, curWeapon, 9999);
-        showNotification('~g~Ammunition refilled.');
+        // FIX: pointer natives return [retval, outValue] on alt:V — handle
+        // every possible shape so we always end up with the weapon hash
+        const res = native.getCurrentPedWeapon(ped, true);
+        const curWeapon = Array.isArray(res)
+          ? (typeof res[0] === 'number' ? res[0] : res[1])
+          : res;
+        if (typeof curWeapon === 'number' && curWeapon !== 0) {
+          native.setPedAmmo(ped, curWeapon, 9999);
+          showNotification('~g~Ammunition refilled.');
+        }
       } catch (e) {}
     });
 
@@ -196,8 +205,12 @@ function initWebView() {
       try {
         const blip = native.getFirstBlipInfoId(8); // 8 is Waypoint blip
         if (native.doesBlipExist(blip)) {
+          // FIX: coordinate natives may return an array or an object — handle both
           const coords = native.getBlipInfoIdCoord(blip);
-          alt.emitServer('vmenu:teleport', coords.x, coords.y, coords.z + 1.0);
+          const cx = Array.isArray(coords) ? coords[0] : coords.x;
+          const cy = Array.isArray(coords) ? coords[1] : coords.y;
+          const cz = Array.isArray(coords) ? coords[2] : coords.z;
+          alt.emitServer('vmenu:teleport', cx, cy, cz + 1.0);
           showNotification('~g~Teleported to waypoint.');
         } else {
           showNotification('~y~No waypoint found! Place a waypoint marker on the map first.');
@@ -264,19 +277,14 @@ alt.on('connectionComplete', () => {
 // Also initialize on resource start
 initWebView();
 
-// Keybind listener: 'M' (77), 'F1' (112), 'F6' (117), 'Escape' (27)
+// Keybinds: M (77), F1 (112), F6 (117), Escape (27)
+// FIX: removed the old keyup "fallback" — it re-opened the menu on key release,
+// making the menu impossible to close with M/F1 (keydown closes, keyup reopens).
 alt.on('keydown', (key) => {
   if (key === 77 || key === 112 || key === 117) {
     toggleMenu();
   } else if (key === 27 && isOpen) {
     closeMenu();
-  }
-});
-
-alt.on('keyup', (key) => {
-  if (key === 77 || key === 112 || key === 117) {
-    // Redundant fallback to ensure capture
-    if (!isOpen) openMenu();
   }
 });
 
@@ -296,12 +304,16 @@ alt.everyTick(() => {
   const ped = alt.Player.local.scriptID;
   if (!ped) return;
 
+  // FIX: SET_SUPER_JUMP_THIS_FRAME and SET_RUN_SPRINT_MULTIPLIER_FOR_PLAYER
+  // take the PLAYER handle, not the ped handle — they silently did nothing before.
+  const playerHandle = native.playerId();
+
   if (isSuperJump) {
-    native.setSuperJumpThisFrame(ped);
+    native.setSuperJumpThisFrame(playerHandle);
   }
 
   if (isFastRun) {
-    native.setRunSprintMultiplierForPlayer(ped, 1.49);
+    native.setRunSprintMultiplierForPlayer(playerHandle, 1.49);
   }
 
   if (isInfAmmo) {

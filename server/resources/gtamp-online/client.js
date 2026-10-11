@@ -3,6 +3,12 @@ import * as native from 'natives';
 
 const LEGION_DEFAULT = { x: 198.8, y: -934.3, z: 31.7, heading: 140.0 };
 
+// FIX: the server now owns the spawn (spawn_after_connect = false in .cfg).
+// We only teleport locally as a delayed fallback if the server's spawn event
+// never arrives — previously we teleported immediately on connectionComplete
+// and then got teleported AGAIN by the server, causing the double-jitter.
+let receivedServerSpawn = false;
+
 function placeOnGround(x, y, z, heading) {
   const localPed = alt.Player.local.scriptID;
   if (!localPed) return;
@@ -50,13 +56,20 @@ function placeOnGround(x, y, z, heading) {
 }
 
 alt.on('connectionComplete', () => {
-  alt.log('[gtamp-online] Connection established. Requesting ground spawn...');
+  alt.log('[gtamp-online] Connection established. Requesting spawn from server...');
 
-  // Request server to spawn player if not already done
+  // Ask the server to run its spawn logic (it sets model, spawns, and sends
+  // gtamp:forceGroundSpawn back once the client resources are live).
   alt.emitServer('gtamp:requestSpawn');
 
-  // Immediately place at Legion Square to prevent (0,0,0) under map
-  placeOnGround(LEGION_DEFAULT.x, LEGION_DEFAULT.y, LEGION_DEFAULT.z, LEGION_DEFAULT.heading);
+  // Fallback: if the server hasn't spawned us within 1.5s (e.g. resource
+  // restart race), place ourselves so we never fall through the world.
+  alt.setTimeout(() => {
+    if (!receivedServerSpawn) {
+      alt.logWarning('[gtamp-online] No server spawn received, using local fallback.');
+      placeOnGround(LEGION_DEFAULT.x, LEGION_DEFAULT.y, LEGION_DEFAULT.z, LEGION_DEFAULT.heading);
+    }
+  }, 1500);
 
   // Show welcome notification
   try {
@@ -66,8 +79,9 @@ alt.on('connectionComplete', () => {
   } catch (e) {}
 });
 
-// Server forces ground spawn
+// Server owns the spawn — this is the authoritative placement
 alt.onServer('gtamp:forceGroundSpawn', (x, y, z, heading) => {
+  receivedServerSpawn = true;
   placeOnGround(x, y, z, heading);
 });
 

@@ -57,18 +57,21 @@ function spawnPlayerAtLegion(player) {
   const spawn = SPAWN_POINTS[Math.floor(Math.random() * SPAWN_POINTS.length)];
 
   try {
-    // 1. Spawn entity first at solid ground height
-    player.spawn(spawn.x, spawn.y, spawn.z, 0);
+    player.dimension = 0;
 
-    // 2. Set multiplayer freemode ped model
+    // 1. FIX: set the model BEFORE spawning. Changing player.model after the
+    //    spawn recreates the ped and can drop it through collision that hasn't
+    //    streamed in yet — that was one of the "spawn under map" causes.
     try {
-      player.model = DEFAULT_PED_MODEL;
+      if (player.model !== DEFAULT_PED_MODEL) player.model = DEFAULT_PED_MODEL;
     } catch (mErr) {
       alt.logError(`[gtamp-online] Error setting model: ${mErr.message}`);
     }
 
+    // 2. Spawn entity at solid ground height
+    player.spawn(spawn.x, spawn.y, spawn.z, 0);
+
     player.rot = new alt.Vector3(0, 0, (spawn.heading * Math.PI) / 180);
-    player.dimension = 0;
     player.health = 200;
     player.armour = 100;
 
