@@ -54,9 +54,7 @@ async function loadMysql() {
     // mysql.json.example used to ship '//' hint lines after the JSON; users
     // copied them along and JSON has no comments. Retry once with full-line
     // comments stripped instead of failing the whole database.
-    const stripped = readCfg().split(/?
-/).filter((l) => !/^\s*\/\//.test(l)).join('
-');
+    const stripped = readCfg().split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join('\n');
     try { cfg = JSON.parse(stripped); }
     catch (e2) { logError(`mysql.json is not valid JSON: ${e.message}`); return null; }
     logError(`mysql.json: comment lines are not valid JSON - parsed anyway after stripping them (remove the // lines to silence this)`);

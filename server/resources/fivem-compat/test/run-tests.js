@@ -5,6 +5,7 @@ import { makeMockAlt } from './mock-alt.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { spawnSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -16,6 +17,16 @@ let passed = 0, failed = 0;
 function check(name, cond) {
   if (cond) { passed++; console.log(`  PASS: ${name}`); }
   else { failed++; console.error(`  FAIL: ${name}`); }
+}
+
+// The server entry must parse as ESM — a bad escape once shipped a SyntaxError
+// that stopped fivem-compat from loading on the real server. node --check
+// honors the "type": "module" in package.json, so this is exactly what the
+// alt:V module compiler will see.
+{
+  const r = spawnSync(process.execPath, ['--check', path.join(__dirname, '..', 'index.js')], { encoding: 'utf8' });
+  check('server entry index.js parses (node --check)', r.status === 0);
+  if (r.status !== 0) console.error('    ' + String(r.stderr || '').trim().split('\n').slice(0, 2).join('\n    '));
 }
 
 console.log('== init ==');
