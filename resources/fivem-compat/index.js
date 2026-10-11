@@ -27,6 +27,8 @@ const logError = (...a) => { try { alt.logError('[cfx-compat]', ...a); } catch {
 
 function findPlayer(src) {
   if (src && typeof src === 'object') return src;
+  // FiveM ids are strings half the time (ESX tostring's them); be tolerant
+  if (typeof src === 'string' && /^-?\d+$/.test(src)) src = Number(src);
   return alt.Player.all.find((p) => p.id === src) || null;
 }
 

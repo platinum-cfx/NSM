@@ -748,6 +748,12 @@ end
 
 GetPlayerPed = function() return 0 end
 GetPlayerFromServerId = function(src) return src end
+-- FiveM artifact 10188+ native; es_extended's boot guard checks for it.
+-- Entity ownership is the server module's job on alt:V — no-op here.
+SetEntityOrphanMode = function() return true end
+-- ms since epoch is a fine stand-in for FiveM's uptime timer (esx_lib seeds
+-- math.randomseed with it)
+GetGameTimer = function() return math.floor(os.time() * 1000) end
 
 function GetConvarInt(k, default)
   local v = tonumber(__getConvar(k))
@@ -1604,6 +1610,47 @@ export class CfxCompatRuntime {
     return { resources };
   }
 
+  // Expand a manifest `files`/script pattern to concrete RELATIVE paths:
+  // `*` matches within one segment, `**` matches any number of directories
+  // (FiveM fxmanifest semantics). Missing paths yield nothing.
+  expandGlob(dir, rel) {
+    rel = String(rel).trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    const segs = rel.split('/');
+    const out = [];
+    const walk = (base, i, acc) => {
+      if (i >= segs.length) { out.push(acc); return; }
+      const seg = segs[i];
+      const isLast = i === segs.length - 1;
+      if (seg === '**') {
+        walk(base, i + 1, acc); // ** can match zero directories
+        let subs = [];
+        try { subs = fs.readdirSync(base, { withFileTypes: true }); } catch { return; }
+        for (const e of subs) {
+          if (e.isDirectory()) walk(path.join(base, e.name), i, acc + '/' + e.name);
+        }
+        return;
+      }
+      if (seg.includes('*')) {
+        const rx = new RegExp('^' + seg.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + '$');
+        let entries = [];
+        try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return; }
+        for (const e of entries) {
+          if (isLast ? (e.isFile() && rx.test(e.name)) : (e.isDirectory() && rx.test(e.name))) {
+            walk(path.join(base, e.name), i + 1, acc + '/' + e.name);
+          }
+        }
+        return;
+      }
+      const full = path.join(base, seg);
+      try {
+        const st = fs.statSync(full);
+        if (isLast ? st.isFile() : st.isDirectory()) walk(full, i + 1, acc + '/' + seg);
+      } catch { /* missing — contributes nothing */ }
+    };
+    walk(dir, 0, '');
+    return out.sort();
+  }
+
   // Resolve a manifest script entry to actual files: expands * globs and
   // @resource/path imports (FiveM shared-lib pattern). @oxmysql's lib is
   // skipped because this runtime provides the MySQL API natively.
@@ -1623,12 +1670,15 @@ export class CfxCompatRuntime {
       if (!fs.existsSync(p)) { this.logError(`@import '${rel}' failed — file not found`); return null; }
       return [p];
     }
-    // glob expansion (single-segment *)
+    // glob expansion (* within a segment; ** across segments — e.g. es_extended
+    // ships 'server/bridge/**/*.lua')
     if (rel.includes('*')) {
+      if (rel.includes('**')) {
+        return this.expandGlob(dir, rel).map((r) => path.join(dir, r));
+      }
       const idx = rel.lastIndexOf('/');
       const dirPart = idx >= 0 ? rel.slice(0, idx) : '';
       const filePart = idx >= 0 ? rel.slice(idx + 1) : rel;
-      if (filePart.includes('**')) return [];
       const rx = new RegExp('^' + filePart.replace(/[.+^${}()|[\]]/g, '\\$&').replace(/\*/g, '[^/]*') + '$');
       const base = path.join(dir, dirPart);
       try {

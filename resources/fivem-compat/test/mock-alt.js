@@ -47,7 +47,10 @@ export function makeMockAlt() {
     },
     emitClient: (src, name, ...args) => { clientEvents.push({ target: src, name, args }); },
     emitAllClients: (name, ...args) => { clientEvents.push({ target: -1, name, args }); },
-    findPlayer: (src) => players.find((p) => p.id === src) || null,
+    findPlayer: (src) => {
+      if (typeof src === 'string' && /^-?\d+$/.test(src)) src = Number(src);
+      return players.find((p) => p.id === src) || null;
+    },
     playerIds: () => players.map((p) => p.id),
     dropPlayer: (p, reason) => { players.splice(players.indexOf(p), 1); logs.push(`KICKED ${p.name}: ${reason}`); },
     identifiers: (p) => [`ip:${p.ip}`, `license:${p.socialId}`, `discord:none`],
