@@ -1,15 +1,36 @@
 /**
- * NSM FiveM compatibility runtime (server-side) — v2
- * ---------------------------------------------------
+ * NSM FiveM compatibility runtime (server-side) — v3 (single VM, live exports)
+ * -------------------------------------------------------------------------
  * Runs FiveM-style Lua resources inside the alt:V JS module by embedding a real
  * Lua 5.4 VM (vendored wasmoon, MIT) and implementing the documented Cfx server
  * API on top of alt:V. Implemented from public Cfx API documentation — no FiveM
  * source code is used (FiveM's repo is under the Rockstar Creator Platform
  * License).
  *
- * v2 adds: MySQL (mysql-async / oxmysql-style API, callback + .await),
- * cross-resource exports, player/entity statebags (synced meta), OneSync-style
- * entity natives (CreateVehicle & friends), plus a JSON marshal layer.
+ * v3 architecture (one VM):
+ *   - ONE wasmoon engine for the whole server, created in init().
+ *   - The FiveM prelude (scheduler, events, natives, MySQL, JSON, statebags)
+ *     is installed once into the shared _G.
+ *   - Each resource gets its own environment table:
+ *         setmetatable({}, { __index = _G })
+ *     Scripts run via load(code, name, 't', env) — writes stay in the env
+ *     (two resources can both define `Config` without clashing), reads fall
+ *     through to the shared prelude.
+ *   - Resource-scoped APIs (GetCurrentResourceName, AddEventHandler, exports,
+ *     RegisterCommand, print, load, fxmanifest directives, ...) are installed
+ *     as per-env closures by __makeEnv(name) so they always know which
+ *     resource is executing.
+ *   - Cross-resource exports are DIRECT LIVE CALLS inside the same VM:
+ *     exports['qb-core']:GetCoreObject() returns the actual live table
+ *     (functions included), not a JSON copy.
+ *   - loadAll() loads resources in dependency order (manifest `dependencies`
+ *     + @resource/ imports), with cycle detection and clear warnings.
+ *   - Unsupported fxmanifest directives are accepted but REPORTED
+ *     (no silent no-ops, no fake success).
+ *
+ * v2 history: MySQL (mysql-async / oxmysql-style API, callback + .await),
+ * statebags (synced meta), OneSync-style entity natives, fork-syntax load()
+ * wrap (backticks / ?. / compound assignment handled by lua-transform.js).
  */
 
 import { createRequire } from 'module';
@@ -40,8 +61,9 @@ export function joaat(s) {
 
 // Lua-side environment: threads + async awaits, events, commands, natives,
 // convars, MySQL, exports, statebags, fxmanifest parsing, JSON.
+// Runs ONCE into the shared _G. Resource-scoped pieces live in __makeEnv.
 const PRELUDE = `
--- ============ NSM FiveM compatibility prelude (v2) ============
+-- ============ NSM FiveM compatibility prelude (v3, one VM) ============
 
 -- ---------- minimal JSON (encode/decode) ----------
 local __BS = string.char(92)
@@ -193,9 +215,9 @@ __jsonDecode = function(s)
   return v
 end
 
--- ---------- fork-syntax-safe load() ----------
--- Resources that compile code themselves (e.g. esx_lib's require) must also
--- get FiveM-fork syntax (backticks, +=, ?.) rewritten to standard Lua.
+-- ---------- fork-syntax-safe load() (_G context) ----------
+-- Resources that compile code themselves get the per-env load installed by
+-- __makeEnv; this _G-level wrap only serves prelude/_G context.
 local __rawload = load
 function load(chunk, chunkname, mode, env)
   if type(chunk) == 'string' then chunk = __transformLua(chunk) end
@@ -287,24 +309,17 @@ function __asyncResume(id, payload)
   local ok, yielded = coroutine.resume(co, payload)
   if not ok then
     __logError('[async] ' .. tostring(yielded))
-  else
-    __handleYield(co, yielded)
+    return
   end
+  __handleYield(co, yielded)
 end
 
--- ---------- events ----------
-function AddEventHandler(name, fn) __registerHandler(name, fn, false) end
-function RegisterNetEvent(name, fn)
-  if type(fn) == 'function' then __registerHandler(name, fn, true)
-  else __declareNetEvent(name) end
-end
-function on(name, fn) __registerHandler(name, fn, true) end
+-- ---------- events (trigger side is shared; registration is per-env) ----------
 function TriggerEvent(name, ...) __triggerLocal(name, ...) end
 function TriggerClientEvent(name, target, ...) __triggerClient(name, target, ...) end
 function TriggerServerEvent() error('TriggerServerEvent can only be used on the client', 2) end
 function CancelEvent() end
 function WasEventCanceled() return false end
-RegisterServerEvent = RegisterNetEvent
 
 -- ---------- engine functions (not natives; FiveM provides these globally) ----------
 function ExecuteCommand(cmd) return __executeCommand(tostring(cmd)) end
@@ -404,21 +419,21 @@ function __installNativeStubs(names)
   return n
 end
 
--- ---------- commands ----------
-__commandFns = {}
-function RegisterCommand(name, fn, restricted)
-  __commandFns[tostring(name)] = fn
-  __registerCommand(tostring(name))
+-- ---------- commands (per-resource registration; one dispatch table) ----------
+__commandEntries = {}
+function __registerCommandEntry(cmdName, fn, restricted, resName)
+  __commandEntries[cmdName] = { fn = fn, env = __envs[resName], res = resName }
+  __registerCommand(cmdName)
 end
 function __dispatchCommand(name, src, argString)
-  local fn = __commandFns[name]
-  if not fn then return false end
+  local entry = __commandEntries[name]
+  if entry == nil then return false end
   local args = {}
   for word in string.gmatch(argString or '', '%S+') do table.insert(args, word) end
-  local prev = source
-  source = src
-  local ok, err = pcall(fn, src, args, ('/%s %s'):format(name, argString or ''))
-  source = prev
+  local prev = entry.env.source
+  entry.env.source = src
+  local ok, err = pcall(entry.fn, src, args, ('/%s %s'):format(name, argString or ''))
+  entry.env.source = prev
   if not ok then __logError('[command /' .. tostring(name) .. '] ' .. tostring(err)) end
   return true
 end
@@ -477,46 +492,32 @@ MySQL.Async.fetchAll = MySQL.Async.query
 MySQL.Async.fetchScalar = MySQL.Async.scalar
 MySQL.Async.fetchSingle = MySQL.Async.single
 
--- ---------- exports (FiveM server style) ----------
-__registeredExports = {}
-function __defineExport(name, fn) __registeredExports[name] = fn end
+-- ---------- exports: LIVE cross-resource calls (one VM) ----------
+-- __exportsRegistry[res][exportName] = function  (registered by __makeEnv)
+-- __envs[res] = that resource's environment table
+__exportsRegistry = {}
+__envs = {}
 
-function __invokeExportJson(name, argsJson)
-  local fn = __registeredExports[name]
-  if not fn then return 'null' end
+-- JS-side entry (adapter code calling a Lua export); resources themselves use
+-- the per-env exports proxy which calls functions DIRECTLY (live tables).
+function __callExportJson(resName, expName, argsJson)
+  local reg = __exportsRegistry[resName]
+  local fn = reg and reg[expName]
+  if fn == nil then return 'null' end
+  local tenv = __envs[resName]
   local args = __jsonDecode(argsJson) or {}
-  local results = table.pack(fn(table.unpack(args, 1, #args)))
+  local prevSource = tenv.source
+  tenv.source = 0
+  local results = table.pack(pcall(fn, table.unpack(args, 1, #args)))
+  tenv.source = prevSource
+  if not results[1] then
+    __logError("export '" .. resName .. '.' .. expName .. "' failed: " .. tostring(results[2]))
+    return 'null'
+  end
   local out = {}
-  for i = 1, results.n do out[i] = results[i] end
+  for i = 2, results.n do out[#out + 1] = results[i] end
   return jenc(out)
 end
-
-__exportsProxy = setmetatable({}, {
-  __index = function(t, resName)
-    local proxy
-    proxy = setmetatable({}, {
-      __index = function(_, expName)
-        return function(...)
-          local a = { ... }
-          if #a > 0 and a[1] == proxy then table.remove(a, 1) end
-          local resultJson = __callExport(resName, expName, jenc(a))
-          local decoded = __jsonDecode(resultJson)
-          if decoded == nil then return end
-          return table.unpack(decoded, 1, #decoded)
-        end
-      end
-    })
-    rawset(t, resName, proxy)
-    return proxy
-  end,
-  __call = function(_, name, fn)
-    if type(name) ~= 'string' or type(fn) ~= 'function' then
-      error("usage: exports('exportName', function(...) end)", 2)
-    end
-    __defineExport(name, fn)
-  end,
-})
-exports = __exportsProxy
 
 -- ---------- statebags (players + compat entities, via synced meta) ----------
 local function stateProxy(getFn, setFn)
@@ -556,11 +557,7 @@ Entity = function(handle)
   return e
 end
 
-function AddStateBagChangeHandler(keyFilter, filter, fn)
-  __registerStateHandler(keyFilter, filter, function(bag, key, valueJson)
-    fn(bag, key, __jsonDecode(valueJson), false)
-  end)
-end
+-- AddStateBagChangeHandler is per-env (needs resource identity) — see __makeEnv
 
 -- ---------- natives ----------
 local function nativewrap(name)
@@ -633,8 +630,6 @@ GetConvarReplicated = GetConvar
 
 -- ---------- misc / identity ----------
 function IsDuplicityVersion() return true end
-function GetCurrentResourceName() return __currentResource end
-function GetInvokingResource() return __currentResource end
 function GetGameName() return 'fivem' end
 function GetHashKey(s) return __joaat(s) end
 function joaat(s) return __joaat(s) end
@@ -642,73 +637,233 @@ function GetResourceState(res) if __resourceExists(res) then return 'started' en
 function GetResourcePath(res) return __getResourcePath(res) end
 function GetResourceMetadata(res, key, idx) return nil end
 function LoadResourceFile(res, file) return __readResourceFile(res, file) end
-function print(...) __print(...) end
-function warn(...) __print('[warn] ', ...) end
+-- GetCurrentResourceName / GetInvokingResource are PER-ENV (see __makeEnv)
 
--- ---------- fxmanifest parsing (v2: shared_scripts, globs resolved JS-side, unknown directives no-op) ----------
-__manifest = { server_scripts = {}, client_scripts = {}, shared_scripts = {} }
-local function addscript(key, v)
-  if type(v) == 'table' then
-    for _, s in ipairs(v) do table.insert(__manifest[key], tostring(s)) end
-  else
-    table.insert(__manifest[key], tostring(v))
+-- ============ per-resource environment factory ============
+-- Everything a resource script sees that must answer "which resource am I?"
+-- is installed here as a closure over the resource name.
+function __makeEnv(name)
+  local env = {}
+  setmetatable(env, { __index = _G })
+
+  env.source = 0
+  env.__resourceName = name
+
+  -- identity
+  env.GetCurrentResourceName = function() return name end
+  env.GetInvokingResource = function() return name end
+
+  -- print with resource prefix (matches FiveM's [resname] console prefixing)
+  env.print = function(...) __print('[' .. name .. ']', ...) end
+  env.warn = function(...) __print('[' .. name .. '] [warn]', ...) end
+
+  -- env-forwarding load(): code a resource compiles itself (esx_lib's
+  -- require, es_extended's loader) inherits THIS resource's environment and
+  -- gets the FiveM-fork syntax transform applied.
+  env.load = function(chunk, chunkname, mode, envArg)
+    if type(chunk) == 'string' then chunk = __transformLua(chunk) end
+    return __rawload(chunk, chunkname, mode or 'bt', envArg or env)
   end
+
+  -- events (register with resource identity so source and error
+  -- attribution land in the right env)
+  local function reg(evName, fn, isNet)
+    __registerHandler(evName, fn, isNet, name)
+  end
+  env.AddEventHandler = function(n, f) reg(n, f, false) end
+  env.on = function(n, f) reg(n, f, true) end
+  env.RegisterNetEvent = function(n, f)
+    __declareNetEvent(n)
+    if f ~= nil then reg(n, f, true) end
+  end
+  env.RegisterServerEvent = env.RegisterNetEvent
+
+  -- commands
+  env.RegisterCommand = function(cmdName, fn, restricted)
+    __registerCommandEntry(tostring(cmdName), fn, restricted, name)
+  end
+
+  -- statebag handlers
+  env.AddStateBagChangeHandler = function(keyFilter, filter, fn)
+    __registerStateHandler(keyFilter, filter, function(bag, key, valueJson)
+      fn(bag, key, __jsonDecode(valueJson), false)
+    end, name)
+  end
+
+  -- exports (FiveM server style) — LIVE calls inside the single VM.
+  -- exports('name', fn) defines an export of THIS resource;
+  -- exports['other']:method(...) calls other's export directly with live
+  -- values (tables and functions pass by reference, mutations are shared).
+  __exportsRegistry[name] = {}
+  env.exports = setmetatable({}, {
+    __index = function(t, resName)
+      local proxy
+      proxy = setmetatable({}, {
+        __index = function(_, expName)
+          return function(...)
+            local a = { ... }
+            if #a > 0 and a[1] == proxy then table.remove(a, 1) end
+            local tenv = __envs[resName]
+            if tenv == nil then
+              error("exports: resource '" .. tostring(resName) .. "' is not loaded", 2)
+            end
+            local fn = __exportsRegistry[resName][expName]
+            if fn == nil then
+              error("exports: '" .. tostring(resName) .. "' has no export '" .. tostring(expName) .. "'", 2)
+            end
+            -- FiveM semantics: the callee sees the caller's source
+            local prevSource = tenv.source
+            tenv.source = env.source
+            local results = table.pack(pcall(fn, table.unpack(a, 1, #a)))
+            tenv.source = prevSource
+            if not results[1] then
+              error("export '" .. tostring(resName) .. '.' .. tostring(expName) .. "' failed: " .. tostring(results[2]), 2)
+            end
+            return table.unpack(results, 2, results.n)
+          end
+        end,
+      })
+      rawset(t, resName, proxy)
+      return proxy
+    end,
+    __call = function(_, expName, fn)
+      if type(expName) ~= 'string' or type(fn) ~= 'function' then
+        error("usage: exports('exportName', function(...) end)", 2)
+      end
+      __exportsRegistry[name][expName] = fn
+    end,
+  })
+
+  -- fxmanifest directives: collected into THIS resource's manifest table
+  local manifest = {
+    server_scripts = {}, client_scripts = {}, shared_scripts = {}, dependencies = {},
+  }
+  env.__manifest = manifest
+  env.__manifestIgnored = {}
+  local function addscript(key, v)
+    if type(v) == 'table' then
+      for _, s in ipairs(v) do table.insert(manifest[key], tostring(s)) end
+    else
+      table.insert(manifest[key], tostring(v))
+    end
+  end
+  local function adddep(v)
+    if type(v) == 'table' then
+      for _, d in ipairs(v) do manifest.dependencies[#manifest.dependencies + 1] = tostring(d) end
+    else
+      manifest.dependencies[#manifest.dependencies + 1] = tostring(v)
+    end
+  end
+  env.fx_version = function(v) manifest.fx_version = v end
+  env.game = function(v) manifest.game = v end
+  env.author = function(v) manifest.author = v end
+  env.description = function(v) manifest.description = v end
+  env.version = function(v) manifest.version = v end
+  env.lua54 = function(v) manifest.lua54 = v end
+  env.shared_script = function(v) addscript('shared_scripts', v) end
+  env.shared_scripts = function(v) addscript('shared_scripts', v) end
+  env.server_script = function(v) addscript('server_scripts', v) end
+  env.server_scripts = function(v) addscript('server_scripts', v) end
+  env.client_script = function(v) addscript('client_scripts', v) end
+  env.client_scripts = function(v) addscript('client_scripts', v) end
+  env.dependency = function(v) adddep(v) end
+  env.dependencies = function(v) adddep(v) end
+  -- directives with no server-side meaning: accepted, reported as ignored
+  for _, d in ipairs({
+    'files', 'file', 'ui_page', 'provide', 'replace_script', 'escrow_ignore',
+    'use_experimental_fxv2_oal', 'is_master_manifest',
+  }) do
+    env[d] = function(v) end
+  end
+
+  env.__manifestSummary = function()
+    local function ser(v)
+      if type(v) == 'table' then
+        local parts = {}
+        for _, item in ipairs(v) do parts[#parts + 1] = string.format('%q', tostring(item)) end
+        return '[' .. table.concat(parts, ',') .. ']'
+      end
+      return string.format('%q', tostring(v))
+    end
+    local out = {}
+    for _, k in ipairs({ 'fx_version', 'game', 'author', 'version', 'description' }) do
+      if manifest[k] ~= nil then out[#out + 1] = string.format('%q:%s', k, ser(manifest[k])) end
+    end
+    out[#out + 1] = string.format('%q:%s', 'shared_scripts', ser(manifest.shared_scripts))
+    out[#out + 1] = string.format('%q:%s', 'server_scripts', ser(manifest.server_scripts))
+    out[#out + 1] = string.format('%q:%s', 'client_scripts', ser(manifest.client_scripts))
+    out[#out + 1] = string.format('%q:%s', 'dependencies', ser(manifest.dependencies))
+    local ig = {}
+    for k in pairs(env.__manifestIgnored) do ig[#ig + 1] = k end
+    table.sort(ig)
+    out[#out + 1] = string.format('%q:%s', 'ignored_directives', ser(ig))
+    return '{' .. table.concat(out, ',') .. '}'
+  end
+
+  __envs[name] = env
+  return env
 end
-fx_version = function(v) __manifest.fx_version = v end
-game = function(v) __manifest.game = v end
-author = function(v) __manifest.author = v end
-description = function(v) __manifest.description = v end
-version = function(v) __manifest.version = v end
-lua54 = function(v) __manifest.lua54 = v end
-shared_script = function(v) addscript('shared_scripts', v) end
-shared_scripts = function(v) addscript('shared_scripts', v) end
-server_script = function(v) addscript('server_scripts', v) end
-server_scripts = function(v) addscript('server_scripts', v) end
-client_script = function(v) addscript('client_scripts', v) end
-client_scripts = function(v) addscript('client_scripts', v) end
--- no-op directives (accepted for FiveM compat, nothing to do server-side)
-files = function(v) end
-file = function(v) end
-ui_page = function(v) end
-dependency = function(v) end
-dependencies = function(v) end
-provide = function(v) end
-replace_script = function(v) end
-escrow_ignore = function(v) end
-use_experimental_fxv2_oal = function(v) end
-is_master_manifest = function(v) end
--- manifest mode: unknown directives must NOT crash the load (FiveM keeps
--- adding new ones; accept and ignore anything we don't know)
-function __beginManifestMode()
-  setmetatable(_G, {
+
+-- ============ JS entry points ============
+-- NOTE: envs are never marshalled across the JS boundary (wasmoon turns them
+-- into js_proxy tables); every helper below takes a resource NAME and looks
+-- the env up inside Lua.
+
+-- Swap a resource's source value; returns the previous value.
+function __setSource(resName, v)
+  local env = __envs[resName]
+  if env == nil then return 0 end
+  local prev = env.source or 0
+  env.source = v
+  return prev
+end
+
+-- Read a global from a resource's env (testing/debug; raw values only).
+function __envGet(resName, key)
+  local env = __envs[resName]
+  if env == nil then return nil end
+  return rawget(env, key)
+end
+
+function __manifestSummaryOf(resName)
+  local env = __envs[resName]
+  if env == nil then return '{}' end
+  return env.__manifestSummary()
+end
+
+-- Run one (already-transformed) script chunk inside a resource env.
+-- Errors propagate to JS (loadResource catches, logs, continues).
+function __runScript(resName, code, chunkname)
+  local env = __envs[resName]
+  if env == nil then error("runScript: resource '" .. tostring(resName) .. "' has no environment", 0) end
+  local fn, err = __rawload(code, chunkname, 't', env)
+  if fn == nil then error(tostring(err), 0) end
+  local ok, rerr = pcall(fn)
+  if not ok then error(tostring(rerr), 0) end
+  return true
+end
+
+-- Execute a fxmanifest.lua inside a resource env. Unknown directives are
+-- accepted as no-ops but RECORDED in env.__manifestIgnored (surfaced via
+-- __manifestSummary -> "ignored_directives") so the loader can warn instead
+-- of silently pretending everything is supported.
+function __runManifest(resName, code, chunkname)
+  local env = __envs[resName]
+  if env == nil then error("runManifest: resource '" .. tostring(resName) .. "' has no environment", 0) end
+  local fn, err = __rawload(__transformLua(code), chunkname, 't', env)
+  if fn == nil then error(tostring(err), 0) end
+  setmetatable(env, {
     __index = function(t, k)
-      local v = rawget(t, k)
+      local v = _G[k]
       if v ~= nil then return v end
+      env.__manifestIgnored[k] = true
       return function() end
     end,
   })
-end
-function __endManifestMode()
-  setmetatable(_G, nil)
-end
-
-function __manifestSummary()
-  local function ser(v)
-    if type(v) == 'table' then
-      local parts = {}
-      for _, item in ipairs(v) do parts[#parts + 1] = string.format('%q', tostring(item)) end
-      return '[' .. table.concat(parts, ',') .. ']'
-    end
-    return string.format('%q', tostring(v))
-  end
-  local out = {}
-  for _, k in ipairs({ 'fx_version', 'game', 'author', 'version', 'description' }) do
-    if __manifest[k] ~= nil then out[#out + 1] = string.format('%q:%s', k, ser(__manifest[k])) end
-  end
-  out[#out + 1] = string.format('%q:%s', 'shared_scripts', ser(__manifest.shared_scripts))
-  out[#out + 1] = string.format('%q:%s', 'server_scripts', ser(__manifest.server_scripts))
-  out[#out + 1] = string.format('%q:%s', 'client_scripts', ser(__manifest.client_scripts))
-  return '{' .. table.concat(out, ',') .. '}'
+  local ok, rerr = pcall(fn)
+  setmetatable(env, { __index = _G })
+  if not ok then error(tostring(rerr), 0) end
+  return true
 end
 `;
 
@@ -767,53 +922,62 @@ export class CfxCompatRuntime {
   constructor(adapter) {
     this.adapter = adapter;
     this.factory = null;
-    this.engines = new Map();
-    this.handlers = new Map();
-    this.commands = new Map();
+    this.lua = null;            // the ONE engine (v3)
+    this.engines = new Map();   // name -> { name, dir, env, lua }  (kept name for compat)
+    this.handlers = new Map();  // eventName -> [{ resource, fn, isNet }]
+    this.commands = new Map();  // cmd -> resourceName
     this.convars = new Map(Object.entries(adapter.convars || {}));
     this.wiredNet = new Set();
-    this.entities = new Map();     // compat handle -> { kind, ref }
+    this.entities = new Map();  // compat handle -> { kind, ref }
     this.nextHandle = 0x100000;
-    this.stateHandlers = [];       // { keyFilter, filter, resource, fn }
+    this.stateHandlers = [];    // { keyFilter, filter, resource, fn }
+    this.globalState = new Map();
   }
 
   async init() {
     const { LuaFactory } = loadWasmoon();
     this.factory = new LuaFactory();
+    this.lua = await this.factory.createEngine();
+    this.installBridges();
+
+    await this.lua.doString(PRELUDE);
+
+    // ---- native stubs (full 6.4k-name Cfx native set; hand-implemented ones win) ----
+    try {
+      const stubsSrc = fs.readFileSync(new URL('./natives-stubs.lua', import.meta.url), 'utf8');
+      await this.lua.doString(`__stubCount = __installNativeStubs((function()\n${stubsSrc}\nend)())`);
+      this.log(`native stubs installed: ${this.lua.global.get('__stubCount')}`);
+    } catch (e) {
+      this.logError(`native stub install failed: ${e && e.message ? e.message : e}`);
+    }
+
     if (typeof this.adapter.onStateChange === 'function') {
       this.adapter.onStateChange((target, key, valueJson) => this.dispatchStateChange(target, key, valueJson));
     }
   }
 
-  log(...a) { this.adapter.log(a.map(fmt).join(' ')); }
-  logError(...a) { this.adapter.logError(a.map(fmt).join(' ')); }
-
-  async loadResource(name, dir) {
-    if (!this.factory) throw new Error('call init() first');
-    const lua = await this.factory.createEngine();
-    const res = { name, dir, lua };
-    this.engines.set(name, res);
-
-    const g = lua.global;
-
-    // ---- JS bridges ----
-    g.set('__print', (...a) => this.log(`[${name}]`, ...a));
-    g.set('__logError', (...a) => this.logError(`[${name}]`, ...a));
+  // JS bridges installed ONCE on the single engine. Resource identity is
+  // passed explicitly from the per-env Lua closures.
+  installBridges() {
+    const g = this.lua.global;
+    g.set('__print', (...a) => this.log(...a));
+    g.set('__logError', (...a) => this.logError(...a));
     g.set('__setTimeout', (fn, ms) => setTimeout(() => { try { fn(); } catch (e) { this.logError('[timer]', e.message); } }, Number(ms) || 0));
-    g.set('__registerHandler', (evName, fn, isNet) => {
+    g.set('__registerHandler', (evName, fn, isNet, resName) => {
+      const resource = this.engines.get(String(resName));
+      if (!resource) { this.logError(`event handler for '${evName}' registered by unknown resource '${resName}'`); return; }
       if (!this.handlers.has(evName)) this.handlers.set(evName, []);
-      this.handlers.get(evName).push({ resource: res, fn, isNet: !!isNet });
+      this.handlers.get(evName).push({ resource, fn, isNet: !!isNet });
       if (isNet) this.wireNet(evName);
     });
     g.set('__declareNetEvent', (evName) => this.wireNet(evName));
     g.set('__triggerLocal', (evName, ...args) => this.dispatchLocal(evName, args));
     g.set('__triggerClient', (evName, target, ...args) => this.dispatchClient(evName, target, args));
-    g.set('__registerCommand', (cmdName) => { this.commands.set(String(cmdName).toLowerCase(), res); });
-    g.set('__native', (nativeName, ...args) => this.callNative(res, nativeName, args));
+    g.set('__registerCommand', (cmdName) => { this.commands.set(String(cmdName).toLowerCase(), String(cmdName)); });
+    g.set('__native', (nativeName, ...args) => this.callNative(nativeName, args));
     g.set('__getConvar', (k) => (this.convars.has(k) ? this.convars.get(k) : false));
     g.set('__setConvar', (k, v) => { this.convars.set(String(k), String(v)); });
     g.set('__joaat', joaat);
-    g.set('__currentResource', name);
     g.set('__readResourceFile', (resName, file) => {
       const r = this.engines.get(resName);
       if (!r) return false;
@@ -823,7 +987,6 @@ export class CfxCompatRuntime {
     g.set('__getResourcePath', (n) => { const r = this.engines.get(String(n)); return r ? r.dir : false; });
     g.set('__executeCommand', (cmd) => { this.log('ExecuteCommand:', String(cmd)); return true; });
     g.set('__transformLua', (src) => transformFiveMLua(String(src)));
-    if (!this.globalState) this.globalState = new Map();
     g.set('__globalStateGet', (k) => { const v = this.globalState.get(String(k)); return v === undefined ? false : v; });
     g.set('__globalStateSet', (k, json) => {
       this.globalState.set(String(k), String(json));
@@ -850,16 +1013,13 @@ export class CfxCompatRuntime {
         });
     });
 
-    // async ops (MySQL etc.)
-    g.set('__asyncCall', (id, callName, ...args) => this.asyncCall(res, id, callName, args, null));
-    g.set('__asyncCallCallback', (cb, callName, ...args) => { this.asyncCall(res, 0, callName, args, cb); });
+    // async ops (MySQL etc.) — resume target is the single engine now
+    g.set('__asyncCall', (id, callName, ...args) => this.asyncCall(id, callName, args, null));
+    g.set('__asyncCallCallback', (cb, callName, ...args) => { this.asyncCall(0, callName, args, cb); });
     g.set('__mysqlReady', (cb) => {
       if (this.adapter.mysql) setTimeout(() => { try { cb(); } catch (e) { this.logError('MySQL.ready cb:', e.message); } }, 0);
       else setTimeout(() => { this.log('MySQL.ready fired but no database is configured (see mysql.json)'); try { cb(); } catch (e) { this.logError('MySQL.ready cb:', e.message); } }, 0);
     });
-
-    // exports
-    g.set('__callExport', (resName, expName, argsJson) => this.callExport(String(resName), String(expName), String(argsJson)));
 
     // statebags
     g.set('__playerStateGet', (src, key) => {
@@ -880,46 +1040,54 @@ export class CfxCompatRuntime {
       const e = this.entities.get(Number(handle));
       if (e && this.adapter.entityStateSet) this.adapter.entityStateSet(e.ref, String(key), String(json));
     });
-    g.set('__registerStateHandler', (keyFilter, filter, fn) => {
-      this.stateHandlers.push({ keyFilter: keyFilter || null, filter: filter || null, resource: res, fn });
+    g.set('__registerStateHandler', (keyFilter, filter, fn, resName) => {
+      const resource = this.engines.get(String(resName));
+      this.stateHandlers.push({ keyFilter: keyFilter || null, filter: filter || null, resource, fn });
     });
+  }
 
-    await lua.doString(PRELUDE);
+  log(...a) { this.adapter.log(a.map(fmt).join(' ')); }
+  logError(...a) { this.adapter.logError(a.map(fmt).join(' ')); }
 
-    // ---- native stubs (full 6.4k-name Cfx native set; hand-implemented ones win) ----
-    try {
-      const stubsSrc = fs.readFileSync(new URL('./natives-stubs.lua', import.meta.url), 'utf8');
-      await lua.doString(`__stubCount = __installNativeStubs((function()\n${stubsSrc}\nend)())`);
-      this.log(`native stubs installed: ${lua.global.get('__stubCount')}`);
-    } catch (e) {
-      this.logError(`native stub install failed: ${e && e.message ? e.message : e}`);
-    }
+  // ---------- resource loading ----------
+  // Phase 1: create the env + parse the manifest (no scripts run yet).
+  async prepareResource(name, dir) {
+    if (!this.lua) throw new Error('call init() first');
+    const g = this.lua.global;
+    g.get('__makeEnv')(name);
+    const res = { name, dir, lua: this.lua };
+    this.engines.set(name, res);
 
-    // ---- fxmanifest.lua (v2: shared_scripts, globs, @imports) ----
+    let manifest = { server_scripts: [], client_scripts: [], shared_scripts: [], dependencies: [] };
     const manifestPath = path.join(dir, 'fxmanifest.lua');
-    let manifest = { server_scripts: [], shared_scripts: [], client_scripts: [] };
     if (fs.existsSync(manifestPath)) {
-      await lua.doString('__beginManifestMode()');
-      try {
-        await lua.doString(transformFiveMLua(fs.readFileSync(manifestPath, 'utf8')));
-      } finally {
-        await lua.doString('__endManifestMode()');
+      g.get('__runManifest')(name, fs.readFileSync(manifestPath, 'utf8'), '@' + name + '/fxmanifest.lua');
+      manifest = JSON.parse(g.get('__manifestSummaryOf')(name));
+      const ignored = manifest.ignored_directives || [];
+      if (ignored.length > 0) {
+        this.log(`fxmanifest of '${name}': unsupported directive(s) ignored (not implemented by NSM cfx-compat): ${ignored.join(', ')}`);
       }
-      manifest = JSON.parse(lua.global.get('__manifestSummary')());
     } else {
       const fallback = path.join(dir, 'server.lua');
       if (fs.existsSync(fallback)) manifest.server_scripts = ['server.lua'];
     }
+    res.manifest = manifest;
+    return res;
+  }
 
+  // Phase 2: run the resource's scripts (shared first, then server).
+  async runResource(res) {
+    const { name, dir, manifest } = res;
     if ((manifest.client_scripts || []).length > 0) {
       this.log(`has ${manifest.client_scripts.length} client script(s) — IGNORED (server-side compat only)`);
     }
 
-    // shared scripts run on the server too (config etc.), then server scripts
+    const g = this.lua.global;
     for (const rel of [...(manifest.shared_scripts || []), ...(manifest.server_scripts || [])]) {
       for (const p of this.resolveScripts(name, dir, rel)) {
         try {
-          await lua.doString(transformFiveMLua(fs.readFileSync(p, 'utf8')));
+          const code = transformFiveMLua(fs.readFileSync(p, 'utf8'));
+          g.get('__runScript')(name, code, '@' + name + '/' + rel);
         } catch (e) {
           this.logError(`error in ${path.relative(dir, p)}: ${e && e.message ? e.message : e}`);
         }
@@ -928,6 +1096,96 @@ export class CfxCompatRuntime {
 
     this.log(`FiveM resource '${name}' loaded (${(manifest.shared_scripts || []).length} shared + ${(manifest.server_scripts || []).length} server script(s))`);
     return res;
+  }
+
+  // Load a single resource (prepare + run). Order is the caller's
+  // responsibility — use loadAll() for dependency-ordered startup.
+  async loadResource(name, dir) {
+    const res = await this.prepareResource(name, dir);
+    return this.runResource(res);
+  }
+
+  // Load many resources in dependency order. Dependencies come from manifest
+  // `dependencies`/`dependency` directives and from @resource/ imports in
+  // script lists. Cycles are reported, then broken by falling back to the
+  // listed order for the resources involved.
+  async loadAll(entries) {
+    const prepared = [];
+    for (const [name, dir] of entries) {
+      try {
+        prepared.push(await this.prepareResource(name, dir));
+      } catch (e) {
+        this.logError(`failed to load FiveM resource '${name}': ${e && e.message ? e.message : e}`);
+      }
+    }
+    const ordered = this.orderResources(prepared);
+    let loaded = 0;
+    for (const res of ordered) {
+      try {
+        await this.runResource(res);
+        loaded++;
+      } catch (e) {
+        this.logError(`failed to run FiveM resource '${res.name}': ${e && e.message ? e.message : e}`);
+      }
+    }
+    this.log(`${loaded}/${prepared.length} FiveM resource(s) running`);
+    return ordered;
+  }
+
+  // Topological sort of prepared resources by their declared dependencies.
+  orderResources(resources) {
+    const byName = new Map(resources.map((r) => [r.name, r]));
+    const deps = new Map(resources.map((r) => [r.name, new Set()]));
+    for (const r of resources) {
+      for (const d of (r.manifest && r.manifest.dependencies) || []) {
+        const dn = String(d);
+        if (byName.has(dn)) deps.get(r.name).add(dn);
+        else this.log(`resource '${r.name}' depends on '${dn}' which is not loaded (continuing anyway)`);
+      }
+      for (const list of [r.manifest.shared_scripts, r.manifest.server_scripts]) {
+        for (const rel of list || []) {
+          const s = String(rel).trim();
+          if (!s.startsWith('@')) continue;
+          const slash = s.indexOf('/');
+          const target = slash > 0 ? s.slice(1, slash) : s.slice(1);
+          if (target === 'oxmysql' || target === 'mysql-async') continue; // native MySQL API
+          if (byName.has(target)) deps.get(r.name).add(target);
+        }
+      }
+    }
+    const ordered = [];
+    const done = new Set();
+    let progress = true;
+    while (ordered.length < resources.length && progress) {
+      progress = false;
+      for (const r of resources) {
+        if (done.has(r.name)) continue;
+        let ready = true;
+        for (const d of deps.get(r.name)) {
+          if (!done.has(d)) { ready = false; break; }
+        }
+        if (ready) { ordered.push(r); done.add(r.name); progress = true; }
+      }
+    }
+    if (ordered.length < resources.length) {
+      const cycle = resources.filter((r) => !done.has(r.name)).map((r) => r.name);
+      this.logError(`dependency cycle detected between: ${cycle.join(', ')} — loading them in listed order`);
+      for (const r of resources) if (!done.has(r.name)) ordered.push(r);
+    }
+    return ordered;
+  }
+
+  // Run an ad-hoc Lua chunk inside a resource's environment (testing/debug).
+  async runLua(resName, code) {
+    const res = this.engines.get(resName);
+    if (!res) throw new Error(`runLua: resource '${resName}' is not loaded`);
+    this.lua.global.get('__runScript')(resName, transformFiveMLua(code), '@runLua:' + resName);
+    return true;
+  }
+
+  // Read a global from a resource's environment (testing/debug).
+  envGet(resName, key) {
+    return this.lua.global.get('__envGet')(String(resName), String(key));
   }
 
   // Resolve a manifest script entry to actual files: expands * globs and
@@ -972,7 +1230,7 @@ export class CfxCompatRuntime {
   }
 
   // ---------- async (MySQL) ----------
-  asyncCall(res, id, callName, args, luaCallback) {
+  asyncCall(id, callName, args, luaCallback) {
     const complete = (value) => {
       const json = JSON.stringify(value === undefined ? null : value);
       if (luaCallback) {
@@ -980,10 +1238,7 @@ export class CfxCompatRuntime {
         return;
       }
       try {
-        const g = res.lua.global;
-        g.set('__resumeId', id);
-        g.set('__resumePayload', json);
-        res.lua.doStringSync('__asyncResume(__resumeId, __resumePayload)');
+        this.lua.global.get('__asyncResume')(id, json);
       } catch (e) { this.logError('async resume:', e.message); }
     };
     const fail = (message) => complete({ __cfxError: true, message });
@@ -1014,20 +1269,10 @@ export class CfxCompatRuntime {
   }
 
   // ---------- exports ----------
-  callExport(resName, expName, argsJson) {
-    const target = this.engines.get(resName);
-    if (!target) throw new Error(`exports: resource '${resName}' is not loaded`);
-    const g = target.lua.global;
-    g.set('__expName', expName);
-    g.set('__expArgs', argsJson);
-    let resultJson = 'null';
-    try {
-      target.lua.doStringSync('__exportResult = __invokeExportJson(__expName, __expArgs)');
-      resultJson = g.get('__exportResult');
-    } catch (e) {
-      this.logError(`export '${resName}.${expName}' failed: ${e && e.message ? e.message : e}`);
-    }
-    return resultJson === null || resultJson === undefined ? 'null' : String(resultJson);
+  // Resources call each other directly inside the VM (live values).
+  // This is the JS-side entry for adapter code that needs to call a Lua export.
+  callExportJson(resName, expName, args) {
+    return this.lua.global.get('__callExportJson')(String(resName), String(expName), JSON.stringify(args || []));
   }
 
   // ---------- statebags ----------
@@ -1047,16 +1292,16 @@ export class CfxCompatRuntime {
   }
 
   invoke(h, args, sourceId) {
-    const g = h.resource.lua.global;
+    const g = this.lua.global;
+    const name = h.resource.name;
     let prev = 0;
-    try { const p = g.get('source'); if (p !== null && p !== undefined) prev = p; } catch {}
-    g.set('source', (sourceId === null || sourceId === undefined) ? 0 : sourceId);
+    try { prev = g.get('__setSource')(name, (sourceId === null || sourceId === undefined) ? 0 : sourceId) || 0; } catch {}
     try {
       h.fn(...args);
     } catch (e) {
       this.logError(`handler '${h.eventName || ''}' in '${h.resource.name}' failed: ${e && e.message ? e.message : e}`);
     } finally {
-      g.set('source', prev);
+      try { g.get('__setSource')(name, prev); } catch {}
     }
   }
 
@@ -1096,16 +1341,12 @@ export class CfxCompatRuntime {
     const stripped = String(text || '').replace(/^\//, '');
     const parts = stripped.split(/\s+/);
     const cmd = (parts.shift() || '').toLowerCase();
-    const res = this.commands.get(cmd);
-    if (!res) return false;
+    const resName = this.commands.get(cmd);
+    if (!resName) return false;
     const argString = parts.join(' ');
     const src = player && player.id !== undefined ? player.id : 0;
     try {
-      const g = res.lua.global;
-      g.set('__cmdName', cmd);
-      g.set('__cmdSrc', src);
-      g.set('__cmdArgs', argString);
-      res.lua.doStringSync('__dispatchCommand(__cmdName, __cmdSrc, __cmdArgs)');
+      this.lua.global.get('__dispatchCommand')(cmd, src, argString);
     } catch (e) {
       this.logError(`command '/${cmd}' failed: ${e && e.message ? e.message : e}`);
     }
@@ -1113,7 +1354,7 @@ export class CfxCompatRuntime {
   }
 
   // ---------- natives ----------
-  callNative(res, name, args) {
+  callNative(name, args) {
     const a = this.adapter;
     switch (name) {
       case 'GetPlayerName': {

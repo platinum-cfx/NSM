@@ -1,4 +1,4 @@
-# NSM FiveM Compatibility Layer (cfx-compat) — v2
+# NSM FiveM Compatibility Layer (cfx-compat) — v3
 
 Runs **unmodified FiveM Lua server resources** on your NSM/GTAMP (alt:V) server by
 embedding a real Lua 5.4 VM (vendored [wasmoon](https://github.com/ceifa/wasmoon), MIT)
@@ -11,7 +11,10 @@ implementing Win32). The generated `cfx/natives-stubs.lua` name list comes from
 the public Cfx.re natives definitions (`github.com/citizenfx/natives`) — names
 and API surface, not code.
 
-**Test suite: 46/46 passing** (`node test/run-tests.js`)
+**Test suite: 69/69 passing** (`node test/run-tests.js`) plus a live-exports
+acceptance suite (`node tools/live-exports-check.mjs`, 17 checks against real
+qb-core + es_extended) and the fork-syntax compile gate
+(`node tools/lua-fork-transform.test.mjs`, 62/62 qb-core files).
 
 ## Real-framework status (v2.1)
 
@@ -32,10 +35,35 @@ That works because v2.1 added what real resources actually use:
   `GlobalState`, `ExecuteCommand`, `IsPlayerAceAllowed` (permissive stub),
   `SetMapName`/`SetGameType`, `SaveResourceFile`.
 
-Known next step: cross-resource **live exports** — `exports['qb-core']:GetCoreObject()`
-currently JSON-marshals the core object, so function fields are lost. Resources
-whose server logic only needs events/MySQL/commands run fine; ones that call
-through the core object need the one-VM/live-exports build (in progress).
+## v3: one VM, live exports, dependency order
+
+- **Single Lua VM**: all FiveM resources share one wasmoon engine. The prelude
+  (scheduler, events, natives, MySQL, JSON, statebags) is installed once; each
+  resource gets its own environment table (`setmetatable({}, {__index = _G})`),
+  so `Config`-style globals stay per-resource while everything shared stays
+  shared. `load()` inside a resource inherits that resource's env (the
+  esx_lib/es_extended loader pattern).
+- **Live exports**: `exports['qb-core']:GetCoreObject()` now calls the real
+  function directly inside the VM and returns the **live table** — functions
+  callable, identity preserved, mutations visible to every other resource.
+  Verified against real qb-core and es_extended (`tools/live-exports-check.mjs`).
+  `source` propagates into export calls (callee sees the caller's source).
+- **Dependency-ordered loading**: resources start in dependency order, built
+  from fxmanifest `dependencies` **and** `@resource/...` imports. Fixes
+  alphabetical loading (which ran `es_extended` before `esx_lib`). Cycles are
+  detected, reported, and broken by falling back to the listed order.
+- **Manifest diagnostics**: unsupported fxmanifest directives are still
+  accepted (won't crash a load), but they are now **reported** —
+  `fxmanifest of 'x': unsupported directive(s) ignored: ...` — instead of
+  silently no-oping. Missing exports and missing dependencies error clearly
+  rather than pretending to succeed.
+- Resource identity is honest everywhere: `print` output carries the
+  `[resource]` prefix, `GetCurrentResourceName()` answers per resource, event
+  handler errors name the resource they failed in.
+
+Note: **don't run qb-core and es_extended in the same server** — es_extended's
+own code hard-errors if it detects qb-core running (upstream framework guard,
+not a compat bug). Pick one framework per server, like on FiveM.
 
 ## What runs (v2)
 
@@ -51,9 +79,11 @@ through the core object need the one-VM/live-exports build (in progress).
   `playerJoining`, `playerDropped`
 - ✅ JSON marshal layer (spec-valid escaping, used for events/statebags/MySQL)
 
-**Cross-resource exports** — both FiveM syntaxes:
+**Cross-resource exports** — both FiveM syntaxes, LIVE (same-VM direct calls):
 - ✅ `exports('name', fn)` to define
 - ✅ `exports['resource']:name(args)` (colon) and `exports.resource.name(args)` (dot)
+- ✅ live tables/functions (no JSON copy), stable identity, cross-resource
+  mutations, `source` propagation into the callee
 
 **MySQL** (oxmysql / mysql-async style; needs `mysql.json` + `npm i mysql2`)
 - ✅ `MySQL.query/execute/scalar/single/insert/update` — call, `.await`, `.sync`
@@ -116,7 +146,9 @@ resources/fivem-compat/
   cfx/runtime.js      the compat runtime (Lua prelude + JS bridges)
   cfx/natives-stubs.lua   generated: all 6,439 native names (Cfx.re definitions)
   vendor/wasmoon/     vendored Lua 5.4-in-WASM (MIT)
-test/                 mock alt:V + 46-check suite (plain Node, no server needed)
+test/                 mock alt:V + 69-check suite (plain Node, no server needed)
 fivem_resources/      example FiveM resources used by the tests
 tools/natives-tree.json   snapshot of the natives repo tree used to generate stubs
+tools/live-exports-check.mjs  live-export acceptance test vs real qb-core/es_extended
+                               (clone them under real_resources/ to run it)
 ```

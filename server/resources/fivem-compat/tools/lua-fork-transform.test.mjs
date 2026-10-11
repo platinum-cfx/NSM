@@ -1,14 +1,19 @@
 // Standalone verification for the FiveM-Lua-fork → standard-Lua transformer.
-import { transformFiveMLua } from '../resources/fivem-compat/cfx/lua-transform.js';
+import { transformFiveMLua } from '../cfx/lua-transform.js';
 import { createRequire } from 'module';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
-const { LuaFactory } = require('../resources/fivem-compat/vendor/wasmoon/dist/index.cjs');
+const { LuaFactory } = require('../vendor/wasmoon/dist/index.cjs');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..', 'real_resources', 'qb-core');
+if (!fs.existsSync(path.join(root, 'fxmanifest.lua'))) {
+  console.log('lua-fork-transform.test: SKIPPED — clone qb-core under real_resources/ to run');
+  console.log('  git clone --depth 1 https://github.com/qbcore-framework/qb-core real_resources/qb-core');
+  process.exit(0);
+}
 const factory = new LuaFactory();
 const lua = await factory.createEngine();
 

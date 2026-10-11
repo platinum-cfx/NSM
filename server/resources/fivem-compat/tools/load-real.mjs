@@ -1,5 +1,5 @@
 // Smoke test: load REAL FiveM resources through the compat runtime (comma-separated, in order).
-import { CfxCompatRuntime } from '../resources/fivem-compat/cfx/runtime.js';
+import { CfxCompatRuntime } from '../cfx/runtime.js';
 import { makeMockAlt } from '../test/mock-alt.js';
 import * as path from 'path';
 import { fileURLToPath } from 'url';

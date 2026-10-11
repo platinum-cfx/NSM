@@ -1,11 +1,14 @@
 /**
- * NSM FiveM compatibility layer — alt:V adapter (v2)
+ * NSM FiveM compatibility layer — alt:V adapter (v3)
  * Drop FiveM Lua resources into <server-root>/fivem_resources/<name>/
  * (with fxmanifest.lua + server scripts) and they load on server start.
  *
- * v2 wiring: MySQL (mysql.json + mysql2), entity natives (alt.Vehicle),
- * player statebags (synced meta), lifecycle events (playerConnecting /
- * playerDropped), and the full 6.4k-native stub set (see cfx/natives-stubs.lua).
+ * v3 wiring: one Lua VM for all resources with live cross-resource exports
+ * (exports['qb-core']:GetCoreObject() returns the live table), per-resource
+ * environment isolation, and dependency-ordered startup (manifest
+ * `dependencies` + @resource/ imports). v2 features kept: MySQL (mysql.json +
+ * mysql2), entity natives (alt.Vehicle), player statebags (synced meta),
+ * lifecycle events, and the full 6.4k-native stub set (cfx/natives-stubs.lua).
  */
 import * as alt from 'alt-server';
 import * as fs from 'fs';
@@ -154,16 +157,9 @@ async function main() {
   }
 
   const entries = listResourceDirs(root);
-  let loaded = 0;
-  for (const [name, dir] of entries) {
-    try {
-      await runtime.loadResource(name, dir);
-      loaded++;
-    } catch (e) {
-      logError(`failed to load FiveM resource '${name}': ${e && e.message ? e.message : e}`);
-    }
-  }
-  log(`${loaded}/${entries.length} FiveM resource(s) running`);
+  // v3: dependency-ordered loading (manifest `dependencies` + @imports);
+  // alphabetical discovery order is only the tiebreaker.
+  await runtime.loadAll(entries);
 
   // ---- lifecycle events (FiveM names, `source` set to the player id) ----
   alt.on('playerConnect', (player) => {
