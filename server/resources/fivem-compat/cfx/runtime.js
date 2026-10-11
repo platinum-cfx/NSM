@@ -13,6 +13,7 @@
  */
 
 import { createRequire } from 'module';
+import { transformFiveMLua } from './lua-transform.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -187,10 +188,34 @@ parseValue = function(s, i)
 end
 
 __jsonDecode = function(s)
-  if s == nil or s == 'null' then return nil end
+  if s == nil or s == false or s == 'null' then return nil end
   local v = parseValue(tostring(s), 1)
   return v
 end
+
+-- ---------- fork-syntax-safe load() ----------
+-- Resources that compile code themselves (e.g. esx_lib's require) must also
+-- get FiveM-fork syntax (backticks, +=, ?.) rewritten to standard Lua.
+local __rawload = load
+function load(chunk, chunkname, mode, env)
+  if type(chunk) == 'string' then chunk = __transformLua(chunk) end
+  -- forward only the args actually given: wasmoon's load treats an explicitly
+  -- passed nil env as a real nil environment (standard Lua would use _G)
+  if env ~= nil then return __rawload(chunk, chunkname, mode, env) end
+  if mode ~= nil then return __rawload(chunk, chunkname, mode) end
+  if chunkname ~= nil then return __rawload(chunk, chunkname) end
+  return __rawload(chunk)
+end
+
+-- ---------- json / msgpack engine globals (FiveM Lua has these built in) ----------
+json = {}
+json.encode = function(v) return jenc(v) end
+json.decode = function(s) return __jsonDecode(s) end
+json.stringify = json.encode
+json.parse = json.decode
+msgpack = {}
+msgpack.pack = function(v) return jenc(v) end
+msgpack.unpack = function(s) return __jsonDecode(s) end
 
 -- ---------- thread scheduler with async await support ----------
 __coroutines = {}
@@ -280,6 +305,31 @@ function TriggerServerEvent() error('TriggerServerEvent can only be used on the 
 function CancelEvent() end
 function WasEventCanceled() return false end
 RegisterServerEvent = RegisterNetEvent
+
+-- ---------- engine functions (not natives; FiveM provides these globally) ----------
+function ExecuteCommand(cmd) return __executeCommand(tostring(cmd)) end
+
+local __aceWarned = false
+function IsPlayerAceAllowed(src, ace)
+  if not __aceWarned then
+    __aceWarned = true
+    __print('[cfx-compat] IsPlayerAceAllowed: ACE permissions not implemented yet — allowing all (permissive stub)')
+  end
+  return true
+end
+
+function SaveResourceFile(res, file, data, len) return false end
+SetMapName = function(n) end
+SetGameType = function(t) end
+
+-- GlobalState: server-wide statebag shared across resources (backed by the runtime)
+GlobalState = setmetatable({}, {
+  __index = function(_, k) return __jsonDecode(__globalStateGet(k)) end,
+  __newindex = function(_, k, v) __globalStateSet(k, jenc(v)) end,
+})
+function StartResource(res) return true end
+function StopResource(res) return true end
+function RestartResource(res) return true end
 
 -- ---------- promises + Citizen.Await (oxmysql / QBCore style) ----------
 promise = {}
@@ -569,7 +619,7 @@ function vector4(x, y, z, w) return { x = x or 0.0, y = y or 0.0, z = z or 0.0, 
 -- ---------- convars ----------
 function GetConvar(k, d)
   local v = __getConvar(k)
-  if v == nil then return d or '' end
+  if v == nil or v == false then return d or '' end
   return v
 end
 function GetConvarInt(k, d)
@@ -587,13 +637,16 @@ function GetCurrentResourceName() return __currentResource end
 function GetInvokingResource() return __currentResource end
 function GetGameName() return 'fivem' end
 function GetHashKey(s) return __joaat(s) end
+function joaat(s) return __joaat(s) end
 function GetResourceState(res) if __resourceExists(res) then return 'started' end return 'missing' end
+function GetResourcePath(res) return __getResourcePath(res) end
+function GetResourceMetadata(res, key, idx) return nil end
 function LoadResourceFile(res, file) return __readResourceFile(res, file) end
 function print(...) __print(...) end
 function warn(...) __print('[warn] ', ...) end
 
--- ---------- fxmanifest parsing ----------
-__manifest = { server_scripts = {}, client_scripts = {} }
+-- ---------- fxmanifest parsing (v2: shared_scripts, globs resolved JS-side, unknown directives no-op) ----------
+__manifest = { server_scripts = {}, client_scripts = {}, shared_scripts = {} }
 local function addscript(key, v)
   if type(v) == 'table' then
     for _, s in ipairs(v) do table.insert(__manifest[key], tostring(s)) end
@@ -606,10 +659,38 @@ game = function(v) __manifest.game = v end
 author = function(v) __manifest.author = v end
 description = function(v) __manifest.description = v end
 version = function(v) __manifest.version = v end
+lua54 = function(v) __manifest.lua54 = v end
+shared_script = function(v) addscript('shared_scripts', v) end
+shared_scripts = function(v) addscript('shared_scripts', v) end
 server_script = function(v) addscript('server_scripts', v) end
 server_scripts = function(v) addscript('server_scripts', v) end
 client_script = function(v) addscript('client_scripts', v) end
 client_scripts = function(v) addscript('client_scripts', v) end
+-- no-op directives (accepted for FiveM compat, nothing to do server-side)
+files = function(v) end
+file = function(v) end
+ui_page = function(v) end
+dependency = function(v) end
+dependencies = function(v) end
+provide = function(v) end
+replace_script = function(v) end
+escrow_ignore = function(v) end
+use_experimental_fxv2_oal = function(v) end
+is_master_manifest = function(v) end
+-- manifest mode: unknown directives must NOT crash the load (FiveM keeps
+-- adding new ones; accept and ignore anything we don't know)
+function __beginManifestMode()
+  setmetatable(_G, {
+    __index = function(t, k)
+      local v = rawget(t, k)
+      if v ~= nil then return v end
+      return function() end
+    end,
+  })
+end
+function __endManifestMode()
+  setmetatable(_G, nil)
+end
 
 function __manifestSummary()
   local function ser(v)
@@ -624,6 +705,7 @@ function __manifestSummary()
   for _, k in ipairs({ 'fx_version', 'game', 'author', 'version', 'description' }) do
     if __manifest[k] ~= nil then out[#out + 1] = string.format('%q:%s', k, ser(__manifest[k])) end
   end
+  out[#out + 1] = string.format('%q:%s', 'shared_scripts', ser(__manifest.shared_scripts))
   out[#out + 1] = string.format('%q:%s', 'server_scripts', ser(__manifest.server_scripts))
   out[#out + 1] = string.format('%q:%s', 'client_scripts', ser(__manifest.client_scripts))
   return '{' .. table.concat(out, ',') .. '}'
@@ -728,16 +810,25 @@ export class CfxCompatRuntime {
     g.set('__triggerClient', (evName, target, ...args) => this.dispatchClient(evName, target, args));
     g.set('__registerCommand', (cmdName) => { this.commands.set(String(cmdName).toLowerCase(), res); });
     g.set('__native', (nativeName, ...args) => this.callNative(res, nativeName, args));
-    g.set('__getConvar', (k) => (this.convars.has(k) ? this.convars.get(k) : null));
+    g.set('__getConvar', (k) => (this.convars.has(k) ? this.convars.get(k) : false));
     g.set('__setConvar', (k, v) => { this.convars.set(String(k), String(v)); });
     g.set('__joaat', joaat);
     g.set('__currentResource', name);
     g.set('__readResourceFile', (resName, file) => {
       const r = this.engines.get(resName);
-      if (!r) return null;
-      try { return fs.readFileSync(path.join(r.dir, String(file)), 'utf8'); } catch { return null; }
+      if (!r) return false;
+      try { return fs.readFileSync(path.join(r.dir, String(file)), 'utf8'); } catch { return false; }
     });
     g.set('__resourceExists', (n) => this.engines.has(String(n)));
+    g.set('__getResourcePath', (n) => { const r = this.engines.get(String(n)); return r ? r.dir : false; });
+    g.set('__executeCommand', (cmd) => { this.log('ExecuteCommand:', String(cmd)); return true; });
+    g.set('__transformLua', (src) => transformFiveMLua(String(src)));
+    if (!this.globalState) this.globalState = new Map();
+    g.set('__globalStateGet', (k) => { const v = this.globalState.get(String(k)); return v === undefined ? false : v; });
+    g.set('__globalStateSet', (k, json) => {
+      this.globalState.set(String(k), String(json));
+      this.dispatchStateChange('global', String(k), String(json));
+    });
     g.set('__httpRequest', (cb, url, method, data, headersJson) => {
       let headers = {};
       try { headers = JSON.parse(String(headersJson || '{}')); } catch {}
@@ -772,17 +863,18 @@ export class CfxCompatRuntime {
 
     // statebags
     g.set('__playerStateGet', (src, key) => {
-      const v = this.adapter.playerStateGet ? this.adapter.playerStateGet(src, String(key)) : null;
-      return v === undefined ? null : v;
+      if (!this.adapter.playerStateGet) return false;
+      const v = this.adapter.playerStateGet(src, String(key));
+      return v === undefined || v === null ? false : v;
     });
     g.set('__playerStateSet', (src, key, json) => {
       if (this.adapter.playerStateSet) this.adapter.playerStateSet(src, String(key), String(json));
     });
     g.set('__entityStateGet', (handle, key) => {
       const e = this.entities.get(Number(handle));
-      if (!e || !this.adapter.entityStateGet) return null;
+      if (!e || !this.adapter.entityStateGet) return false;
       const v = this.adapter.entityStateGet(e.ref, String(key));
-      return v === undefined ? null : v;
+      return v === undefined || v === null ? false : v;
     });
     g.set('__entityStateSet', (handle, key, json) => {
       const e = this.entities.get(Number(handle));
@@ -803,11 +895,16 @@ export class CfxCompatRuntime {
       this.logError(`native stub install failed: ${e && e.message ? e.message : e}`);
     }
 
-    // ---- fxmanifest.lua ----
+    // ---- fxmanifest.lua (v2: shared_scripts, globs, @imports) ----
     const manifestPath = path.join(dir, 'fxmanifest.lua');
-    let manifest = { server_scripts: [], client_scripts: [] };
+    let manifest = { server_scripts: [], shared_scripts: [], client_scripts: [] };
     if (fs.existsSync(manifestPath)) {
-      await lua.doString(fs.readFileSync(manifestPath, 'utf8'));
+      await lua.doString('__beginManifestMode()');
+      try {
+        await lua.doString(transformFiveMLua(fs.readFileSync(manifestPath, 'utf8')));
+      } finally {
+        await lua.doString('__endManifestMode()');
+      }
       manifest = JSON.parse(lua.global.get('__manifestSummary')());
     } else {
       const fallback = path.join(dir, 'server.lua');
@@ -818,14 +915,60 @@ export class CfxCompatRuntime {
       this.log(`has ${manifest.client_scripts.length} client script(s) — IGNORED (server-side compat only)`);
     }
 
-    for (const rel of manifest.server_scripts || []) {
-      const p = path.join(dir, rel);
-      if (!fs.existsSync(p)) { this.logError(`missing server script: ${rel}`); continue; }
-      await lua.doString(fs.readFileSync(p, 'utf8'));
+    // shared scripts run on the server too (config etc.), then server scripts
+    for (const rel of [...(manifest.shared_scripts || []), ...(manifest.server_scripts || [])]) {
+      for (const p of this.resolveScripts(name, dir, rel)) {
+        try {
+          await lua.doString(transformFiveMLua(fs.readFileSync(p, 'utf8')));
+        } catch (e) {
+          this.logError(`error in ${path.relative(dir, p)}: ${e && e.message ? e.message : e}`);
+        }
+      }
     }
 
-    this.log(`FiveM resource '${name}' loaded (${(manifest.server_scripts || []).length} server script(s))`);
+    this.log(`FiveM resource '${name}' loaded (${(manifest.shared_scripts || []).length} shared + ${(manifest.server_scripts || []).length} server script(s))`);
     return res;
+  }
+
+  // Resolve a manifest script entry to actual files: expands * globs and
+  // @resource/path imports (FiveM shared-lib pattern). @oxmysql's lib is
+  // skipped because this runtime provides the MySQL API natively.
+  resolveScripts(resName, dir, rel) {
+    rel = String(rel).trim().replace(/\\/g, '/');
+    if (rel.startsWith('@')) {
+      const slash = rel.indexOf('/');
+      const targetRes = rel.slice(1, slash);
+      const targetPath = rel.slice(slash + 1);
+      if (targetRes === 'oxmysql' || targetRes === 'mysql-async') {
+        this.log(`@${targetRes} import '${targetPath}' skipped — native MySQL API is provided`);
+        return [];
+      }
+      const r = this.engines.get(targetRes);
+      if (!r) { this.log(`@import '${rel}' skipped — resource '${targetRes}' is not loaded`); return []; }
+      const p = path.join(r.dir, targetPath);
+      if (!fs.existsSync(p)) { this.log(`@import '${rel}' not found`); return []; }
+      return [p];
+    }
+    // glob expansion (single-segment *)
+    if (rel.includes('*')) {
+      const idx = rel.lastIndexOf('/');
+      const dirPart = idx >= 0 ? rel.slice(0, idx) : '';
+      const filePart = idx >= 0 ? rel.slice(idx + 1) : rel;
+      if (filePart.includes('**')) return [];
+      const rx = new RegExp('^' + filePart.replace(/[.+^${}()|[\]]/g, '\\$&').replace(/\*/g, '[^/]*') + '$');
+      const base = path.join(dir, dirPart);
+      try {
+        return fs.readdirSync(base, { withFileTypes: true })
+          .filter((e) => e.isFile() && rx.test(e.name))
+          .map((e) => path.join(base, e.name))
+          .sort();
+      } catch {
+        return [];
+      }
+    }
+    const p = path.join(dir, rel);
+    if (!fs.existsSync(p)) { this.logError(`missing script: ${rel}`); return []; }
+    return [p];
   }
 
   // ---------- async (MySQL) ----------
@@ -983,7 +1126,7 @@ export class CfxCompatRuntime {
       case 'GetIdentifierByIndex': {
         const p = a.findPlayer(args[0]);
         const ids = p ? a.identifiers(p) : [];
-        return name === 'GetIdentifierCount' ? ids.length : (ids[Number(args[1])] || null);
+        return name === 'GetIdentifierCount' ? ids.length : (ids[Number(args[1])] || false);
       }
       case 'DropPlayer': {
         const p = a.findPlayer(args[0]);

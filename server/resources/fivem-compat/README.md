@@ -13,6 +13,30 @@ and API surface, not code.
 
 **Test suite: 46/46 passing** (`node test/run-tests.js`)
 
+## Real-framework status (v2.1)
+
+**qb-core** and **esx-legacy/es_extended** (plus esx_lib) load their **complete
+server-side code with zero errors** through this layer — verified against the
+real upstream repos (QBCore Framework / esx-framework), not example scripts.
+That works because v2.1 added what real resources actually use:
+
+- **FiveM Lua-fork syntax** (`cfx/lua-transform.js`): backtick identifiers
+  (`[`weapon_unarmed`]`), compound assignment (`count += 1`), and safe
+  navigation (`getmetatable(val)?.__call`) are rewritten to standard Lua 5.4
+  before compiling — string/comment aware, and hooked into Lua's `load()` too,
+  so esx_lib's own module loader gets it for free.
+- **fxmanifest v2**: `shared_scripts`, wildcard globs (`locale/*.lua`),
+  `@resource/path` imports (oxmysql's lib is skipped — native MySQL is
+  provided), and unknown directives no-op instead of crashing.
+- **Engine globals real frameworks expect**: `json`, `msgpack`, `joaat`,
+  `GlobalState`, `ExecuteCommand`, `IsPlayerAceAllowed` (permissive stub),
+  `SetMapName`/`SetGameType`, `SaveResourceFile`.
+
+Known next step: cross-resource **live exports** — `exports['qb-core']:GetCoreObject()`
+currently JSON-marshals the core object, so function fields are lost. Resources
+whose server logic only needs events/MySQL/commands run fine; ones that call
+through the core object need the one-VM/live-exports build (in progress).
+
 ## What runs (v2)
 
 **Core**
