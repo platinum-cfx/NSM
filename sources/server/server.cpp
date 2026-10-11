@@ -42,6 +42,19 @@ bool   g_hasPassword   = false;
 
 std::mutex g_discordMutex;
 
+// Strip a trailing '#'-comment only when it sits OUTSIDE quotes, so values
+// like  password = "my#secret"  survive .cfg parsing intact.
+static string StripInlineComment(const string& v) {
+    bool inS = false, inD = false;
+    for (size_t i = 0; i < v.size(); i++) {
+        char c = v[i];
+        if (c == '\'' && !inD) inS = !inS;
+        else if (c == '"' && !inS) inD = !inD;
+        else if (c == '#' && !inS && !inD) return v.substr(0, i);
+    }
+    return v;
+}
+
 static string StripQuotes(string v) {
     size_t last = v.find_last_not_of(" \t\r\n");
     if (last != string::npos) v.erase(last + 1);
@@ -190,11 +203,7 @@ void UpdateServerToml(const string& configPath, const string& tomlPath) {
     while (getline(cfgFile, line)) {
         if (regex_match(line, match, kvRegex)) {
             string key = match[1];
-            string val = match[2];
-            size_t commentPos = val.find('#');
-            if (commentPos != string::npos) {
-                val = val.substr(0, commentPos);
-            }
+            string val = StripInlineComment(match[2]);
             size_t last = val.find_last_not_of(" \t\r\n");
             if (last != string::npos) {
                 val.erase(last + 1);

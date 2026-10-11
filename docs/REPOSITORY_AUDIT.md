@@ -77,6 +77,7 @@ operator guidance in `SECURITY.md`. Fixed items carry regression-test suites:
 | S12 | Low | `masterlist/server.js` (announce, verified flag) | Loopback/LAN announced hosts were auto-`verified = true` from anywhere. | **FIXED** — auto-verify only from loopback sources |
 | S13 | Info | `sources/server/server.cpp` (RunPE) | Wrapper uses process hollowing (`runpe.h`) to launch the embedded alt:V server — antivirus false positives expected; document, don't "fix". | Documented (`ARCHITECTURE.md`) |
 | S14 | Info | `server/server.toml` | `debug = true` shipped enabled. | OPEN — flip before next public server package |
+| S15 | Low | `sources/server/server.cpp` (`UpdateServerToml`) | `.cfg` values were truncated at the first `#` even inside quotes — `password = "my#secret"` parsed as `"my`. | **FIXED in source** 2026-10-11 (quote-aware `StripInlineComment`); **not compile-tested** — wrapper is Windows/MSVC-only, rebuild and confirm |
 
 ## 3. Implementation status matrix (what exists and works vs. what doesn't)
 
@@ -111,16 +112,18 @@ Legend: **Tested** = executed and verified in this workspace with a repeatable c
 exports + single-VM runtime, dependency-ordered loading, manifest
 diagnostics — are implemented, tested, and shipped.)*
 
-1. **Security fixes S5/S7/S8/S14** — blocked on the Windows C++ rebuild and the
+1. **Resource lifecycle beyond load** — stop/restart of a single resource,
+   handler/timer/export cleanup on stop, onResourceStart/Stop events, explicit
+   running/failed status (next implementation unit; see `ROADMAP.md`).
+2. **Security fixes S5/S7/S8/S14** — blocked on the Windows C++ rebuild and the
    presence/report protocol redesign (documented in `SECURITY.md`).
-2. **Resource lifecycle beyond load** — stop/restart of a single resource,
-   handler/timer/export cleanup on stop (Phase 3.2 of the dev plan).
 3. **oxmysql→real-DB wiring for framework SQL flows** — the MySQL API exists and
    is tested against a mock; production pool behavior is untested against MariaDB.
-4. **NUI/browser UI compat** — not started (Phase 9).
+4. **NUI/browser UI compat** — not started (Phase 9 of the dev plan).
 5. **Voice docs/integration tests** — client voice config exists; no tests.
-6. **CI workflow** — the test suites run in-repo with plain Node but no CI config
-   runs them automatically on push.
+
+*(CI workflow no longer a gap: `.github/workflows/ci.yml` runs all six suites
+on every push, including the real-framework gates.)*
 
 ## 5. Remediation order (what this audit recommends, in sequence)
 
