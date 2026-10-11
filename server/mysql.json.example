@@ -1,12 +1,7 @@
 {
   "host": "127.0.0.1",
   "port": 3306,
-  "user": "fivem",
-  "password": "change-me",
+  "user": "root",
+  "password": "your-mariadb-root-password",
   "database": "fivem"
 }
-// Copy to server/mysql.json (next to gtamp-server.exe) and fill in your
-// MariaDB/MySQL credentials. Required by oxmysql + es_extended.
-// Create the DB + schema once:
-//   mysql -u root -p -e "CREATE DATABASE fivem"
-//   mysql -u root -p fivem < resource_store/esx-legacy/[SQL]/legacy.sql

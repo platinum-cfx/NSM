@@ -28,16 +28,22 @@ clients run the FiveM client scripts (jobs, money, skin, NUI pages).
    This downloads the official js-module built for the server's SDK and
    verifies it against alt:V's published checksums.
 
-2. **MariaDB / MySQL**: install it, then create the DB and import the ESX schema:
+2. **Database (one click)**: open the `server` folder and double-click
+   `SETUP-DB.bat`. It asks for your MariaDB root password, creates the
+   `fivem` database, imports the ESX schema, and writes `mysql.json` next to
+   `gtamp-server.exe`. If MariaDB is not installed yet, it points you to the
+   installer (set a root password during install, you will need it here).
+
+   Manual equivalent:
    ```powershell
-   mysql -u root -p -e "CREATE DATABASE fivem"
+   mysql -u root -p -e "CREATE DATABASE fivem CHARACTER SET utf8mb4"
    mysql -u root -p fivem < "resource_store\esx-legacy\[SQL]\legacy.sql"
    ```
+   then copy `mysql.json.example` to `mysql.json` and fill in your
+   host/user/password/database.
 
-3. **Credentials**: copy `mysql.json.example` to `mysql.json` (next to
-   `gtamp-server.exe`) and fill in host/user/password/database.
-
-4. **Start the server**: run `gtamp-server.exe` (or `altv-server.exe`).
+3. **Start the server**: double-click `START-SERVER.bat` (it verifies the
+   js-module DLL, then launches the server).
    You should see lines like:
    ```
    [cfx-compat] FiveM resource 'oxmysql' started
@@ -46,7 +52,7 @@ clients run the FiveM client scripts (jobs, money, skin, NUI pages).
    ...
    ```
 
-5. **Connect**: with the GTAMP launcher (`connect.exe` → server browser → your
+4. **Connect**: with the GTAMP launcher (`connect.exe` → server browser → your
    server, or direct `altv://connect/ip:port`). The client downloads the
    fivem-client payload automatically; ESX player data loads on join
    (job = unemployed, money in the `users` table, skin via skinchanger).

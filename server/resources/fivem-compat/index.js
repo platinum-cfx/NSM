@@ -48,8 +48,19 @@ async function loadMysql() {
   const cfgPath = cfgPaths.find((p) => fs.existsSync(p));
   if (!cfgPath) return null;
   let cfg;
-  try { cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8')); }
-  catch (e) { logError(`mysql.json is not valid JSON: ${e.message}`); return null; }
+  const readCfg = () => fs.readFileSync(cfgPath, 'utf8');
+  try { cfg = JSON.parse(readCfg()); }
+  catch (e) {
+    // mysql.json.example used to ship '//' hint lines after the JSON; users
+    // copied them along and JSON has no comments. Retry once with full-line
+    // comments stripped instead of failing the whole database.
+    const stripped = readCfg().split(/?
+/).filter((l) => !/^\s*\/\//.test(l)).join('
+');
+    try { cfg = JSON.parse(stripped); }
+    catch (e2) { logError(`mysql.json is not valid JSON: ${e.message}`); return null; }
+    logError(`mysql.json: comment lines are not valid JSON - parsed anyway after stripping them (remove the // lines to silence this)`);
+  }
   try {
     const db = await createRealMysql(cfg);
     // qb-core's GetDatabaseInfo() parses this convar (mysql://user:pass@host:port/db)
