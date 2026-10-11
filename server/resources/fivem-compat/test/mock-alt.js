@@ -19,14 +19,23 @@ export function makeMockAlt() {
   let nextEntId = 1;
 
   // fake mysql with canned responses
-  const db = { users: [{ id: 1, name: 'austi' }, { id: 2, name: 'carmone' }], nextId: 3 };
+  const db = { users: [
+    { id: 1, identifier: 'license:austi', firstname: 'austi', lastname: 'one' },
+    { id: 2, identifier: 'license:carmone', firstname: 'carmone', lastname: 'two' },
+  ], nextId: 3 };
   const mysql = {
     async query(sql, values) {
       await new Promise((r) => setTimeout(r, 5));
-      if (/^select name from users/i.test(sql.trim())) return db.users.map((u) => ({ name: u.name }));
-      if (/^select count\(\*\) as c from users/i.test(sql.trim())) return [{ c: db.users.length }];
-      if (/^insert into users/i.test(sql.trim())) {
-        const row = { id: db.nextId++, name: (values && values[0]) || 'unknown' };
+      const s = sql.trim();
+      if (/^select identifier, firstname, lastname from users/i.test(s)) return db.users.map((u) => ({ identifier: u.identifier, firstname: u.firstname, lastname: u.lastname }));
+      if (/^select identifier from users/i.test(s)) return db.users.map((u) => ({ identifier: u.identifier }));
+      if (/^select count\(\*\) as c from users/i.test(s)) return [{ c: db.users.length }];
+      if (/^delete from users where identifier/i.test(s)) {
+        db.users = db.users.filter((u) => u.identifier !== 'license:nsm-demo');
+        return [];
+      }
+      if (/^insert into users/i.test(s)) {
+        const row = { id: db.nextId++, identifier: (values && values[0]) || 'unknown', firstname: (values && values[2]) || '', lastname: (values && values[3]) || '' };
         db.users.push(row);
         return { fieldCount: 0, affectedRows: 1, insertId: row.id };
       }

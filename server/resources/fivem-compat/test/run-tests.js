@@ -204,7 +204,7 @@ check('load() in caller does not see hello env', rt.envGet('example-caller', '__
 console.log('== MySQL ==');
 await sleep(400);
 check('MySQL.ready fired', mock.logs.some((l) => l.includes('MySQL.ready fired')));
-check('query.await rows', mock.logs.some((l) => l.includes('db query: 2 row(s), first = austi')));
+check('query.await rows', mock.logs.some((l) => l.includes('db query: 2 row(s), first = austi one')));
 check('scalar.await', mock.logs.some((l) => l.includes('db scalar: 2')));
 check('callback style query', mock.logs.some((l) => l.includes('db callback style: 2 row(s)')));
 check('insert.await returns id', mock.logs.some((l) => l.includes('db insert id: 3')));

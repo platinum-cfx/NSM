@@ -13,17 +13,24 @@ CreateThread(function()
     end)
 
     local ok, err = pcall(function()
-        local rows = MySQL.query.await('SELECT name FROM users')
-        print('db query: ' .. #rows .. ' row(s), first = ' .. rows[1].name)
+        local rows = MySQL.query.await('SELECT identifier, firstname, lastname FROM users')
+        if #rows > 0 then
+            print('db query: ' .. #rows .. ' row(s), first = ' .. tostring(rows[1].firstname) .. ' ' .. tostring(rows[1].lastname))
+        else
+            print('db query: 0 row(s) - no players have joined yet')
+        end
 
         local total = MySQL.scalar.await('SELECT COUNT(*) AS c FROM users')
         print('db scalar: ' .. tostring(total))
 
-        MySQL.Async.query('SELECT name FROM users', {}, function(asyncRows)
+        MySQL.Async.query('SELECT identifier FROM users', {}, function(asyncRows)
             print('db callback style: ' .. #asyncRows .. ' row(s)')
         end)
 
-        local insertId = MySQL.insert.await('INSERT INTO users (name) VALUES (?)', { 'zed' })
+        -- idempotent demo row (deleted first, so every boot looks the same);
+        -- columns match the real esx-legacy `users` table
+        MySQL.query.await("DELETE FROM users WHERE identifier = 'license:nsm-demo'")
+        local insertId = MySQL.insert.await('INSERT INTO users (identifier, ssn, firstname, lastname) VALUES (?, ?, ?, ?)', { 'license:nsm-demo', '000000000', 'nsm', 'demo' })
         print('db insert id: ' .. tostring(insertId))
 
         local again = MySQL.scalar.await('SELECT COUNT(*) AS c FROM users')
