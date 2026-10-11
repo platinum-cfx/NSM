@@ -17,6 +17,10 @@
 
 // joaat — the GTA/FiveM string hash (duplicate of cfx/runtime.js; not
 // imported from there because that module pulls in fs/path)
+
+// cfx Lua transformer (pure module — no fs/path imports, so it is safe to
+// pull in here; the client uses it via the __transformLua VM bridge)
+import { transformFiveMLua } from '../cfx/lua-transform.js';
 export function joaat(s) {
   s = String(s).toLowerCase();
   let h = 0;
@@ -302,7 +306,16 @@ export function createFiveMClientRuntime({ vm, alt, natives, payload, preludeSrc
       const known = (payload.resources || []).some((r) => r.name === String(n));
       return known ? 'started' : 'missing';
     });
-    vm.setGlobalFn('__readResourceFile', () => null);
+    vm.setGlobalFn('__readResourceFile', (resName, rel) => {
+      const r = (payload.resources || []).find((x) => x.name === String(resName));
+      const fc = r && r.fileContents;
+      if (!fc) return null;
+      const key = String(rel).replace(/\\/g, '/').replace(/^\/+/, '');
+      return Object.prototype.hasOwnProperty.call(fc, key) ? fc[key] : null;
+    });
+    // cfx Lua 5.4 -> standard Lua transform (env.load in the prelude calls this
+    // so resource-loaded chunks support #/pointer/integer literal extensions)
+    vm.setGlobalFn('__transformLua', (src) => transformFiveMLua(String(src)));
   }
 
   async function boot() {

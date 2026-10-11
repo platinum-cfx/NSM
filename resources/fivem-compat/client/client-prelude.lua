@@ -345,8 +345,15 @@ setmetatable(_G, {
 -- ---------- misc FiveM globals ----------
 function IsDuplicityVersion() return false end
 function GetGameName() return 'fivem' end
-function GetHashKey(s) return __joaat(s) end
-function joaat(s) return __joaat(s) end
+-- FiveM Lua-visible hashes are SIGNED int32 (they print negative there);
+-- also required for fengari: bitwise ops on unsigned >0x7fffffff floats fail
+local function __joaatSigned(s)
+  local h = __joaat(s)
+  if h > 0x7fffffff then h = h - 0x100000000 end
+  return h
+end
+function GetHashKey(s) return __joaatSigned(s) end
+function joaat(s) return __joaatSigned(s) end
 function GetResourceState(res) return __resourceState and __resourceState(res) or 'started' end
 function GetInvokingResource() return __currentResource end
 function LoadResourceFile(res, file) return __readResourceFile and __readResourceFile(res, file) or nil end
@@ -568,6 +575,9 @@ __envs = {}
 __exportsRegistry = {}
 __currentResource = nil
 
+-- raw Lua load, kept before any env overrides it (env.load below wraps it)
+__rawload = load
+
 function __makeEnv(name)
   local env = {}
   setmetatable(env, { __index = _G })
@@ -581,6 +591,17 @@ function __makeEnv(name)
 
   env.print = function(...) __print('[' .. name .. ']', ...) end
   env.warn = function(...) __print('[' .. name .. '] [warn]', ...) end
+
+  -- FiveM-style load(): transforms cfx Lua extensions, inherits this env when
+  -- the caller passes none (esx_lib's imports.lua loads sibling files with it)
+  env.load = function(src, chunkname, mode, e)
+    local transformed = src
+    if type(src) == 'string' and __transformLua then
+      local ok, t = pcall(__transformLua, src)
+      if ok then transformed = t else __logError('[' .. name .. '] lua transform failed: ' .. tostring(t)) end
+    end
+    return __rawload(transformed, chunkname, mode, e or env)
+  end
 
   -- NUI (per resource: the webview belongs to the owning resource)
   env.SendNUIMessage = function(data) __nuiSend(name, jenc(data)) end

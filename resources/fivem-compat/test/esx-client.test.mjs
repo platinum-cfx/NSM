@@ -106,6 +106,8 @@ function makeNatives() {
     hasCollisionLoadedAroundEntity: t, // spawn collision loop
     isScreenFadedOut: () => false,
     networkIsSessionStarted: t,
+    getVehiclePedIsIn: () => 0,
+    isPauseMenuActive: () => false,
     shutdownLoadingScreen: () => {},
     shutdownLoadingScreenNui: () => {},
     doScreenFadeOut: () => {}, doScreenFadeIn: () => {},

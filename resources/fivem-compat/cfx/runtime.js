@@ -675,10 +675,17 @@ end
 
 -- ---------- statebags (players + compat entities, via synced meta) ----------
 local function stateProxy(getFn, setFn)
-  return setmetatable({}, {
-    __index = function(_, key) return __jsonDecode(getFn(key)) end,
+  local proxy = {}
+  setmetatable(proxy, {
+    __index = function(_, key)
+      -- FiveM statebag method API: state:set(key, value, replicated)
+      if key == 'set' then return function(_, k, v, _) setFn(k, jenc(v)) end end
+      if key == 'get' then return function(_, k) return __jsonDecode(getFn(k)) end end
+      return __jsonDecode(getFn(key))
+    end,
     __newindex = function(_, key, value) setFn(key, jenc(value)) end,
   })
+  return proxy
 end
 
 Player = function(src)
@@ -810,12 +817,29 @@ GetConvarReplicated = GetConvar
 
 -- ---------- misc / identity ----------
 function IsDuplicityVersion() return true end
-function GetGameName() return 'fivem' end
+function GetGameName() return 'fxserver' end
 function GetHashKey(s) return __joaat(s) end
 function joaat(s) return __joaat(s) end
 function GetResourceState(res) return __resourceState(res) end
 function GetResourcePath(res) return __getResourcePath(res) end
-function GetResourceMetadata(res, key, idx) return nil end
+function GetNumResources() return __numResources() end
+function GetResourceByIndex(i) return __resourceByIndex(i) end
+function GetResourceByFindIndex(i) return __resourceByIndex(i) end
+-- manifest metadata (version/author/description/... — scalar manifest fields)
+function GetNumResourceMetadata(res, key) return __resourceMetadataScalar(res, key) ~= false and 1 or 0 end
+function GetResourceMetadata(res, key, idx)
+  if idx ~= nil and tonumber(idx) > 0 then return nil end
+  return __resourceMetadataScalar(res, key)
+end
+-- server-side resource KVPs (file-backed — migration flags survive restarts)
+function GetResourceKvpString(k) return __kvpGet(k) end
+function GetResourceKvpInt(k) local v = __kvpGet(k) if v == false then return 0 end return math.floor(tonumber(v) or 0) end
+function GetResourceKvpFloat(k) local v = __kvpGet(k) if v == false then return 0.0 end return tonumber(v) or 0.0 end
+function SetResourceKvp(k, v) __kvpSet(k, tostring(v)) end
+function SetResourceKvpInt(k, v) __kvpSet(k, tostring(math.floor(tonumber(v) or 0))) end
+function SetResourceKvpFloat(k, v) __kvpSet(k, tostring(tonumber(v) or 0.0)) end
+function DeleteResourceKvp(k) __kvpDelete(k) end
+function SetConvarServerInfo(k, v) __setConvar('serverinfo_' .. tostring(k), tostring(v)) end
 function LoadResourceFile(res, file) return __readResourceFile(res, file) end
 -- GetCurrentResourceName / GetInvokingResource are PER-ENV (see __makeEnv)
 
@@ -1062,8 +1086,16 @@ function __runScript(resName, code, chunkname)
   if env == nil then error("runScript: resource '" .. tostring(resName) .. "' has no environment", 0) end
   local fn, err = __rawload(code, chunkname, 't', env)
   if fn == nil then error(tostring(err), 0) end
-  local ok, rerr = pcall(fn)
-  if not ok then error(tostring(rerr), 0) end
+  -- Run the chunk in a coroutine (NOT pcall): resource scripts may yield
+  -- while loading (MySQL .await in esx migrations, Wait) — a pcall inside
+  -- the JS->Lua call frame turns that into "yield across a C-call boundary".
+  -- Errors still surface: the synchronous raise below for immediate ones,
+  -- __handleYield / __asyncResume log the deferred ones.
+  local co = coroutine.create(fn)
+  __coResources[co] = resName
+  local ok, yielded = coroutine.resume(co)
+  if not ok then error(tostring(yielded), 0) end
+  __handleYield(co, yielded)
   return true
 end
 
@@ -1159,6 +1191,10 @@ export class CfxCompatRuntime {
     this.globalState = new Map();
     this._exportCbs = new Map();
     this._exportCbNext = 0;
+    // server-side resource KVPs (esx migration flags etc.) — file-backed so
+    // they survive restarts, exactly like FiveM's server resource storage
+    this.kvp = new Map();
+    this.kvpPath = (adapter && adapter.kvpPath) || path.join(process.cwd(), 'fivem-compat-kvp.json');
   }
 
   async init() {
@@ -1166,6 +1202,12 @@ export class CfxCompatRuntime {
     this.factory = new LuaFactory();
     this.lua = await this.factory.createEngine();
     this.installBridges();
+
+    // hydrate the persistent KVP store (missing/corrupt file = fresh store)
+    try {
+      const raw = JSON.parse(fs.readFileSync(this.kvpPath, 'utf8'));
+      if (raw && typeof raw === 'object') for (const [k, v] of Object.entries(raw)) this.kvp.set(String(k), v);
+    } catch { /* fresh store */ }
 
     await this.lua.doString(PRELUDE);
 
@@ -1228,6 +1270,27 @@ export class CfxCompatRuntime {
       try { return fs.readFileSync(path.join(r.dir, String(file)), 'utf8'); } catch { return false; }
     });
     g.set('__getResourcePath', (n) => { const r = this.engines.get(String(n)); return r ? r.dir : false; });
+    g.set('__numResources', () => this.engines.size);
+    g.set('__resourceByIndex', (i) => {
+      const names = [...this.engines.keys()].sort();
+      return names[Number(i)] ?? false;
+    });
+    g.set('__resourceMetadataScalar', (n, key) => {
+      const r = this.engines.get(String(n));
+      const m = r && r.manifest;
+      if (!m) return false;
+      const v = m[String(key)];
+      return v === undefined || v === null ? false : String(v);
+    });
+    const kvpSave = () => {
+      try {
+        const o = {}; for (const [k, v] of this.kvp) o[k] = v;
+        fs.writeFileSync(this.kvpPath, JSON.stringify(o, null, 2));
+      } catch (e) { this.logError(`kvp persist failed: ${e && e.message ? e.message : e}`); }
+    };
+    g.set('__kvpGet', (k) => (this.kvp.has(String(k)) ? this.kvp.get(String(k)) : false));
+    g.set('__kvpSet', (k, v) => { this.kvp.set(String(k), v); kvpSave(); });
+    g.set('__kvpDelete', (k) => { this.kvp.delete(String(k)); kvpSave(); });
     g.set('__executeCommand', (cmd) => { this.log('ExecuteCommand:', String(cmd)); return true; });
     g.set('__transformLua', (src) => transformFiveMLua(String(src)));
     g.set('__globalStateGet', (k) => { const v = this.globalState.get(String(k)); return v === undefined ? false : v; });
@@ -1597,14 +1660,31 @@ export class CfxCompatRuntime {
   // alt:V-side fivem-client resource needs to host this server's FiveM
   // resources client-side (transformed scripts, ui_page, files list).
   buildClientPayload() {
+    // `files` entries can be globs (esx_lib: 'imports/**/client.lua'), so the
+    // concrete file list is expanded here AND small textual files are inlined
+    // into fileContents — that is what LoadResourceFile() reads client-side.
+    const MAX_FILE = 512 * 1024;
+    const TEXTUAL = /\.(lua|js|json|txt|csv|xml|html?|css|yml|yaml)$/i;
     const resources = [];
     for (const [name, res] of this.engines) {
       if (res.status !== 'running') continue;
+      const fileContents = {};
+      for (const pat of (res.manifest && res.manifest.files) || []) {
+        for (const rel of this.expandGlob(res.dir, pat)) {
+          try {
+            const p = path.join(res.dir, rel);
+            const st = fs.statSync(p);
+            if (!st.isFile() || st.size > MAX_FILE || !TEXTUAL.test(rel)) continue;
+            fileContents[rel] = fs.readFileSync(p, 'utf8');
+          } catch { /* unreadable — skip */ }
+        }
+      }
       resources.push({
         name,
         scripts: res.clientScripts || [],
         uiPage: (res.manifest && res.manifest.ui_page) || null,
         files: (res.manifest && res.manifest.files) || [],
+        fileContents,
       });
     }
     return { resources };
@@ -1626,7 +1706,7 @@ export class CfxCompatRuntime {
         let subs = [];
         try { subs = fs.readdirSync(base, { withFileTypes: true }); } catch { return; }
         for (const e of subs) {
-          if (e.isDirectory()) walk(path.join(base, e.name), i, acc + '/' + e.name);
+          if (e.isDirectory()) walk(path.join(base, e.name), i, acc ? acc + '/' + e.name : e.name);
         }
         return;
       }
@@ -1644,7 +1724,7 @@ export class CfxCompatRuntime {
       const full = path.join(base, seg);
       try {
         const st = fs.statSync(full);
-        if (isLast ? st.isFile() : st.isDirectory()) walk(full, i + 1, acc + '/' + seg);
+        if (isLast ? st.isFile() : st.isDirectory()) walk(full, i + 1, acc ? acc + '/' + seg : seg);
       } catch { /* missing — contributes nothing */ }
     };
     walk(dir, 0, '');
