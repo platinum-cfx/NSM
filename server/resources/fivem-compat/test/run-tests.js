@@ -2,6 +2,7 @@
 // against a mock alt:V server.
 import { CfxCompatRuntime, joaat } from '../cfx/runtime.js';
 import { makeMockAlt } from './mock-alt.js';
+import { makeAdapter } from '../cfx/adapter.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -37,9 +38,11 @@ check('single engine created', !!rt.lua);
 console.log('== load FiveM resources ==');
 const resDir = path.join(__dirname, '..', 'fivem_resources', 'example-hello');
 const callerDir = path.join(__dirname, '..', 'fivem_resources', 'example-caller');
+const emitDir = path.join(__dirname, '..', 'fivem_resources', 'example-emit');
 check('fxmanifest.lua exists', fs.existsSync(path.join(resDir, 'fxmanifest.lua')));
 await rt.loadResource('example-hello', resDir);
 await rt.loadResource('example-caller', callerDir);
+await rt.loadResource('example-emit', emitDir);
 
 check('both resources loaded', rt.engines.has('example-hello') && rt.engines.has('example-caller'));
 check('server script ran (loaded OK message)', mock.logs.some((l) => l.includes('example-hello server.lua loaded OK')));
@@ -52,6 +55,39 @@ console.log('== net event (client -> server Lua) ==');
 mock.netListeners.get('nsm:hello')[0](mock.players[0], 'hi from the client');
 check('Lua net handler used GetPlayerName(source)', mock.logs.some((l) => l.includes('nsm:hello from austi (src 1)')));
 check('TriggerClientEvent broadcast (-1) sent', mock.clientEvents.some((e) => e.name === 'nsm:welcome' && e.target === -1));
+check('runtime dispatches primitive client events', mock.clientEvents.some((e) => e.name === 'nsm:prim' && e.target === -1));
+check('runtime marshals Lua tables to plain objects', mock.clientEvents.some((e) => e.name === 'nsm:obj' && e.args[0] && typeof e.args[0] === 'object' && e.args[0].a === 1));
+check('runtime passes Lua functions through', mock.clientEvents.some((e) => e.name === 'nsm:cb' && typeof e.args[0] === 'function'));
+check('fxmanifest name directive accepted (no warning)', !mock.logs.some((l) => l.includes('unsupported directive') && l.includes('example-emit')));
+
+console.log('== adapter emit whitelist (exact server code path) ==');
+const amockBase = makeMockAlt();
+// makeAdapter talks to an ALT-shaped object (Player.all, on, Vehicle, ...),
+// while makeMockAlt is adapter-shaped; graft the alt-ish fields the adapter
+// touches onto the mock. This is the same surface the real alt-server module
+// provides to index.js.
+const amock = {
+  ...amockBase,
+  Player: { all: amockBase.players },
+  on: () => {},
+  Vehicle: function () {},
+  Vector3: function () {},
+};
+const ad = makeAdapter(amock, { log: () => {}, logError: () => {} });
+const pid = (amock.players[0] || { id: 1 }).id;
+ad.emitAllClients('nsm:prim', 42, 'text', true);
+ad.emitAllClients('nsm:obj', { a: 1 });
+ad.emitAllClients('nsm:cb', () => {});
+ad.emitClient(pid, 'nsm:prim2', 7);
+ad.emitClient(pid, 'nsm:obj2', { b: 2 });
+check('adapter: raw passthrough for primitives', amock.clientEvents.some((e) => e.name === 'nsm:prim' && e.target === -1));
+check('adapter: envelope for primitives', amock.clientEvents.some((e) => e.name === '__fivem:net' && e.args[0] === 'nsm:prim' && JSON.parse(e.args[1])[0] === 42));
+check('adapter: no raw passthrough for objects', !amock.clientEvents.some((e) => e.name === 'nsm:obj'));
+check('adapter: objects delivered via envelope', amock.clientEvents.some((e) => e.name === '__fivem:net' && e.args[0] === 'nsm:obj' && e.args[1].includes('\"a\"')));
+check('adapter: no raw passthrough for functions', !amock.clientEvents.some((e) => e.name === 'nsm:cb'));
+check('adapter: functions delivered via envelope', amock.clientEvents.some((e) => e.name === '__fivem:net' && e.args[0] === 'nsm:cb'));
+check('adapter: targeted raw passthrough for primitives', amock.clientEvents.some((e) => e.name === 'nsm:prim2'));
+check('adapter: targeted objects envelope-only', !amock.clientEvents.some((e) => e.name === 'nsm:obj2') && amock.clientEvents.some((e) => e.name === '__fivem:net' && e.args[0] === 'nsm:obj2'));
 
 console.log('== commands ==');
 check('command registered', rt.commands.has('helloworld'));

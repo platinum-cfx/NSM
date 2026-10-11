@@ -982,6 +982,8 @@ function __makeEnv(name)
   env.description = function(v) manifest.description = v end
   env.version = function(v) manifest.version = v end
   env.lua54 = function(v) manifest.lua54 = v end
+  env.name = function(v) manifest.name = v end
+  env.legacyversion = function(v) manifest.legacyversion = v end
   env.shared_script = function(v) addscript('shared_scripts', v) end
   env.shared_scripts = function(v) addscript('shared_scripts', v) end
   env.server_script = function(v) addscript('server_scripts', v) end
