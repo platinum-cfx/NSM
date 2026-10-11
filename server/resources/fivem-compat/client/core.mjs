@@ -321,8 +321,14 @@ export function createFiveMClientRuntime({ vm, alt, natives, payload, preludeSrc
   async function boot() {
     if (state.booted) throw new Error('already booted');
     state.booted = true;
+    log(`[fivem-client] boot starting (${vm.name})`);
 
-    await vm.init();
+    try {
+      await vm.init();
+    } catch (e) {
+      logError(`[fivem-client] VM init failed: ${(e && e.message) || e}`);
+      throw e;
+    }
     installBridges();
     await vm.doString('client-prelude', preludeSrc);
 
@@ -352,15 +358,22 @@ export function createFiveMClientRuntime({ vm, alt, natives, payload, preludeSrc
 
     const resources = payload.resources || [];
     log(`[fivem-client] booting with ${resources.length} resource(s) on ${vm.name} (Lua ${vm.luaVersion})`);
-    let okCount = 0;
+    let okCount = 0, failedScripts = 0;
     for (const res of resources) {
       for (const script of res.scripts || []) {
-        const r = await vm.callGlobal('__loadClientScript', res.name, `@${res.name}/${script.path}`, script.source);
-        if (r === false) logError(`[fivem-client] ${res.name}: script failed: ${script.path}`);
+        // one broken script must never kill the whole client boot (that
+        // previously stopped __fivem:ready from ever reaching the server)
+        try {
+          const r = await vm.callGlobal('__loadClientScript', res.name, `@${res.name}/${script.path}`, script.source);
+          if (r === false) { failedScripts++; logError(`[fivem-client] ${res.name}: script failed: ${script.path}`); }
+        } catch (e) {
+          failedScripts++;
+          logError(`[fivem-client] ${res.name}: script threw: ${script.path}: ${(e && e.message) || e}`);
+        }
       }
       okCount++;
     }
-    log(`[fivem-client] boot complete: ${okCount}/${resources.length} resources running`);
+    log(`[fivem-client] boot complete: ${okCount}/${resources.length} resources${failedScripts ? `, ${failedScripts} script error(s) — see above` : ' running'}`);
 
     // tell the server we are up; it answers with __fivem:init (our server id
     // + global state + every player statebag snapshot)

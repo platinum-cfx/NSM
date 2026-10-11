@@ -16254,7 +16254,7 @@ var FIVEM_KEY_ALIASES = {
   "numlock": "NumLock",
   "pause": "Pause"
 };
-function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, payload, preludeSrc, config = {}, log: log2 = console.log, logError: logError2 = console.error }) {
+function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, payload, preludeSrc, config = {}, log: log3 = console.log, logError: logError3 = console.error }) {
   const state = {
     booted: false,
     webviews: /* @__PURE__ */ new Map(),
@@ -16291,7 +16291,7 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
       try {
         fn();
       } catch (e) {
-        logError2("[fivem-client] timer:", e && e.message || e);
+        logError3("[fivem-client] timer:", e && e.message || e);
       }
     };
   }
@@ -16318,7 +16318,7 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
     if (!uiPage) {
       if (!state.uiMissingWarned.has(resName)) {
         state.uiMissingWarned.add(resName);
-        logError2(`[fivem-client] ${resName}: NUI used but fxmanifest has no ui_page \u2014 messages dropped`);
+        logError3(`[fivem-client] ${resName}: NUI used but fxmanifest has no ui_page \u2014 messages dropped`);
       }
       wv = { emit() {
       }, focus() {
@@ -16333,7 +16333,7 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
         try {
           vm2.callGlobal("__nuiInvokeCb", resName, String(cbName), String(body || "{}"), String(token));
         } catch (e) {
-          logError2(`[fivem-client] nui callback dispatch failed: ${e && e.message || e}`);
+          logError3(`[fivem-client] nui callback dispatch failed: ${e && e.message || e}`);
         }
       });
     }
@@ -16349,7 +16349,7 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
           try {
             vm2.callGlobal("__execCommand", kb.cmd, "[]");
           } catch (e) {
-            logError2(`[fivem-client] keybind command failed: ${e && e.message || e}`);
+            logError3(`[fivem-client] keybind command failed: ${e && e.message || e}`);
           }
         }
       }
@@ -16373,7 +16373,7 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
     if (!resolved) {
       if (!state.warnedNatives.has(name)) {
         state.warnedNatives.add(name);
-        logError2(`[fivem-client] native not found in alt natives module: ${name} (returns nil; further calls silent)`);
+        logError3(`[fivem-client] native not found in alt natives module: ${name} (returns nil; further calls silent)`);
       }
       return null;
     }
@@ -16391,13 +16391,13 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
       if (Array.isArray(r)) return { __nsmMulti: true, values: r };
       return r === void 0 ? null : r;
     } catch (e) {
-      logError2(`[fivem-client] native ${name} threw: ${e && e.message || e}`);
+      logError3(`[fivem-client] native ${name} threw: ${e && e.message || e}`);
       return null;
     }
   }
   function installBridges() {
-    vm2.setGlobalFn("__print", (...a) => log2(...a));
-    vm2.setGlobalFn("__logError", (...a) => logError2(...a));
+    vm2.setGlobalFn("__print", (...a) => log3(...a));
+    vm2.setGlobalFn("__logError", (...a) => logError3(...a));
     vm2.setGlobalFn("__setTimeoutRes", (resName, fn, ms) => setTimeoutRes(resName, fn, ms));
     vm2.setGlobalFn("__native", (name, ...args) => callNative(name, args));
     vm2.setGlobalFn("__nativeLookup", (name) => resolveNativeName(name) ? true : false);
@@ -16420,7 +16420,7 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
         else wv.unfocus();
         if (typeof alt2.showCursor === "function") alt2.showCursor(!!cursor);
       } catch (e) {
-        logError2(`[fivem-client] nui focus failed: ${e && e.message || e}`);
+        logError3(`[fivem-client] nui focus failed: ${e && e.message || e}`);
       }
     });
     vm2.setGlobalFn("__nuiKeepInput", (resName, keep) => {
@@ -16434,7 +16434,7 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
     vm2.setGlobalFn("__registerKeybind", (cmdName, desc, key) => {
       const code = keyCodeFor(key);
       if (code === null) {
-        logError2(`[fivem-client] keybind for '${cmdName}': unmapped FiveM key '${key}'`);
+        logError3(`[fivem-client] keybind for '${cmdName}': unmapped FiveM key '${key}'`);
         return;
       }
       if (alt2.Utils && typeof alt2.Utils.Keybind === "function") {
@@ -16443,7 +16443,7 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
             try {
               vm2.callGlobal("__execCommand", String(cmdName), "[]");
             } catch (e) {
-              logError2(`[fivem-client] keybind command failed: ${e && e.message || e}`);
+              logError3(`[fivem-client] keybind command failed: ${e && e.message || e}`);
             }
           });
           return;
@@ -16483,7 +16483,13 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
   async function boot() {
     if (state.booted) throw new Error("already booted");
     state.booted = true;
-    await vm2.init();
+    log3(`[fivem-client] boot starting (${vm2.name})`);
+    try {
+      await vm2.init();
+    } catch (e) {
+      logError3(`[fivem-client] VM init failed: ${e && e.message || e}`);
+      throw e;
+    }
     installBridges();
     await vm2.doString("client-prelude", preludeSrc);
     if (typeof alt2.onServer === "function") {
@@ -16491,14 +16497,14 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
         try {
           vm2.callGlobal("__netDispatch", String(evName), String(argsJson || "[]"));
         } catch (e) {
-          logError2(`[fivem-client] net dispatch failed: ${e && e.message || e}`);
+          logError3(`[fivem-client] net dispatch failed: ${e && e.message || e}`);
         }
       });
       alt2.onServer("__fivem:state", (target, key, valueJson) => {
         try {
           vm2.callGlobal("__stateChange", String(target), String(key), String(valueJson));
         } catch (e) {
-          logError2(`[fivem-client] state dispatch failed: ${e && e.message || e}`);
+          logError3(`[fivem-client] state dispatch failed: ${e && e.message || e}`);
         }
       });
       alt2.onServer("__fivem:init", (serverId, globalStateJson) => {
@@ -16512,23 +16518,31 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
           for (const [k, v] of Object.entries(gs)) {
             vm2.callGlobal("__stateChange", "global", String(k), JSON.stringify(v));
           }
-          log2(`[fivem-client] handshake complete (server id ${serverId})`);
+          log3(`[fivem-client] handshake complete (server id ${serverId})`);
         } catch (e) {
-          logError2(`[fivem-client] init failed: ${e && e.message || e}`);
+          logError3(`[fivem-client] init failed: ${e && e.message || e}`);
         }
       });
     }
     const resources = payload.resources || [];
-    log2(`[fivem-client] booting with ${resources.length} resource(s) on ${vm2.name} (Lua ${vm2.luaVersion})`);
-    let okCount = 0;
+    log3(`[fivem-client] booting with ${resources.length} resource(s) on ${vm2.name} (Lua ${vm2.luaVersion})`);
+    let okCount = 0, failedScripts = 0;
     for (const res of resources) {
       for (const script of res.scripts || []) {
-        const r = await vm2.callGlobal("__loadClientScript", res.name, `@${res.name}/${script.path}`, script.source);
-        if (r === false) logError2(`[fivem-client] ${res.name}: script failed: ${script.path}`);
+        try {
+          const r = await vm2.callGlobal("__loadClientScript", res.name, `@${res.name}/${script.path}`, script.source);
+          if (r === false) {
+            failedScripts++;
+            logError3(`[fivem-client] ${res.name}: script failed: ${script.path}`);
+          }
+        } catch (e) {
+          failedScripts++;
+          logError3(`[fivem-client] ${res.name}: script threw: ${script.path}: ${e && e.message || e}`);
+        }
       }
       okCount++;
     }
-    log2(`[fivem-client] boot complete: ${okCount}/${resources.length} resources running`);
+    log3(`[fivem-client] boot complete: ${okCount}/${resources.length} resources${failedScripts ? `, ${failedScripts} script error(s) \u2014 see above` : " running"}`);
     if (typeof alt2.emitServer === "function") {
       try {
         alt2.emitServer("__fivem:ready", true);
@@ -16739,6 +16753,7410 @@ function createFengariVM() {
 // client/gen/payload.gen.js
 var PAYLOAD = {
   "resources": [
+    {
+      "name": "es_extended",
+      "scripts": [
+        {
+          "path": "../esx_lib/imports.lua",
+          "source": `--! DISCLAIMER
+--[[
+    https://github.com/overextended/ox_lib
+
+    This file is licensed under LGPL-3.0 or higher <https://www.gnu.org/licenses/lgpl-3.0.en.html>
+
+    Copyright \xA9 2025 Linden <https://github.com/thelindat>
+]]
+
+-- Const Variables
+local CONTEXT = IsDuplicityVersion() and 'server' or 'client'
+local LIB_NAME = 'esx_lib'
+local IS_DEBUG = GetConvar('xLib:debug', 'false') == 'true'
+
+
+---@alias Module table | function
+---@class xLib
+---@field name string
+---@field side 'server' | 'client'
+
+-------------------------------------------------
+--- Core functions for modules
+-------------------------------------------------
+
+--- Function that returns nothing
+--- Used as a "shortcut"
+function Noop() end
+
+---Loads a module into memory
+---@param self xLib
+---@param name string -- module name
+---@return Module | nil
+local function loadModule(self, name)
+    local directory = ('imports/%s'):format(name)
+    local chunk = LoadResourceFile(LIB_NAME, ('%s/%s.lua'):format(directory, CONTEXT))
+    local shared_chunk = LoadResourceFile(LIB_NAME, ('%s/shared.lua'):format(directory))
+
+    if shared_chunk then
+        chunk = chunk and ('%s\\n%s'):format(shared_chunk, chunk) or shared_chunk 
+    end
+
+    if not chunk then
+        return
+    end
+
+    -- Second argument is a chunk name
+    local fn, err = load(chunk, ('@@%s/imports/%s/%s.lua'):format(LIB_NAME, name, CONTEXT))
+
+    if not fn or err then
+        if shared_chunk then
+            print(('[%s] Found an error while importing - %s! Try updating %s to the latest version!'):format(LIB_NAME,
+                name, LIB_NAME))
+
+            -- Tries to load only shared.lua
+            fn, err = load(shared_chunk, ('@@%s/imports/%s/%s.lua'):format(LIB_NAME, name, 'shared'))
+        end
+
+        if not fn or err then
+            return error(('Completly failed importing module - %s; error - %s'):format(name, err))
+        end
+    end
+
+    local result = fn()
+    self[name] = result or Noop
+
+    return self[name]
+end
+
+---Function that is responsible for lazy loading
+---@param self xLib
+---@param index string -- name of the function/key that is called
+---@param ... unknown -- function params
+---@return Module
+local function call(self, index, ...)
+    local module = rawget(self, index) -- uses rawget not to trigger any metamethods
+
+    -- Module Loading
+    if not module then
+        self[index] = Noop -- to prevent module from loading again if doesn't exists.
+
+        module = loadModule(self, index)
+
+        if not module then
+            local function method(...)
+               return exports[LIB_NAME][index](nil, ...)
+            end
+                
+            if not ... then
+                self[index] = method
+            end
+
+            return method
+        end
+    end
+
+    return module
+end
+
+
+-------------------------------------------------
+--- Environment Setup
+-------------------------------------------------
+
+-- Creation of xLib object
+---@diagnostic disable-next-line: lowercase-global
+local xLib = setmetatable({
+    name = LIB_NAME,
+    side = CONTEXT,
+    debug = IS_DEBUG
+}, {
+    -- Lazy Loading - loads module only when accessed
+    __index = call,
+    __call = call,
+})
+
+-- Allows to xLib to be accessible in resource that imports a lib
+_ENV.xLib = xLib
+_ENV.require = xLib.require
+`
+        },
+        {
+          "path": "locale.lua",
+          "source": 'Locales = {}\n\n--- English fallback for missing keys. locale.lua runs in every resource VM, so\n--- a resource may opt out through its own Config.LocaleFallback; otherwise the\n--- shared "esx:localeFallback" convar decides (enabled by default).\nlocal function localeFallbackEnabled()\n    if Config.LocaleFallback ~= nil then\n        return Config.LocaleFallback\n    end\n\n    return GetConvar("esx:localeFallback", "true") ~= "false"\nend\n\n--- Read and execute a locale file, returning its table or false if unreadable.\nlocal function readLocale(locale)\n    local success, result = pcall(function()\n        return assert(load(LoadResourceFile(GetCurrentResourceName(), ("locales/%s.lua"):format(locale))))()\n    end)\n\n    return success and result or false\nend\n\n--- Copy every key the target locale is missing from English into it once, warn\n--- about the gaps, then let the English table go. The locale ends up\n--- self-contained, so no per-call fallback and only one table stays in memory.\nlocal function backfillFromEnglish(locale, translations)\n    local english = readLocale("en")\n    if not english then\n        return\n    end\n\n    local missing = {}\n    for key, value in pairs(english) do\n        if translations[key] == nil then\n            translations[key] = value\n            missing[#missing + 1] = key\n        end\n    end\n\n    if #missing > 0 then\n        print(("[es_extended] locale [%s] is missing %d translation(s), falling back to English: %s")\n            :format(locale, #missing, table.concat(missing, ", ")))\n    end\nend\n\n--- Lazily load and cache a locale file, false if it cannot be read.\nlocal function loadLocale(locale)\n    if Locales[locale] == nil then\n        local translations = readLocale(locale)\n\n        if translations and locale ~= "en" and localeFallbackEnabled() then\n            backfillFromEnglish(locale, translations)\n        end\n\n        Locales[locale] = translations\n    end\n\n    return Locales[locale]\nend\n\nfunction Translate(str, ...) -- Translate string\n    if not str then\n        error(("Resource ^5%s^1 You did not specify a parameter for the Translate function or the value is nil!"):format(GetInvokingResource() or GetCurrentResourceName()))\n    end\n\n    local translations = loadLocale(Config.Locale)\n    if not translations then\n        if Config.Locale == "en" then\n            return "Locale [en] does not exist"\n        end\n\n        -- Fall back to English translation if the current locale is not found\n        Config.Locale = "en"\n        return Translate(str, ...)\n    end\n\n    if translations[str] then\n        return translations[str]:format(...)\n    end\n\n    return ("Translation [%s][%s] does not exist"):format(Config.Locale, str)\nend\n\nfunction TranslateCap(str, ...) -- Translate string first char uppercase\n    return (_(str, ...):gsub("^%l", string.upper))\nend\n\n_ = Translate\n-- luacheck: ignore _U\n_U = TranslateCap\n'
+        },
+        {
+          "path": "shared/config/main.lua",
+          "source": `Config = {}
+
+local txAdminLocale = GetConvar("txAdmin-locale", "en")
+local esxLocale = GetConvar("esx:locale", "invalid")
+Config.Locale = (esxLocale ~= "invalid") and esxLocale or (txAdminLocale ~= "custom" and txAdminLocale) or "en"
+
+-- When a key is missing from the active locale, fall back to the English string
+-- instead of returning a placeholder. Set convar "esx:localeFallback" to "false"
+-- to keep the placeholder (useful when authoring a new translation).
+Config.LocaleFallback = GetConvar("esx:localeFallback", "true") ~= "false"
+
+-- For ox inventory, this will automatically be adjusted, do not change! For other inventories, leave as false unless specifically instructed to change.
+Config.CustomInventory = false
+
+Config.Accounts = {
+    bank = {
+        label = TranslateCap("account_bank"),
+        round = true,
+    },
+    black_money = {
+        label = TranslateCap("account_black_money"),
+        round = true,
+    },
+    money = {
+        label = TranslateCap("account_money"),
+        round = true,
+    },
+}
+
+Config.StartingAccountMoney = { bank = 50000 }
+
+Config.StartingInventoryItems = false -- table/false
+
+Config.DefaultSpawns = { -- If you want to have more spawn positions and select them randomly uncomment commented code or add more locations
+    { x = 222.2027, y = -864.0162, z = 30.2922, heading = 1.0 },
+    --{x = 224.9865, y = -865.0871, z = 30.2922, heading = 1.0},
+    --{x = 227.8436, y = -866.0400, z = 30.2922, heading = 1.0},
+    --{x = 230.6051, y = -867.1450, z = 30.2922, heading = 1.0},
+    --{x = 233.5459, y = -868.2626, z = 30.2922, heading = 1.0}
+}
+
+---@deprecated Use \`Config.CommandPermissions\` as the single source of truth for command ACLs.
+--- Kept temporarily for backwards compatibility with external resources that still read \`Config.AdminGroups\`.
+--- Will be removed in ESX 1.15.
+Config.AdminGroups = {
+    ["owner"] = true,
+    ["admin"] = true,
+}
+
+Config.CommandPermissions = {
+    ["setcoords"]           = { "owner", "admin" }, -- /setcoords, /tp
+    ["setjob"]              = { "owner", "admin" },
+    ["car"]                 = { "owner", "admin" },
+    ["cardel"]              = { "owner", "admin" }, -- /cardel, /dv
+    ["fix"]                 = { "owner", "admin" }, -- /fix, /repair
+    ["setaccountmoney"]     = { "owner", "admin" },
+    ["giveaccountmoney"]    = { "owner", "admin" },
+    ["removeaccountmoney"]  = { "owner", "admin" },
+    ["giveitem"]            = { "owner", "admin" },
+    ["giveweapon"]          = { "owner", "admin" },
+    ["giveammo"]            = { "owner", "admin" },
+    ["giveweaponcomponent"] = { "owner", "admin" },
+    ["clearall"]            = { "owner", "admin" }, -- /clearall, /clsall
+    ["refreshjobs"]         = { "owner", "admin" },
+    ["refreshitems"]        = { "owner", "admin" },
+    ["clearinventory"]      = { "owner", "admin" },
+    ["clearloadout"]        = { "owner", "admin" },
+    ["setgroup"]            = { "owner", "admin" },
+    ["save"]                = { "owner", "admin" },
+    ["saveall"]             = { "owner", "admin" },
+    ["goto"]                = { "owner", "admin" },
+    ["bring"]               = { "owner", "admin" },
+    ["kill"]                = { "owner", "admin" },
+    ["freeze"]              = { "owner", "admin" },
+    ["unfreeze"]            = { "owner", "admin" },
+    ["setdim"]              = { "owner", "admin" }, -- /setdim, /setbucket
+    ["players"]             = { "owner", "admin" },
+    ["noclip"]              = { "owner", "admin" },
+    ["tpm"]                 = { "owner", "admin" },
+    ["coords"]              = { "owner", "admin" },
+    ["clear"]               = { "user", "admin", "owner" }, -- /clear, /cls
+    ["group"]               = { "user", "admin", "owner" },
+    ["job"]                 = { "user", "admin", "owner" },
+    ["info"]                = { "user", "admin", "owner" },
+    ["playtime"]            = { "user", "admin", "owner" },
+}
+
+Config.ValidCharacterSets = { -- Only enable additional charsets if your server is multilingual. By default everything is false.
+    ['el'] = false, -- Greek
+    ['sr'] = false, -- Cyrillic
+    ['he'] = false, -- Hebrew
+    ['ar'] = false, -- Arabic
+    ['zh-cn'] = false -- Chinese, Japanese, Korean
+}
+
+Config.EnablePaycheck = true -- enable paycheck
+Config.LogPaycheck = false -- Logs paychecks to a nominated Discord channel via webhook (default is false)
+Config.EnableSocietyPayouts = false -- pay from the society account that the player is employed at? Requirement: esx_society
+Config.MaxWeight = 24 -- the max inventory weight without a backpack
+Config.PaycheckInterval = 7 * 60000 -- how often to receive paychecks in milliseconds
+Config.SaveDeathStatus = true -- Save the death status of a player
+Config.EnableDebug = false -- Use Debug options?
+
+Config.DefaultJobDuty = true -- A players default duty status when changing jobs
+Config.OffDutyPaycheckMultiplier = 0.5 -- The multiplier for off duty paychecks. 0.5 = 50% of the on duty paycheck
+
+Config.Multichar = GetResourceState("esx_multicharacter") ~= "missing"
+Config.Identity = true -- Select a character identity data before they have loaded in (this happens by default with multichar)
+Config.DistanceGive = 4.0 -- Max distance when giving items, weapons etc.
+
+Config.AdminLogging = false -- Logs the usage of certain commands by those with group.admin ace permissions (default is false)
+
+-------------------------------------
+-- DO NOT CHANGE BELOW THIS LINE !!!
+-------------------------------------
+if GetResourceState("ox_inventory") ~= "missing" then
+    Config.CustomInventory = "ox"
+end
+
+Config.EnableDefaultInventory = Config.CustomInventory == false -- Display the default Inventory ( F2 )
+Config.Identifier = GetConvar("esx:identifier", "license")`
+        },
+        {
+          "path": "shared/config/weapons.lua",
+          "source": `Config.DefaultWeaponTints = {
+    [0] = TranslateCap("tint_default"),
+    [1] = TranslateCap("tint_green"),
+    [2] = TranslateCap("tint_gold"),
+    [3] = TranslateCap("tint_pink"),
+    [4] = TranslateCap("tint_army"),
+    [5] = TranslateCap("tint_lspd"),
+    [6] = TranslateCap("tint_orange"),
+    [7] = TranslateCap("tint_platinum"),
+}
+Config.MK2WeaponTints = {
+    [0]  = TranslateCap('tint_classic_black'),
+    [1]  = TranslateCap('tint_classic_gray'),
+    [2]  = TranslateCap('tint_classic_two_tone'),
+    [3]  = TranslateCap('tint_classic_white'),
+    [4]  = TranslateCap('tint_classic_beige'),
+    [5]  = TranslateCap('tint_classic_green'),
+    [6]  = TranslateCap('tint_classic_blue'),
+    [7]  = TranslateCap('tint_classic_earth'),
+    [8]  = TranslateCap('tint_classic_brown_black'),
+    [9]  = TranslateCap('tint_contrast_red'),
+    [10] = TranslateCap('tint_contrast_blue'),
+    [11] = TranslateCap('tint_contrast_yellow'),
+    [12] = TranslateCap('tint_contrast_orange'),
+    [13] = TranslateCap('tint_bold_pink'),
+    [14] = TranslateCap('tint_bold_purple_yellow'),
+    [15] = TranslateCap('tint_bold_orange'),
+    [16] = TranslateCap('tint_bold_green_purple'),
+    [17] = TranslateCap('tint_bold_red_feat'),
+    [18] = TranslateCap('tint_bold_green_feat'),
+    [19] = TranslateCap('tint_bold_cyan_feat'),
+    [20] = TranslateCap('tint_bold_yellow_feat'),
+    [21] = TranslateCap('tint_bold_red_white'),
+    [22] = TranslateCap('tint_bold_blue_white'),
+    [23] = TranslateCap('tint_metallic_gold'),
+    [24] = TranslateCap('tint_metallic_platinum'),
+    [25] = TranslateCap('tint_metallic_gray_lilac'),
+    [26] = TranslateCap('tint_metallic_purple_lime'),
+    [27] = TranslateCap('tint_metallic_red'),
+    [28] = TranslateCap('tint_metallic_green'),
+    [29] = TranslateCap('tint_metallic_blue'),
+    [30] = TranslateCap('tint_metallic_white_aqua'),
+    [31] = TranslateCap('tint_metallic_orange_yellow'),
+    [32] = TranslateCap('tint_metallic_red_yellow')
+}
+
+Config.Weapons = {
+    -- Melee
+    { name = "WEAPON_DAGGER", label = TranslateCap("weapon_dagger"), components = {} },
+    { name = "WEAPON_BAT", label = TranslateCap("weapon_bat"), components = {} },
+    { name = "WEAPON_BATTLEAXE", label = TranslateCap("weapon_battleaxe"), components = {} },
+    {
+        name = "WEAPON_KNUCKLE",
+        label = TranslateCap("weapon_knuckle"),
+        components = {
+            { name = "knuckle_base", label = TranslateCap("component_knuckle_base"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_BASE },
+            { name = "knuckle_pimp", label = TranslateCap("component_knuckle_pimp"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_PIMP },
+            { name = "knuckle_ballas", label = TranslateCap("component_knuckle_ballas"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_BALLAS },
+            { name = "knuckle_dollar", label = TranslateCap("component_knuckle_dollar"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_DOLLAR },
+            { name = "knuckle_diamond", label = TranslateCap("component_knuckle_diamond"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_DIAMOND },
+            { name = "knuckle_hate", label = TranslateCap("component_knuckle_hate"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_HATE },
+            { name = "knuckle_love", label = TranslateCap("component_knuckle_love"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_LOVE },
+            { name = "knuckle_player", label = TranslateCap("component_knuckle_player"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_PLAYER },
+            { name = "knuckle_king", label = TranslateCap("component_knuckle_king"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_KING },
+            { name = "knuckle_vagos", label = TranslateCap("component_knuckle_vagos"), hash = _cfxbt_COMPONENT_KNUCKLE_VARMOD_VAGOS },
+        },
+    },
+    { name = "WEAPON_BOTTLE", label = TranslateCap("weapon_bottle"), components = {} },
+    { name = "WEAPON_CROWBAR", label = TranslateCap("weapon_crowbar"), components = {} },
+    { name = "WEAPON_FLASHLIGHT", label = TranslateCap("weapon_flashlight"), components = {} },
+    { name = "WEAPON_GOLFCLUB", label = TranslateCap("weapon_golfclub"), components = {} },
+    { name = "WEAPON_HAMMER", label = TranslateCap("weapon_hammer"), components = {} },
+    { name = "WEAPON_HATCHET", label = TranslateCap("weapon_hatchet"), components = {} },
+    { name = "WEAPON_KNIFE", label = TranslateCap("weapon_knife"), components = {} },
+    { name = "WEAPON_MACHETE", label = TranslateCap("weapon_machete"), components = {} },
+    { name = "WEAPON_NIGHTSTICK", label = TranslateCap("weapon_nightstick"), components = {} },
+    { name = "WEAPON_WRENCH", label = TranslateCap("weapon_wrench"), components = {} },
+    { name = "WEAPON_POOLCUE", label = TranslateCap("weapon_poolcue"), components = {} },
+    { name = "WEAPON_STONE_HATCHET", label = TranslateCap("weapon_stone_hatchet"), components = {} },
+    {
+        name = "WEAPON_SWITCHBLADE",
+        label = TranslateCap("weapon_switchblade"),
+        components = {
+            { name = "handle_default", label = TranslateCap("component_handle_default"), hash = _cfxbt_COMPONENT_SWITCHBLADE_VARMOD_BASE },
+            { name = "handle_vip", label = TranslateCap("component_handle_vip"), hash = _cfxbt_COMPONENT_SWITCHBLADE_VARMOD_VAR1 },
+            { name = "handle_bodyguard", label = TranslateCap("component_handle_bodyguard"), hash = _cfxbt_COMPONENT_SWITCHBLADE_VARMOD_VAR2 },
+        },
+    },
+    -- Handguns
+    {
+        name = "WEAPON_APPISTOL",
+        label = TranslateCap("weapon_appistol"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_APPISTOL_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_APPISTOL_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_APPISTOL_VARMOD_LUXE },
+        },
+    },
+    { name = "WEAPON_CERAMICPISTOL", label = TranslateCap("weapon_ceramicpistol"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL } },
+    {
+        name = "WEAPON_COMBATPISTOL",
+        label = TranslateCap("weapon_combatpistol"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_COMBATPISTOL_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_COMBATPISTOL_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_COMBATPISTOL_VARMOD_LOWRIDER },
+        },
+    },
+    { name = "WEAPON_DOUBLEACTION", label = TranslateCap("weapon_doubleaction"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL } },
+    { name = "WEAPON_NAVYREVOLVER", label = TranslateCap("weapon_navyrevolver"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL } },
+    { name = "WEAPON_FLAREGUN", label = TranslateCap("weapon_flaregun"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_flaregun"), hash = _cfxbt_AMMO_FLAREGUN } },
+    { name = "WEAPON_GADGETPISTOL", label = TranslateCap("weapon_gadgetpistol"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL } },
+    {
+        name = "WEAPON_HEAVYPISTOL",
+        label = TranslateCap("weapon_heavypistol"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_HEAVYPISTOL_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_HEAVYPISTOL_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_HEAVYPISTOL_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_REVOLVER",
+        label = TranslateCap("weapon_revolver"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_REVOLVER_CLIP_01 },
+            { name = "vip_finish", label = TranslateCap("component_vip_finish"), hash = _cfxbt_COMPONENT_REVOLVER_VARMOD_BOSS },
+            { name = "bodyguard_finish", label = TranslateCap("component_bodyguard_finish"), hash = _cfxbt_COMPONENT_REVOLVER_VARMOD_GOON },
+        },
+    },
+    {
+        name = "WEAPON_REVOLVER_MK2",
+        label = TranslateCap("weapon_revolver_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CLIP_01 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CLIP_INCENDIARY },
+            { name = "ammo_hollowpoint", label = TranslateCap("component_ammo_hollowpoint"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CLIP_HOLLOWPOINT },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CLIP_FMJ },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS },
+            { name = "scope_small", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO_MK2 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH },
+            { name = "compensator", label = TranslateCap("component_compensator"), hash = _cfxbt_COMPONENT_AT_PI_COMP_03 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_REVOLVER_MK2_CAMO_IND_01 },
+        },
+    },
+    { name = "WEAPON_MARKSMANPISTOL", label = TranslateCap("weapon_marksmanpistol"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL } },
+    {
+        name = "WEAPON_PISTOL",
+        label = TranslateCap("weapon_pistol"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_PISTOL_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_PISTOL_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP_02 },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_PISTOL_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_PISTOL_MK2",
+        label = TranslateCap("weapon_pistol_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CLIP_INCENDIARY },
+            { name = "ammo_hollowpoint", label = TranslateCap("component_ammo_hollowpoint"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CLIP_HOLLOWPOINT },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CLIP_FMJ },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_PI_RAIL },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH_02 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP_02 },
+            { name = "compensator", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_COMP },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_IND_01 },
+            { name = "camo_slide_finish", label = TranslateCap("component_camo_slide_finish"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_SLIDE },
+            { name = "camo_slide_finish2", label = TranslateCap("component_camo_slide_finish2"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_02_SLIDE },
+            { name = "camo_slide_finish3", label = TranslateCap("component_camo_slide_finish3"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_03_SLIDE },
+            { name = "camo_slide_finish4", label = TranslateCap("component_camo_slide_finish4"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_04_SLIDE },
+            { name = "camo_slide_finish5", label = TranslateCap("component_camo_slide_finish5"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_05_SLIDE },
+            { name = "camo_slide_finish6", label = TranslateCap("component_camo_slide_finish6"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_06_SLIDE },
+            { name = "camo_slide_finish7", label = TranslateCap("component_camo_slide_finish7"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_07_SLIDE },
+            { name = "camo_slide_finish8", label = TranslateCap("component_camo_slide_finish8"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_08_SLIDE },
+            { name = "camo_slide_finish9", label = TranslateCap("component_camo_slide_finish9"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_09_SLIDE },
+            { name = "camo_slide_finish10", label = TranslateCap("component_camo_slide_finish10"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_10_SLIDE },
+            { name = "camo_slide_finish11", label = TranslateCap("component_camo_slide_finish11"), hash = _cfxbt_COMPONENT_PISTOL_MK2_CAMO_IND_01_SLIDE },
+        },
+    },
+    {
+        name = "WEAPON_PISTOL50",
+        label = TranslateCap("weapon_pistol50"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_PISTOL50_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_PISTOL50_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_PISTOL50_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_SNSPISTOL",
+        label = TranslateCap("weapon_snspistol"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_SNSPISTOL_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_SNSPISTOL_CLIP_02 },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_SNSPISTOL_VARMOD_LOWRIDER },
+        },
+    },
+    {
+        name = "WEAPON_SNSPISTOL_MK2",
+        label = TranslateCap("weapon_snspistol_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CLIP_INCENDIARY },
+            { name = "ammo_hollowpoint", label = TranslateCap("component_ammo_hollowpoint"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CLIP_HOLLOWPOINT },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CLIP_FMJ },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_PI_RAIL_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH_03 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP_02 },
+            { name = "compensator", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_COMP_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_IND_01 },
+            { name = "camo_slide_finish", label = TranslateCap("component_camo_slide_finish"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_SLIDE },
+            { name = "camo_slide_finish2", label = TranslateCap("component_camo_slide_finish2"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_02_SLIDE },
+            { name = "camo_slide_finish3", label = TranslateCap("component_camo_slide_finish3"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_03_SLIDE },
+            { name = "camo_slide_finish4", label = TranslateCap("component_camo_slide_finish4"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_04_SLIDE },
+            { name = "camo_slide_finish5", label = TranslateCap("component_camo_slide_finish5"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_05_SLIDE },
+            { name = "camo_slide_finish6", label = TranslateCap("component_camo_slide_finish6"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_06_SLIDE },
+            { name = "camo_slide_finish7", label = TranslateCap("component_camo_slide_finish7"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_07_SLIDE },
+            { name = "camo_slide_finish8", label = TranslateCap("component_camo_slide_finish8"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_08_SLIDE },
+            { name = "camo_slide_finish9", label = TranslateCap("component_camo_slide_finish9"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_09_SLIDE },
+            { name = "camo_slide_finish10", label = TranslateCap("component_camo_slide_finish10"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_10_SLIDE },
+            { name = "camo_slide_finish11", label = TranslateCap("component_camo_slide_finish11"), hash = _cfxbt_COMPONENT_SNSPISTOL_MK2_CAMO_IND_01_SLIDE },
+        },
+    },
+    { name = "WEAPON_STUNGUN", label = TranslateCap("weapon_stungun"), tints = Config.DefaultWeaponTints, components = {} },
+    { name = "WEAPON_STUNROD", label = TranslateCap("weapon_stunrod"), tints = Config.DefaultWeaponTints, components = {} },
+    { name = "WEAPON_RAYPISTOL", label = TranslateCap("weapon_raypistol"), tints = Config.DefaultWeaponTints, components = {} },
+    {
+        name = "WEAPON_VINTAGEPISTOL",
+        label = TranslateCap("weapon_vintagepistol"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_VINTAGEPISTOL_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_VINTAGEPISTOL_CLIP_02 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP },
+        },
+    },
+    -- Shotguns
+    {
+        name = "WEAPON_ASSAULTSHOTGUN",
+        label = TranslateCap("weapon_assaultshotgun"),
+        ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_ASSAULTSHOTGUN_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_ASSAULTSHOTGUN_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+        },
+    },
+    { name = "WEAPON_AUTOSHOTGUN", label = TranslateCap("weapon_autoshotgun"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN } },
+    {
+        name = "WEAPON_BULLPUPSHOTGUN",
+        label = TranslateCap("weapon_bullpupshotgun"),
+        ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+        },
+    },
+    {
+        name = "WEAPON_COMBATSHOTGUN",
+        label = TranslateCap("weapon_combatshotgun"),
+        ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+        },
+    },
+    { name = "WEAPON_DBSHOTGUN", label = TranslateCap("weapon_dbshotgun"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN } },
+    {
+        name = "WEAPON_HEAVYSHOTGUN",
+        label = TranslateCap("weapon_heavyshotgun"),
+        ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_HEAVYSHOTGUN_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_HEAVYSHOTGUN_CLIP_02 },
+            { name = "clip_drum", label = TranslateCap("component_clip_drum"), hash = _cfxbt_COMPONENT_HEAVYSHOTGUN_CLIP_03 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+        },
+    },
+    { name = "WEAPON_MUSKET", label = TranslateCap("weapon_musket"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SHOTGUN } },
+    {
+        name = "WEAPON_PUMPSHOTGUN",
+        label = TranslateCap("weapon_pumpshotgun"),
+        ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_SR_SUPP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_VARMOD_LOWRIDER },
+        },
+    },
+    {
+        name = "WEAPON_PUMPSHOTGUN_MK2",
+        label = TranslateCap("weapon_pumpshotgun_mk2"),
+        ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "shells_default", label = TranslateCap("component_shells_default"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CLIP_01 },
+            { name = "shells_incendiary", label = TranslateCap("component_shells_incendiary"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CLIP_INCENDIARY },
+            { name = "shells_armor", label = TranslateCap("component_shells_armor"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CLIP_ARMORPIERCING },
+            { name = "shells_hollowpoint", label = TranslateCap("component_shells_hollowpoint"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CLIP_HOLLOWPOINT },
+            { name = "shells_explosive", label = TranslateCap("component_shells_explosive"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CLIP_EXPLOSIVE },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS },
+            { name = "scope_small", label = TranslateCap("component_scope_small"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO_MK2 },
+            { name = "scope_medium", label = TranslateCap("component_scope_medium"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL_MK2 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_SR_SUPP_03 },
+            { name = "muzzle_squared", label = TranslateCap("component_muzzle_squared"), hash = _cfxbt_COMPONENT_AT_MUZZLE_08 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_PUMPSHOTGUN_MK2_CAMO_IND_01 },
+        },
+    },
+    {
+        name = "WEAPON_SAWNOFFSHOTGUN",
+        label = TranslateCap("weapon_sawnoffshotgun"),
+        ammo = { label = TranslateCap("ammo_shells"), hash = _cfxbt_AMMO_SHOTGUN },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_SAWNOFFSHOTGUN_VARMOD_LUXE },
+        },
+    },
+    -- SMG & LMG
+    {
+        name = "WEAPON_ASSAULTSMG",
+        label = TranslateCap("weapon_assaultsmg"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SMG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_ASSAULTSMG_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_ASSAULTSMG_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_ASSAULTSMG_VARMOD_LOWRIDER },
+        },
+    },
+    {
+        name = "WEAPON_COMBATMG",
+        label = TranslateCap("weapon_combatmg"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_MG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_COMBATMG_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_COMBATMG_CLIP_02 },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_COMBATMG_VARMOD_LOWRIDER },
+        },
+    },
+    {
+        name = "WEAPON_COMBATMG_MK2",
+        label = TranslateCap("weapon_combatmg_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_MG },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CLIP_INCENDIARY },
+            { name = "ammo_hollowpoint", label = TranslateCap("component_ammo_hollowpoint"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CLIP_ARMORPIERCING },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CLIP_FMJ },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP_02 },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS },
+            { name = "scope_medium", label = TranslateCap("component_scope_medium"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL_MK2 },
+            { name = "scope_large", label = TranslateCap("component_scope_large"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM_MK2 },
+            { name = "muzzle_flat", label = TranslateCap("component_muzzle_flat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_01 },
+            { name = "muzzle_tactical", label = TranslateCap("component_muzzle_tactical"), hash = _cfxbt_COMPONENT_AT_MUZZLE_02 },
+            { name = "muzzle_fat", label = TranslateCap("component_muzzle_fat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_03 },
+            { name = "muzzle_precision", label = TranslateCap("component_muzzle_precision"), hash = _cfxbt_COMPONENT_AT_MUZZLE_04 },
+            { name = "muzzle_heavy", label = TranslateCap("component_muzzle_heavy"), hash = _cfxbt_COMPONENT_AT_MUZZLE_05 },
+            { name = "muzzle_slanted", label = TranslateCap("component_muzzle_slanted"), hash = _cfxbt_COMPONENT_AT_MUZZLE_06 },
+            { name = "muzzle_split", label = TranslateCap("component_muzzle_split"), hash = _cfxbt_COMPONENT_AT_MUZZLE_07 },
+            { name = "barrel_default", label = TranslateCap("component_barrel_default"), hash = _cfxbt_COMPONENT_AT_MG_BARREL_01 },
+            { name = "barrel_heavy", label = TranslateCap("component_barrel_heavy"), hash = _cfxbt_COMPONENT_AT_MG_BARREL_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_COMBATMG_MK2_CAMO_IND_01 },
+        },
+    },
+    {
+        name = "WEAPON_COMBATPDW",
+        label = TranslateCap("weapon_combatpdw"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SMG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_COMBATPDW_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_COMBATPDW_CLIP_02 },
+            { name = "clip_drum", label = TranslateCap("component_clip_drum"), hash = _cfxbt_COMPONENT_COMBATPDW_CLIP_03 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL },
+        },
+    },
+    {
+        name = "WEAPON_GUSENBERG",
+        label = TranslateCap("weapon_gusenberg"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_MG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_GUSENBERG_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_GUSENBERG_CLIP_02 },
+        },
+    },
+    {
+        name = "WEAPON_MACHINEPISTOL",
+        label = TranslateCap("weapon_machinepistol"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_MACHINEPISTOL_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_MACHINEPISTOL_CLIP_02 },
+            { name = "clip_drum", label = TranslateCap("component_clip_drum"), hash = _cfxbt_COMPONENT_MACHINEPISTOL_CLIP_03 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP },
+        },
+    },
+    {
+        name = "WEAPON_MG",
+        label = TranslateCap("weapon_mg"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_MG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_MG_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_MG_CLIP_02 },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL_02 },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_MG_VARMOD_LOWRIDER },
+        },
+    },
+    {
+        name = "WEAPON_MICROSMG",
+        label = TranslateCap("weapon_microsmg"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SMG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_MICROSMG_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_MICROSMG_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_PI_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_MICROSMG_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_MINISMG",
+        label = TranslateCap("weapon_minismg"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SMG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_MINISMG_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_MINISMG_CLIP_02 },
+        },
+    },
+    {
+        name = "WEAPON_SMG",
+        label = TranslateCap("weapon_smg"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SMG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_SMG_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_SMG_CLIP_02 },
+            { name = "clip_drum", label = TranslateCap("component_clip_drum"), hash = _cfxbt_COMPONENT_SMG_CLIP_03 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO_02 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_SMG_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_TECPISTOL",
+        label = TranslateCap("weapon_tecpistol"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SMG },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_TECPISTOL_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_TECPISTOL_CLIP_02 },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+        },
+    },
+    {
+        name = "WEAPON_SMG_MK2",
+        label = TranslateCap("weapon_smg_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SMG },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_SMG_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_SMG_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_SMG_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_SMG_MK2_CLIP_INCENDIARY },
+            { name = "ammo_hollowpoint", label = TranslateCap("component_ammo_hollowpoint"), hash = _cfxbt_COMPONENT_SMG_MK2_CLIP_HOLLOWPOINT },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_SMG_MK2_CLIP_FMJ },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS_SMG },
+            { name = "scope_small", label = TranslateCap("component_scope_small"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO_02_SMG_MK2 },
+            { name = "scope_medium", label = TranslateCap("component_scope_medium"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL_SMG_MK2 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_PI_SUPP },
+            { name = "muzzle_flat", label = TranslateCap("component_muzzle_flat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_01 },
+            { name = "muzzle_tactical", label = TranslateCap("component_muzzle_tactical"), hash = _cfxbt_COMPONENT_AT_MUZZLE_02 },
+            { name = "muzzle_fat", label = TranslateCap("component_muzzle_fat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_03 },
+            { name = "muzzle_precision", label = TranslateCap("component_muzzle_precision"), hash = _cfxbt_COMPONENT_AT_MUZZLE_04 },
+            { name = "muzzle_heavy", label = TranslateCap("component_muzzle_heavy"), hash = _cfxbt_COMPONENT_AT_MUZZLE_05 },
+            { name = "muzzle_slanted", label = TranslateCap("component_muzzle_slanted"), hash = _cfxbt_COMPONENT_AT_MUZZLE_06 },
+            { name = "muzzle_split", label = TranslateCap("component_muzzle_split"), hash = _cfxbt_COMPONENT_AT_MUZZLE_07 },
+            { name = "barrel_default", label = TranslateCap("component_barrel_default"), hash = _cfxbt_COMPONENT_AT_SB_BARREL_01 },
+            { name = "barrel_heavy", label = TranslateCap("component_barrel_heavy"), hash = _cfxbt_COMPONENT_AT_SB_BARREL_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_SMG_MK2_CAMO_IND_01 },
+        },
+    },
+    { name = "WEAPON_RAYCARBINE", label = TranslateCap("weapon_raycarbine"), ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SMG }, tints = Config.DefaultWeaponTints, components = {} },
+    -- Rifles
+    {
+        name = "WEAPON_ADVANCEDRIFLE",
+        label = TranslateCap("weapon_advancedrifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_ADVANCEDRIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_ADVANCEDRIFLE_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_ADVANCEDRIFLE_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_ASSAULTRIFLE",
+        label = TranslateCap("weapon_assaultrifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_CLIP_02 },
+            { name = "clip_drum", label = TranslateCap("component_clip_drum"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_CLIP_03 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_ASSAULTRIFLE_MK2",
+        label = TranslateCap("weapon_assaultrifle_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CLIP_INCENDIARY },
+            { name = "ammo_armor", label = TranslateCap("component_ammo_armor"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CLIP_ARMORPIERCING },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CLIP_FMJ },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS },
+            { name = "scope_small", label = TranslateCap("component_scope_small"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO_MK2 },
+            { name = "scope_large", label = TranslateCap("component_scope_large"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM_MK2 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "muzzle_flat", label = TranslateCap("component_muzzle_flat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_01 },
+            { name = "muzzle_tactical", label = TranslateCap("component_muzzle_tactical"), hash = _cfxbt_COMPONENT_AT_MUZZLE_02 },
+            { name = "muzzle_fat", label = TranslateCap("component_muzzle_fat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_03 },
+            { name = "muzzle_precision", label = TranslateCap("component_muzzle_precision"), hash = _cfxbt_COMPONENT_AT_MUZZLE_04 },
+            { name = "muzzle_heavy", label = TranslateCap("component_muzzle_heavy"), hash = _cfxbt_COMPONENT_AT_MUZZLE_05 },
+            { name = "muzzle_slanted", label = TranslateCap("component_muzzle_slanted"), hash = _cfxbt_COMPONENT_AT_MUZZLE_06 },
+            { name = "muzzle_split", label = TranslateCap("component_muzzle_split"), hash = _cfxbt_COMPONENT_AT_MUZZLE_07 },
+            { name = "barrel_default", label = TranslateCap("component_barrel_default"), hash = _cfxbt_COMPONENT_AT_AR_BARREL_01 },
+            { name = "barrel_heavy", label = TranslateCap("component_barrel_heavy"), hash = _cfxbt_COMPONENT_AT_AR_BARREL_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_ASSAULTRIFLE_MK2_CAMO_IND_01 },
+        },
+    },
+    {
+        name = "WEAPON_BULLPUPRIFLE",
+        label = TranslateCap("weapon_bullpuprifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_VARMOD_LOW },
+        },
+    },
+    {
+        name = "WEAPON_BULLPUPRIFLE_MK2",
+        label = TranslateCap("weapon_bullpuprifle_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CLIP_INCENDIARY },
+            { name = "ammo_armor", label = TranslateCap("component_ammo_armor"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CLIP_ARMORPIERCING },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CLIP_FMJ },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS },
+            { name = "scope_small", label = TranslateCap("component_scope_small"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO_02_MK2 },
+            { name = "scope_medium", label = TranslateCap("component_scope_medium"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL_MK2 },
+            { name = "barrel_default", label = TranslateCap("component_barrel_default"), hash = _cfxbt_COMPONENT_AT_BP_BARREL_01 },
+            { name = "barrel_heavy", label = TranslateCap("component_barrel_heavy"), hash = _cfxbt_COMPONENT_AT_BP_BARREL_02 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "muzzle_flat", label = TranslateCap("component_muzzle_flat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_01 },
+            { name = "muzzle_tactical", label = TranslateCap("component_muzzle_tactical"), hash = _cfxbt_COMPONENT_AT_MUZZLE_02 },
+            { name = "muzzle_fat", label = TranslateCap("component_muzzle_fat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_03 },
+            { name = "muzzle_precision", label = TranslateCap("component_muzzle_precision"), hash = _cfxbt_COMPONENT_AT_MUZZLE_04 },
+            { name = "muzzle_heavy", label = TranslateCap("component_muzzle_heavy"), hash = _cfxbt_COMPONENT_AT_MUZZLE_05 },
+            { name = "muzzle_slanted", label = TranslateCap("component_muzzle_slanted"), hash = _cfxbt_COMPONENT_AT_MUZZLE_06 },
+            { name = "muzzle_split", label = TranslateCap("component_muzzle_split"), hash = _cfxbt_COMPONENT_AT_MUZZLE_07 },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_BULLPUPRIFLE_MK2_CAMO_IND_01 },
+        },
+    },
+    {
+        name = "WEAPON_CARBINERIFLE",
+        label = TranslateCap("weapon_carbinerifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_CARBINERIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_CARBINERIFLE_CLIP_02 },
+            { name = "clip_box", label = TranslateCap("component_clip_box"), hash = _cfxbt_COMPONENT_CARBINERIFLE_CLIP_03 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_CARBINERIFLE_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_CARBINERIFLE_MK2",
+        label = TranslateCap("weapon_carbinerifle_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CLIP_INCENDIARY },
+            { name = "ammo_armor", label = TranslateCap("component_ammo_armor"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CLIP_ARMORPIERCING },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CLIP_FMJ },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS },
+            { name = "scope_medium", label = TranslateCap("component_scope_medium"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO_MK2 },
+            { name = "scope_large", label = TranslateCap("component_scope_large"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM_MK2 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "muzzle_flat", label = TranslateCap("component_muzzle_flat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_01 },
+            { name = "muzzle_tactical", label = TranslateCap("component_muzzle_tactical"), hash = _cfxbt_COMPONENT_AT_MUZZLE_02 },
+            { name = "muzzle_fat", label = TranslateCap("component_muzzle_fat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_03 },
+            { name = "muzzle_precision", label = TranslateCap("component_muzzle_precision"), hash = _cfxbt_COMPONENT_AT_MUZZLE_04 },
+            { name = "muzzle_heavy", label = TranslateCap("component_muzzle_heavy"), hash = _cfxbt_COMPONENT_AT_MUZZLE_05 },
+            { name = "muzzle_slanted", label = TranslateCap("component_muzzle_slanted"), hash = _cfxbt_COMPONENT_AT_MUZZLE_06 },
+            { name = "muzzle_split", label = TranslateCap("component_muzzle_split"), hash = _cfxbt_COMPONENT_AT_MUZZLE_07 },
+            { name = "barrel_default", label = TranslateCap("component_barrel_default"), hash = _cfxbt_COMPONENT_AT_CR_BARREL_01 },
+            { name = "barrel_heavy", label = TranslateCap("component_barrel_heavy"), hash = _cfxbt_COMPONENT_AT_CR_BARREL_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_CARBINERIFLE_MK2_CAMO_IND_01 },
+        },
+    },
+    {
+        name = "WEAPON_COMPACTRIFLE",
+        label = TranslateCap("weapon_compactrifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_COMPACTRIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_COMPACTRIFLE_CLIP_02 },
+            { name = "clip_drum", label = TranslateCap("component_clip_drum"), hash = _cfxbt_COMPONENT_COMPACTRIFLE_CLIP_03 },
+        },
+    },
+    {
+        name = "WEAPON_MILITARYRIFLE",
+        label = TranslateCap("weapon_militaryrifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_MILITARYRIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_MILITARYRIFLE_CLIP_02 },
+            { name = "ironsights", label = TranslateCap("component_ironsights"), hash = _cfxbt_COMPONENT_MILITARYRIFLE_SIGHT_01 },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_SMALL },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+        },
+    },
+    {
+        name = "WEAPON_SPECIALCARBINE",
+        label = TranslateCap("weapon_specialcarbine"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_CLIP_02 },
+            { name = "clip_drum", label = TranslateCap("component_clip_drum"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_CLIP_03 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_VARMOD_LOWRIDER },
+        },
+    },
+    {
+        name = "WEAPON_SPECIALCARBINE_MK2",
+        label = TranslateCap("weapon_specialcarbine_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CLIP_INCENDIARY },
+            { name = "ammo_armor", label = TranslateCap("component_ammo_armor"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CLIP_ARMORPIERCING },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CLIP_FMJ },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS },
+            { name = "scope_small", label = TranslateCap("component_scope_small"), hash = _cfxbt_COMPONENT_AT_SCOPE_MACRO_MK2 },
+            { name = "scope_large", label = TranslateCap("component_scope_large"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM_MK2 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "muzzle_flat", label = TranslateCap("component_muzzle_flat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_01 },
+            { name = "muzzle_tactical", label = TranslateCap("component_muzzle_tactical"), hash = _cfxbt_COMPONENT_AT_MUZZLE_02 },
+            { name = "muzzle_fat", label = TranslateCap("component_muzzle_fat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_03 },
+            { name = "muzzle_precision", label = TranslateCap("component_muzzle_precision"), hash = _cfxbt_COMPONENT_AT_MUZZLE_04 },
+            { name = "muzzle_heavy", label = TranslateCap("component_muzzle_heavy"), hash = _cfxbt_COMPONENT_AT_MUZZLE_05 },
+            { name = "muzzle_slanted", label = TranslateCap("component_muzzle_slanted"), hash = _cfxbt_COMPONENT_AT_MUZZLE_06 },
+            { name = "muzzle_split", label = TranslateCap("component_muzzle_split"), hash = _cfxbt_COMPONENT_AT_MUZZLE_07 },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP_02 },
+            { name = "barrel_default", label = TranslateCap("component_barrel_default"), hash = _cfxbt_COMPONENT_AT_SC_BARREL_01 },
+            { name = "barrel_heavy", label = TranslateCap("component_barrel_heavy"), hash = _cfxbt_COMPONENT_AT_SC_BARREL_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_SPECIALCARBINE_MK2_CAMO_IND_01 },
+        },
+    },
+    {
+        name = "WEAPON_HEAVYRIFLE",
+        label = TranslateCap("weapon_heavyrifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_HEAVYRIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_HEAVYRIFLE_CLIP_02 },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_HEAVYRIFLE_SIGHT_01 },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+        },
+    },
+    -- Sniper
+    {
+        name = "WEAPON_HEAVYSNIPER",
+        label = TranslateCap("weapon_heavysniper"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SNIPER },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_LARGE },
+            { name = "scope_advanced", label = TranslateCap("component_scope_advanced"), hash = _cfxbt_COMPONENT_AT_SCOPE_MAX },
+        },
+    },
+    {
+        name = "WEAPON_HEAVYSNIPER_MK2",
+        label = TranslateCap("weapon_heavysniper_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SNIPER },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CLIP_02 },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CLIP_INCENDIARY },
+            { name = "ammo_armor", label = TranslateCap("component_ammo_armor"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CLIP_ARMORPIERCING },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CLIP_FMJ },
+            { name = "ammo_explosive", label = TranslateCap("component_ammo_explosive"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CLIP_EXPLOSIVE },
+            { name = "scope_zoom", label = TranslateCap("component_scope_zoom"), hash = _cfxbt_COMPONENT_AT_SCOPE_LARGE_MK2 },
+            { name = "scope_advanced", label = TranslateCap("component_scope_advanced"), hash = _cfxbt_COMPONENT_AT_SCOPE_MAX },
+            { name = "scope_nightvision", label = TranslateCap("component_scope_nightvision"), hash = _cfxbt_COMPONENT_AT_SCOPE_NV },
+            { name = "scope_thermal", label = TranslateCap("component_scope_thermal"), hash = _cfxbt_COMPONENT_AT_SCOPE_THERMAL },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_SR_SUPP_03 },
+            { name = "muzzle_squared", label = TranslateCap("component_muzzle_squared"), hash = _cfxbt_COMPONENT_AT_MUZZLE_08 },
+            { name = "muzzle_bell", label = TranslateCap("component_muzzle_bell"), hash = _cfxbt_COMPONENT_AT_MUZZLE_09 },
+            { name = "barrel_default", label = TranslateCap("component_barrel_default"), hash = _cfxbt_COMPONENT_AT_SR_BARREL_01 },
+            { name = "barrel_heavy", label = TranslateCap("component_barrel_heavy"), hash = _cfxbt_COMPONENT_AT_SR_BARREL_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_HEAVYSNIPER_MK2_CAMO_IND_01 },
+        },
+    },
+    {
+        name = "WEAPON_MARKSMANRIFLE",
+        label = TranslateCap("weapon_marksmanrifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SNIPER },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_LARGE_FIXED_ZOOM },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_VARMOD_LUXE },
+        },
+    },
+    {
+        name = "WEAPON_MARKSMANRIFLE_MK2",
+        label = TranslateCap("weapon_marksmanrifle_mk2"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SNIPER },
+        tints = Config.MK2WeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CLIP_02 },
+            { name = "ammo_tracer", label = TranslateCap("component_ammo_tracer"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CLIP_TRACER },
+            { name = "ammo_incendiary", label = TranslateCap("component_ammo_incendiary"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CLIP_INCENDIARY },
+            { name = "ammo_armor", label = TranslateCap("component_ammo_armor"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CLIP_ARMORPIERCING },
+            { name = "ammo_fmj", label = TranslateCap("component_ammo_fmj"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CLIP_FMJ },
+            { name = "scope_holo", label = TranslateCap("component_scope_holo"), hash = _cfxbt_COMPONENT_AT_SIGHTS },
+            { name = "scope_large", label = TranslateCap("component_scope_large"), hash = _cfxbt_COMPONENT_AT_SCOPE_MEDIUM_MK2 },
+            { name = "scope_zoom", label = TranslateCap("component_scope_zoom"), hash = _cfxbt_COMPONENT_AT_SCOPE_LARGE_FIXED_ZOOM_MK2 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+            { name = "muzzle_flat", label = TranslateCap("component_muzzle_flat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_01 },
+            { name = "muzzle_tactical", label = TranslateCap("component_muzzle_tactical"), hash = _cfxbt_COMPONENT_AT_MUZZLE_02 },
+            { name = "muzzle_fat", label = TranslateCap("component_muzzle_fat"), hash = _cfxbt_COMPONENT_AT_MUZZLE_03 },
+            { name = "muzzle_precision", label = TranslateCap("component_muzzle_precision"), hash = _cfxbt_COMPONENT_AT_MUZZLE_04 },
+            { name = "muzzle_heavy", label = TranslateCap("component_muzzle_heavy"), hash = _cfxbt_COMPONENT_AT_MUZZLE_05 },
+            { name = "muzzle_slanted", label = TranslateCap("component_muzzle_slanted"), hash = _cfxbt_COMPONENT_AT_MUZZLE_06 },
+            { name = "muzzle_split", label = TranslateCap("component_muzzle_split"), hash = _cfxbt_COMPONENT_AT_MUZZLE_07 },
+            { name = "barrel_default", label = TranslateCap("component_barrel_default"), hash = _cfxbt_COMPONENT_AT_MRFL_BARREL_01 },
+            { name = "barrel_heavy", label = TranslateCap("component_barrel_heavy"), hash = _cfxbt_COMPONENT_AT_MRFL_BARREL_02 },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP_02 },
+            { name = "camo_finish", label = TranslateCap("component_camo_finish"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO },
+            { name = "camo_finish2", label = TranslateCap("component_camo_finish2"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_02 },
+            { name = "camo_finish3", label = TranslateCap("component_camo_finish3"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_03 },
+            { name = "camo_finish4", label = TranslateCap("component_camo_finish4"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_04 },
+            { name = "camo_finish5", label = TranslateCap("component_camo_finish5"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_05 },
+            { name = "camo_finish6", label = TranslateCap("component_camo_finish6"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_06 },
+            { name = "camo_finish7", label = TranslateCap("component_camo_finish7"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_07 },
+            { name = "camo_finish8", label = TranslateCap("component_camo_finish8"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_08 },
+            { name = "camo_finish9", label = TranslateCap("component_camo_finish9"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_09 },
+            { name = "camo_finish10", label = TranslateCap("component_camo_finish10"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_10 },
+            { name = "camo_finish11", label = TranslateCap("component_camo_finish11"), hash = _cfxbt_COMPONENT_MARKSMANRIFLE_MK2_CAMO_IND_01 },
+        },
+    },
+    {
+        name = "WEAPON_SNIPERRIFLE",
+        label = TranslateCap("weapon_sniperrifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SNIPER },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "scope", label = TranslateCap("component_scope"), hash = _cfxbt_COMPONENT_AT_SCOPE_LARGE },
+            { name = "scope_advanced", label = TranslateCap("component_scope_advanced"), hash = _cfxbt_COMPONENT_AT_SCOPE_MAX },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+            { name = "luxary_finish", label = TranslateCap("component_luxary_finish"), hash = _cfxbt_COMPONENT_SNIPERRIFLE_VARMOD_LUXE },
+        },
+    },
+    -- Heavy / Launchers
+    {
+        name = "WEAPON_COMPACTLAUNCHER",
+        label = TranslateCap("weapon_compactlauncher"),
+        tints = Config.DefaultWeaponTints,
+        components = {},
+        ammo = { label = TranslateCap("ammo_grenadelauncher"), hash = _cfxbt_AMMO_GRENADELAUNCHER },
+    },
+    { name = "WEAPON_FIREWORK", label = TranslateCap("weapon_firework"), components = {}, ammo = { label = TranslateCap("ammo_firework"), hash = _cfxbt_AMMO_FIREWORK } },
+    {
+        name = "WEAPON_GRENADELAUNCHER",
+        label = TranslateCap("weapon_grenadelauncher"),
+        tints = Config.DefaultWeaponTints,
+        components = {},
+        ammo = { label = TranslateCap("ammo_grenadelauncher"), hash = _cfxbt_AMMO_GRENADELAUNCHER },
+    },
+    { name = "WEAPON_HOMINGLAUNCHER", label = TranslateCap("weapon_hominglauncher"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rockets"), hash = _cfxbt_AMMO_HOMINGLAUNCHER } },
+    { name = "WEAPON_MINIGUN", label = TranslateCap("weapon_minigun"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_MINIGUN } },
+    { name = "WEAPON_RAILGUN", label = TranslateCap("weapon_railgun"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RAILGUN } },
+    { name = "WEAPON_RPG", label = TranslateCap("weapon_rpg"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rockets"), hash = _cfxbt_AMMO_RPG } },
+    { name = "WEAPON_RAYMINIGUN", label = TranslateCap("weapon_rayminigun"), tints = Config.DefaultWeaponTints, components = {}, ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_MINIGUN } },
+    -- Thrown
+    { name = "WEAPON_BALL", label = TranslateCap("weapon_ball"), components = {}, ammo = { label = TranslateCap("ammo_ball"), hash = _cfxbt_AMMO_BALL }, throwable = true },
+    { name = "WEAPON_BZGAS", label = TranslateCap("weapon_bzgas"), components = {}, ammo = { label = TranslateCap("ammo_bzgas"), hash = _cfxbt_AMMO_BZGAS }, throwable = true },
+    { name = "WEAPON_FLARE", label = TranslateCap("weapon_flare"), components = {}, ammo = { label = TranslateCap("ammo_flare"), hash = _cfxbt_AMMO_FLARE }, throwable = true },
+    { name = "WEAPON_GRENADE", label = TranslateCap("weapon_grenade"), components = {}, ammo = { label = TranslateCap("ammo_grenade"), hash = _cfxbt_AMMO_GRENADE }, throwable = true },
+    { name = "WEAPON_PETROLCAN", label = TranslateCap("weapon_petrolcan"), components = {}, ammo = { label = TranslateCap("ammo_petrol"), hash = _cfxbt_AMMO_PETROLCAN }, throwable = true },
+    { name = "WEAPON_HAZARDCAN", label = TranslateCap("weapon_hazardcan"), components = {}, ammo = { label = TranslateCap("ammo_petrol"), hash = _cfxbt_AMMO_PETROLCAN }, throwable = true },
+    { name = "WEAPON_MOLOTOV", label = TranslateCap("weapon_molotov"), components = {}, ammo = { label = TranslateCap("ammo_molotov"), hash = _cfxbt_AMMO_MOLOTOV }, throwable = true },
+    { name = "WEAPON_PROXMINE", label = TranslateCap("weapon_proxmine"), components = {}, ammo = { label = TranslateCap("ammo_proxmine"), hash = _cfxbt_AMMO_PROXMINE }, throwable = true },
+    { name = "WEAPON_PIPEBOMB", label = TranslateCap("weapon_pipebomb"), components = {}, ammo = { label = TranslateCap("ammo_pipebomb"), hash = _cfxbt_AMMO_PIPEBOMB }, throwable = true },
+    { name = "WEAPON_SNOWBALL", label = TranslateCap("weapon_snowball"), components = {}, ammo = { label = TranslateCap("ammo_snowball"), hash = _cfxbt_AMMO_SNOWBALL }, throwable = true },
+    { name = "WEAPON_STICKYBOMB", label = TranslateCap("weapon_stickybomb"), components = {}, ammo = { label = TranslateCap("ammo_stickybomb"), hash = _cfxbt_AMMO_STICKYBOMB }, throwable = true },
+    { name = "WEAPON_SMOKEGRENADE", label = TranslateCap("weapon_smokegrenade"), components = {}, ammo = { label = TranslateCap("ammo_smokebomb"), hash = _cfxbt_AMMO_SMOKEGRENADE }, throwable = true },
+    -- Tools
+    { name = "WEAPON_FIREEXTINGUISHER", label = TranslateCap("weapon_fireextinguisher"), components = {}, ammo = { label = TranslateCap("ammo_charge"), hash = _cfxbt_AMMO_FIREEXTINGUISHER } },
+    { name = "WEAPON_DIGISCANNER", label = TranslateCap("weapon_digiscanner"), components = {} },
+    { name = "GADGET_PARACHUTE", label = TranslateCap("gadget_parachute"), components = {}, throwable = true },
+    {
+        name = "WEAPON_TACTICALRIFLE",
+        label = TranslateCap("weapon_tactilerifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_TACTICALRIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_TACTICALRIFLE_CLIP_02 },
+            { name = "flashlight", label = TranslateCap("component_flashlight"), hash = _cfxbt_COMPONENT_AT_AR_FLSH_REH },
+            { name = "grip", label = TranslateCap("component_grip"), hash = _cfxbt_COMPONENT_AT_AR_AFGRIP },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP_02 },
+        },
+    },
+    {
+        name = "WEAPON_BATTLERIFLE",
+        label = TranslateCap("weapon_battlerifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RIFLE },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_BATTLERIFLE_CLIP_01 },
+            { name = "clip_extended", label = TranslateCap("component_clip_extended"), hash = _cfxbt_COMPONENT_BATTLERIFLE_CLIP_02 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_AT_AR_SUPP },
+        },
+    },
+    {
+        name = "WEAPON_SNOWLAUNCHER",
+        label = TranslateCap("weapon_snowlauncher"),
+        ammo = { label = TranslateCap("ammo_snowball"), hash = _cfxbt_AMMO_SNOWLAUNCHER },
+        tints = Config.DefaultWeaponTints,
+        components = {},
+    },
+    {
+        name = "WEAPON_HACKINGDEVICE",
+        label = TranslateCap("weapon_hackingdevice"),
+        tints = Config.DefaultWeaponTints,
+        components = {},
+    },
+    {
+        name = "WEAPON_PRECISIONRIFLE",
+        label = TranslateCap("weapon_precisionrifle"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_SNIPER },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_PRECISIONRIFLE_CLIP_01 },
+        },
+    },
+    { name = "WEAPON_METALDETECTOR", label = TranslateCap("weapon_metaldetector"), components = {} },
+    {
+        name = "WEAPON_PISTOLXM3",
+        label = TranslateCap("weapon_pistolxm3"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_PISTOL },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_PISTOLXM3_CLIP_01 },
+            { name = "suppressor", label = TranslateCap("component_suppressor"), hash = _cfxbt_COMPONENT_PISTOLXM3_SUPP },
+        },
+    },
+    { name = "WEAPON_ACIDPACKAGE", label = TranslateCap("weapon_acidpackage"), components = {}, throwable = true },
+    { name = "WEAPON_CANDYCANE", label = TranslateCap("weapon_candycane"), components = {} },
+    {
+        name = "WEAPON_RAILGUNXM3",
+        label = TranslateCap("weapon_railgunxm3"),
+        ammo = { label = TranslateCap("ammo_rounds"), hash = _cfxbt_AMMO_RAILGUN },
+        tints = Config.DefaultWeaponTints,
+        components = {
+            { name = "clip_default", label = TranslateCap("component_clip_default"), hash = _cfxbt_COMPONENT_RAILGUNXM3_CLIP_01 },
+        },
+    },
+}
+`
+        },
+        {
+          "path": "shared/config/adjustments.lua",
+          "source": 'Config.DisableHealthRegeneration = false -- Player will no longer regenerate health\nConfig.DisableVehicleRewards = false -- Disables Player Receiving weapons from vehicles\nConfig.DisableNPCDrops = false -- stops NPCs from dropping weapons on death\nConfig.DisableDispatchServices = true -- Disable Dispatch services\nConfig.DisableScenarios = true -- Disable Scenarios\nConfig.DisableAimAssist = false -- disables AIM assist (mainly on controllers)\nConfig.DisableVehicleSeatShuff = false -- Disables vehicle seat shuff\nConfig.DisableDisplayAmmo = false -- Disable ammunition display\nConfig.EnablePVP = true -- Allow Player to player combat\nConfig.EnableWantedLevel = false -- Use Normal GTA wanted Level?\n\nConfig.RemoveHudComponents = {\n    [1] = false, --WANTED_STARS,\n    [2] = false, --WEAPON_ICON\n    [3] = false, --CASH\n    [4] = false, --MP_CASH\n    [5] = false, --MP_MESSAGE\n    [6] = true, --VEHICLE_NAME\n    [7] = true, -- AREA_NAME\n    [8] = true, -- VEHICLE_CLASS\n    [9] = true, --STREET_NAME\n    [10] = false, --HELP_TEXT\n    [11] = false, --FLOATING_HELP_TEXT_1\n    [12] = false, --FLOATING_HELP_TEXT_2\n    [13] = false, --CASH_CHANGE\n    [14] = false, --RETICLE\n    [15] = false, --SUBTITLE_TEXT\n    [16] = false, --RADIO_STATIONS\n    [17] = false, --SAVING_GAME,\n    [18] = false, --GAME_STREAM\n    [19] = false, --WEAPON_WHEEL\n    [20] = false, --WEAPON_WHEEL_STATS\n    [21] = false, --HUD_COMPONENTS\n    [22] = false, --HUD_WEAPONS\n}\n\nConfig.Multipliers = {\n    pedDensity = 1.0,\n    scenarioPedDensityInterior = 0.0,\n    scenarioPedDensityExterior = 1.0,\n    ambientVehicleRange = 1.0,\n    parkedVehicleDensity = 1.0,\n    randomVehicleDensity = 1.0,\n    vehicleDensity = 1.0\n}\n\n-- Pattern string format\n--1 will lead to a random number from 0-9.\n--A will lead to a random letter from A-Z.\n-- . will lead to a random letter or number, with a 50% probability of being either.\n--^1 will lead to a literal 1 being emitted.\n--^A will lead to a literal A being emitted.\n--Any other character will lead to said character being emitted.\n-- A string shorter than 8 characters will be padded on the right.\nConfig.CustomAIPlates = "........" -- Custom plates for AI vehicles\n\n--[[\n    PlaceHolders:\n    {server_name} - Server Display Name\n    {server_endpoint} - Server IP:Server Port\n    {server_players} - Current Player Count\n    {server_maxplayers} - Max Player Count\n\n    {player_name} - Player Name\n    {player_rp_name} - Player RP Name\n    {player_id} - Player ID\n    {player_street} - Player Street Name\n]]\n\nConfig.DiscordActivity = {\n    appId = 0, -- Discord Application ID,\n    assetName = "LargeIcon", --image name for the "large" icon.\n    assetText = "{server_name}", -- Text to display on the asset\n    buttons = {\n        { label = "Join Server", url = "fivem://connect/{server_endpoint}" },\n        { label = "Discord", url = "https://discord.esx-framework.org" },\n    },\n    presence = "{player_name} [{player_id}] | {server_players}/{server_maxplayers}",\n    refresh = 1 * 60 * 1000, -- 1 minute\n}\n'
+        },
+        {
+          "path": "shared/main.lua",
+          "source": 'ESX = {}\n\nexports("getSharedObject", function()\n    return ESX\nend)\n\nAddEventHandler("esx:getSharedObject", function(cb)\n    if ESX.IsFunctionReference(cb) then\n        cb(ESX)\n    end\nend)\n\n-- backwards compatibility (DO NOT TOUCH !)\nConfig.OxInventory = Config.CustomInventory == "ox"\n'
+        },
+        {
+          "path": "shared/functions.lua",
+          "source": `local Charset = {}
+
+for i = 48, 57 do
+    table.insert(Charset, string.char(i))
+end
+for i = 65, 90 do
+    table.insert(Charset, string.char(i))
+end
+for i = 97, 122 do
+    table.insert(Charset, string.char(i))
+end
+
+local weaponsByName = {}
+local weaponsByHash = {}
+
+CreateThread(function()
+    for index, weapon in pairs(Config.Weapons) do
+        weaponsByName[weapon.name] = index
+        weaponsByHash[joaat(weapon.name)] = weapon
+    end
+end)
+
+---@param length number
+---@return string
+function ESX.GetRandomString(length)
+    math.randomseed(GetGameTimer())
+
+    return length > 0 and ESX.GetRandomString(length - 1) .. Charset[math.random(1, #Charset)] or ""
+end
+
+---@param key? string Key pair to get specific value of config
+---@return unknown Returns the whole config if no key is passed, or a specific value
+function ESX.GetConfig(key)
+    if key then
+        return Config[key]
+    end
+
+    return Config
+end
+
+---@param weaponName string
+---@return number, table
+function ESX.GetWeapon(weaponName)
+    weaponName = string.upper(weaponName)
+
+    assert(weaponsByName[weaponName], "Invalid weapon name!")
+
+    local index = weaponsByName[weaponName]
+    return index, Config.Weapons[index]
+end
+
+---@param weaponHash number
+---@return table
+function ESX.GetWeaponFromHash(weaponHash)
+    weaponHash = type(weaponHash) == "string" and joaat(weaponHash) or weaponHash
+
+    return weaponsByHash[weaponHash]
+end
+
+---@param byHash boolean
+---@return table
+function ESX.GetWeaponList(byHash)
+    return byHash and weaponsByHash or Config.Weapons
+end
+
+---@param weaponName string
+---@return string
+function ESX.GetWeaponLabel(weaponName)
+    weaponName = string.upper(weaponName)
+
+    assert(weaponsByName[weaponName], "Invalid weapon name!")
+
+    local index = weaponsByName[weaponName]
+    return Config.Weapons[index].label or ""
+end
+
+---@param weaponName string
+---@param weaponComponent string
+---@return ESXWeaponComponent?
+function ESX.GetWeaponComponent(weaponName, weaponComponent)
+    weaponName = string.upper(weaponName)
+
+    assert(weaponsByName[weaponName], "Invalid weapon name!")
+    local weapon = Config.Weapons[weaponsByName[weaponName]]
+
+    for _, component in ipairs(weapon.components) do
+        ---@cast component ESXWeaponComponent
+        if component.name == weaponComponent then
+            return component
+        end
+    end
+end
+
+---@param table table
+---@param nb? number
+---@return string
+function ESX.DumpTable(table, nb)
+    if nb == nil then
+        nb = 0
+    end
+
+    if type(table) == "table" then
+        local s = ""
+        for _ = 1, nb + 1, 1 do
+            s = s .. "    "
+        end
+
+        s = "{\\n"
+        for k, v in pairs(table) do
+            if type(k) ~= "number" then
+                k = '"' .. k .. '"'
+            end
+            for _ = 1, nb, 1 do
+                s = s .. "    "
+            end
+            s = s .. "[" .. k .. "] = " .. ESX.DumpTable(v, nb + 1) .. ",\\n"
+        end
+
+        for _ = 1, nb, 1 do
+            s = s .. "    "
+        end
+
+        return s .. "}"
+    else
+        return tostring(table)
+    end
+end
+
+---@param value any
+---@param numDecimalPlaces? number
+---@return number
+function ESX.Round(value, numDecimalPlaces)
+    return ESX.Math.Round(value, numDecimalPlaces)
+end
+
+---@param value string
+---@param ... any
+---@return boolean, string?
+function ESX.ValidateType(value, ...)
+    local types = { ... }
+    if #types == 0 then return true end
+
+    local mapType = {}
+    for i = 1, #types, 1 do
+        local validateType = types[i]
+        assert(type(validateType) == "string", "bad argument types, only expected string") -- should never use anyhing else than string
+        mapType[validateType] = true
+    end
+
+    local valueType = type(value)
+
+    local matches = mapType[valueType] ~= nil
+
+    if not matches then
+        local requireTypes = table.concat(types, " or ")
+        local errorMessage = ("bad value (%s expected, got %s)"):format(requireTypes, valueType)
+
+        return false, errorMessage
+    end
+
+    return true
+end
+
+---@param ... any
+---@return boolean
+function ESX.AssertType(...)
+    local matches, errorMessage = ESX.ValidateType(...)
+
+    assert(matches, errorMessage)
+
+    return matches
+end
+
+---@param val unknown
+function ESX.IsFunctionReference(val)
+    local typeVal = type(val)
+
+    return typeVal == "function" or (typeVal == "table" and type((getmetatable(val) and getmetatable(val).__call)) == "function")
+end
+
+---@param str string
+---@param allowDigits boolean? Allow numbers if necessary
+---@return boolean
+function ESX.IsValidLocaleString(str, allowDigits)
+    if not ESX.ValidateType(str, 'string') then
+        return false
+    end
+
+    if not utf8.len(str) then
+        return false
+    end
+
+    local locale = string.lower(Config.Locale)
+
+    local defaultRanges ={
+        {0x0041, 0x005A}, -- Basic Latin uppercase
+        {0x0061, 0x007A}, -- Basic Latin lowercase
+        {0x0020, 0x0020}, -- Space
+        {0x002D, 0x002D}, -- Dash
+        {0x00C0, 0x02AF}  -- Latin Extended
+    }
+
+    if allowDigits then
+        defaultRanges[#defaultRanges + 1] = {0x0030, 0x0039} -- 0-9 Numbers
+    end
+
+    local localeRanges = {
+        ["el"] = { {0x0370, 0x03FF} }, -- Greek
+        ["sr"] ={ {0x0400, 0x04FF} }, -- Cyrillic
+        ["he"] ={ {0x05D0, 0x05EA} }, -- Hebrew letters
+        ["ar"] = {
+            {0x0620, 0x063F}, -- Arabic
+            {0x0641, 0x064A},
+            {0x066E, 0x066F},
+            {0x0671, 0x06D3},
+            {0x06D5, 0x06D5},
+            {0x0750, 0x077F},
+            {0x08A0, 0x08BD}
+        },
+        ["zh-cn"] ={ {0x4E00, 0x9FFF} } -- CJK
+    }
+
+    local validRanges = { table.unpack(defaultRanges) }
+
+    if localeRanges[locale] then
+        for i = 1, #localeRanges[locale] do
+            validRanges[#validRanges + 1] = localeRanges[locale][i]
+        end
+    end
+
+    if Config.ValidCharacterSets then
+        for charset, enabled in pairs(Config.ValidCharacterSets) do
+            if enabled and charset ~= locale and localeRanges[charset] then
+                for i = 1, #localeRanges[charset] do
+                    validRanges[#validRanges + 1] = localeRanges[charset][i]
+                end
+            end
+        end
+    end
+
+    for _, code in utf8.codes(str) do
+        local isValid = false
+
+        for i = 1, #validRanges do
+            local range = validRanges[i]
+            if code >= range[1] and code <= range[2] then
+                isValid = true
+                break
+            end
+        end
+
+        if not isValid then
+            return false
+        end
+    end
+
+    return true
+end
+`
+        },
+        {
+          "path": "shared/compat.lua",
+          "source": "--All shared functions outsourced from the Core to the lib will be stored here for compatability, e.g:\n\nESX.Table = {}\nESX.Math = {}\n\nESX.SetTimeout = xLib.timeout.setTimeout\nESX.ClearTimeout = xLib.timeout.clearTimeout\nESX.Await = xLib.waitFor\nESX.Table.SizeOf = xLib.table.sizeOf\nESX.Table.Set = xLib.table.set\nESX.Table.IndexOf = xLib.table.indexOf\nESX.Table.LastIndexOf = xLib.table.lastIndexOf\nESX.Table.Find = xLib.table.find\nESX.Table.FindIndex = xLib.table.findIndex\nESX.Table.Filter = xLib.table.filter\nESX.Table.Map = xLib.table.map\nESX.Table.Reverse = xLib.table.reverse\nESX.Table.Clone = xLib.table.clone\nESX.Table.Concat = xLib.table.concat\nESX.Table.Join = xLib.table.join\nESX.Table.TableContains = xLib.table.contains\nESX.Table.Sort = xLib.table.sort\nESX.Table.ToArray = xLib.table.toArray\nESX.Table.Wipe = xLib.table.wipe\n\nESX.Math.Round = xLib.math.Round\nESX.Math.GroupDigits = xLib.math.GroupDigits\nESX.Math.Trim = xLib.math.Trim\nESX.Math.Random = xLib.math.Random\nESX.Math.GetHeadingFromCoords = xLib.math.GetHeadingFromCoords\n"
+        },
+        {
+          "path": "client/main.lua",
+          "source": 'Core = {}\nCore.Input = {}\nCore.Events = {}\n\nESX.PlayerData = {}\nESX.PlayerLoaded = false\nESX.playerId = PlayerId()\nESX.serverId = GetPlayerServerId(ESX.playerId)\n\nESX.UI = {}\nESX.UI.Menu = {}\nESX.UI.Menu.RegisteredTypes = {}\nESX.UI.Menu.Opened = {}\n\nESX.Game = {}\nESX.Game.Utils = {}\n\nCreateThread(function()\n    while not Config.Multichar do\n        Wait(100)\n\n        if NetworkIsPlayerActive(ESX.playerId) then\n            ESX.DisableSpawnManager()\n            DoScreenFadeOut(0)\n            Wait(500)\n            TriggerServerEvent("esx:onPlayerJoined")\n            break\n        end\n    end\nend)\n'
+        },
+        {
+          "path": "client/functions.lua",
+          "source": `---@return boolean
+---@diagnostic disable-next-line: duplicate-set-field
+function ESX.IsPlayerLoaded()
+    return ESX.PlayerLoaded
+end
+
+---@return table
+function ESX.GetPlayerData()
+    return ESX.PlayerData
+end
+
+---@param name string
+---@param func function
+---@return nil
+function ESX.SecureNetEvent(name, func)
+    local invoker = GetInvokingResource()
+    local invokingResource = invoker and invoker ~= 'unknown' and invoker or 'es_extended'
+    if not invokingResource then
+        return
+    end
+
+    if not Core.Events[invokingResource] then
+        Core.Events[invokingResource] = {}
+    end
+
+    local event = RegisterNetEvent(name, function(...)
+        if source == '' then
+            return
+        end
+
+        local success, result = pcall(func, ...)
+        if not success then
+            error(("%s"):format(result))
+        end
+    end)
+    local eventIndex = #Core.Events[invokingResource] + 1
+    Core.Events[invokingResource][eventIndex] = event
+end
+
+local addonResourcesState = {
+    ['esx_progressbar'] = GetResourceState('esx_progressbar') ~= 'missing',
+    ['esx_notify'] = GetResourceState('esx_notify') ~= 'missing',
+    ['esx_textui'] = GetResourceState('esx_textui') ~= 'missing',
+    ['esx_context'] = GetResourceState('esx_context') ~= 'missing',
+}
+
+local function IsResourceFound(resource)
+	return addonResourcesState[resource] or error(('Resource [^5%s^1] is Missing!'):format(resource))
+end
+
+function ESX.DisableSpawnManager()
+    if GetResourceState("spawnmanager") == "started" then
+        exports.spawnmanager:setAutoSpawn(false)
+    end
+end
+
+---@param items string | table The item(s) to search for
+---@param count? boolean Whether to return the count of the item as well
+---@return table | number
+function ESX.SearchInventory(items, count)
+    local item
+    if type(items) == 'string' then
+        item, items = items, {items}
+    end
+
+    local data = {}
+    for i = 1, #ESX.PlayerData.inventory do
+        local e = ESX.PlayerData.inventory[i]
+        for ii = 1, #items do
+            if e.name == items[ii] then
+                data[table.remove(items, ii)] = count and e.count or e
+                break
+            end
+        end
+        if #items == 0 then
+            break
+        end
+    end
+
+    return not item and data or data[item]
+end
+
+---@param key string Table key to set
+---@param val any Value to set
+---@return nil
+function ESX.SetPlayerData(key, val)
+    local current = ESX.PlayerData[key]
+    ESX.PlayerData[key] = val
+    if key ~= "loadout" then
+        if type(val) == "table" or val ~= current then
+            TriggerEvent("esx:setPlayerData", key, val, current)
+        end
+    end
+end
+
+---@param freeze boolean Whether to freeze the player
+---@return nil
+function Core.FreezePlayer(freeze)
+    local ped = PlayerPedId()
+    SetPlayerControl(ESX.playerId, not freeze, 0)
+
+    if freeze then
+        SetEntityCollision(ped, false, false)
+        FreezeEntityPosition(ped, true)
+    else
+        SetEntityCollision(ped, true, true)
+        FreezeEntityPosition(ped, false)
+    end
+end
+
+---@param skin table Skin data to set
+---@param coords table Coords to spawn the player at
+---@param cb function Callback function
+---@return nil
+function ESX.SpawnPlayer(skin, coords, cb)
+    local p = promise.new()
+    TriggerEvent("skinchanger:loadSkin", skin, function()
+        p:resolve()
+    end)
+    Citizen.Await(p)
+
+    RequestCollisionAtCoord(coords.x, coords.y, coords.z)
+
+    local playerPed = PlayerPedId()
+    local timer = GetGameTimer()
+
+    Core.FreezePlayer(true)
+    SetEntityCoordsNoOffset(playerPed, coords.x, coords.y, coords.z, false, false, true)
+    SetEntityHeading(playerPed, coords.heading)
+
+    RequestCollisionAtCoord(coords.x, coords.y, coords.z)
+    while not HasCollisionLoadedAroundEntity(playerPed) and (GetGameTimer() - timer) < 5000 do
+        Wait(0)
+    end
+
+    NetworkResurrectLocalPlayer(coords.x, coords.y, coords.z, coords.heading, 0, true)
+    TriggerEvent('playerSpawned', coords)
+    cb()
+end
+
+---@param message string
+---@param length? number Timeout in milliseconds
+---@param options? ProgressBarOptions
+---@return boolean Success Whether the progress bar was successfully created or not
+function ESX.Progressbar(message, length, options)
+	return IsResourceFound('esx_progressbar') and exports['esx_progressbar']:Progressbar(message, length, options)
+end
+
+function ESX.CancelProgressbar()
+    return IsResourceFound('esx_progressbar') and exports['esx_progressbar']:CancelProgressbar()
+end
+
+---@param message string The message to show
+---@param notifyType? string The type of notification to show
+---@param length? number The length of the notification
+---@param title? string The title of the notification
+---@param position? string The position of the notification
+---@return nil
+function ESX.ShowNotification(message, notifyType, length, title, position)
+	return IsResourceFound('esx_notify') and exports['esx_notify']:Notify(notifyType or "info", length or 5000, message, title, position)
+end
+
+function ESX.TextUI(...)
+	return IsResourceFound('esx_textui') and exports['esx_textui']:TextUI(...)
+end
+
+---@return nil
+function ESX.HideUI()
+	return IsResourceFound('esx_textui') and exports['esx_textui']:HideUI()
+end
+
+---@param sender string
+---@param subject string
+---@param msg string
+---@param textureDict string
+---@param iconType integer
+---@param flash boolean
+---@param saveToBrief? boolean
+---@param hudColorIndex? integer
+---@return nil
+function ESX.ShowAdvancedNotification(sender, subject, msg, textureDict, iconType, flash, saveToBrief, hudColorIndex)
+    AddTextEntry("esxAdvancedNotification", msg)
+    BeginTextCommandThefeedPost("esxAdvancedNotification")
+    if hudColorIndex then
+        ThefeedSetNextPostBackgroundColor(hudColorIndex)
+    end
+    EndTextCommandThefeedPostMessagetext(textureDict, textureDict, false, iconType, sender, subject)
+    EndTextCommandThefeedPostTicker(flash, saveToBrief == nil or saveToBrief)
+end
+
+---@param msg string The message to show
+---@param thisFrame? boolean Whether to show the message this frame
+---@param beep? boolean Whether to beep
+---@param duration? number The duration of the message
+---@return nil
+function ESX.ShowHelpNotification(msg, thisFrame, beep, duration)
+    AddTextEntry("esxHelpNotification", msg)
+    if thisFrame then
+        DisplayHelpTextThisFrame("esxHelpNotification", false)
+    else
+        BeginTextCommandDisplayHelp("esxHelpNotification")
+        EndTextCommandDisplayHelp(0, false, beep == nil or beep, duration or -1)
+    end
+end
+
+---@param msg string The message to show
+---@param coords table The coords to show the message at
+---@return nil
+function ESX.ShowFloatingHelpNotification(msg, coords)
+    AddTextEntry("esxFloatingHelpNotification", msg)
+    SetFloatingHelpTextWorldPosition(1, coords.x, coords.y, coords.z)
+    SetFloatingHelpTextStyle(1, 1, 2, -1, 3, 0)
+    BeginTextCommandDisplayHelp("esxFloatingHelpNotification")
+    EndTextCommandDisplayHelp(2, false, false, -1)
+end
+
+---@param msg string The message to show
+---@param time number The duration of the message
+---@return nil
+function ESX.DrawMissionText(msg, time)
+    ClearPrints()
+    BeginTextCommandPrint('STRING')
+    AddTextComponentSubstringPlayerName(msg)
+    EndTextCommandPrint(time, true)
+end
+
+---@param str string The string to hash
+---@return string The hashed string
+function ESX.HashString(str)
+    return ('~INPUT_%s~'):format(('%x'):format(joaat(str) & 0x7fffffff + 2 ^ 31):upper())
+end
+
+function ESX.OpenContext(...)
+    return IsResourceFound('esx_context') and exports['esx_context']:Open(...)
+end
+
+function ESX.PreviewContext(...)
+    return IsResourceFound('esx_context') and exports['esx_context']:Preview(...)
+end
+
+function ESX.CloseContext(...)
+    return IsResourceFound('esx_context') and exports['esx_context']:Close(...)
+end
+
+function ESX.RefreshContext(...)
+    return IsResourceFound('esx_context') and exports['esx_context']:Refresh(...)
+end
+
+---@param menuType string
+---@param open function The function to call on open
+---@param close function The function to call on close
+function ESX.UI.Menu.RegisterType(menuType, open, close)
+    ESX.UI.Menu.RegisteredTypes[menuType] = {
+        open = open,
+        close = close,
+    }
+end
+
+---@class ESXMenu
+---@field type string
+---@field namespace string
+---@field resourceName string
+---@field name string
+---@field data table
+---@field submit? function
+---@field cancel? function
+---@field change? function
+---@field close function
+---@field update function
+---@field refresh function
+---@field setElement function
+---@field setElements function
+---@field setTitle function
+---@field removeElement function
+
+---@param menuType string
+---@param namespace string
+---@param name string
+---@param data table
+---@param submit? function
+---@param cancel? function
+---@param change? function
+---@param close? function
+---@return ESXMenu
+function ESX.UI.Menu.Open(menuType, namespace, name, data, submit, cancel, change, close)
+    ---@class ESXMenu
+    local menu = {}
+
+    menu.type = menuType
+    menu.namespace = namespace
+    menu.resourceName = (GetInvokingResource() or "Unknown")
+    menu.name = name
+    menu.data = data
+    menu.submit = submit
+    menu.cancel = cancel
+    menu.change = change
+
+    menu.close = function()
+        ESX.UI.Menu.RegisteredTypes[menuType].close(namespace, name)
+
+        for i = 1, #ESX.UI.Menu.Opened, 1 do
+            if ESX.UI.Menu.Opened[i] then
+                if ESX.UI.Menu.Opened[i].type == menuType and ESX.UI.Menu.Opened[i].namespace == namespace and ESX.UI.Menu.Opened[i].name == name then
+                    ESX.UI.Menu.Opened[i] = nil
+                end
+            end
+        end
+
+        if close then
+            close()
+        end
+    end
+
+    menu.update = function(query, newData)
+        for i = 1, #menu.data.elements, 1 do
+            local match = true
+
+            for k, v in pairs(query) do
+                if menu.data.elements[i][k] ~= v then
+                    match = false
+                end
+            end
+
+            if match then
+                for k, v in pairs(newData) do
+                    menu.data.elements[i][k] = v
+                end
+            end
+        end
+    end
+
+    menu.refresh = function()
+        ESX.UI.Menu.RegisteredTypes[menuType].open(namespace, name, menu.data)
+    end
+
+    menu.setElement = function(i, key, val)
+        menu.data.elements[i][key] = val
+    end
+
+    menu.setElements = function(newElements)
+        menu.data.elements = newElements
+    end
+
+    menu.setTitle = function(val)
+        menu.data.title = val
+    end
+
+    menu.removeElement = function(query)
+        for i = 1, #menu.data.elements, 1 do
+            for k, v in pairs(query) do
+                if menu.data.elements[i] then
+                    if menu.data.elements[i][k] == v then
+                        table.remove(menu.data.elements, i)
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    ESX.UI.Menu.Opened[#ESX.UI.Menu.Opened + 1] = menu
+    ESX.UI.Menu.RegisteredTypes[menuType].open(namespace, name, data)
+
+    return menu
+end
+
+---@param menuType string
+---@param namespace string
+---@param name string
+---@param cancel? boolean Should the close be classified as a cancel
+---@return nil
+function ESX.UI.Menu.Close(menuType, namespace, name, cancel)
+    for i = 1, #ESX.UI.Menu.Opened, 1 do
+        if ESX.UI.Menu.Opened[i] then
+            if ESX.UI.Menu.Opened[i].type == menuType and ESX.UI.Menu.Opened[i].namespace == namespace and ESX.UI.Menu.Opened[i].name == name then
+                if not cancel then
+                    ESX.UI.Menu.Opened[i].close()
+                else
+                    local menu = ESX.UI.Menu.Opened[i]
+                    ESX.UI.Menu.RegisteredTypes[menu.type].close(menu.namespace, menu.name)
+
+                    if type(menu.cancel) ~= "nil" then
+                        menu.cancel(menu.data, menu)
+                    end
+                end
+                ESX.UI.Menu.Opened[i] = nil
+            end
+        end
+    end
+end
+
+---@param cancel? boolean Should the close be classified as a cancel
+---@return nil
+function ESX.UI.Menu.CloseAll(cancel)
+    for i = 1, #ESX.UI.Menu.Opened, 1 do
+        if ESX.UI.Menu.Opened[i] then
+            if not cancel then
+                ESX.UI.Menu.Opened[i].close()
+            else
+                local menu = ESX.UI.Menu.Opened[i]
+                ESX.UI.Menu.RegisteredTypes[menu.type].close(menu.namespace, menu.name)
+
+                if type(menu.cancel) ~= "nil" then
+                    menu.cancel(menu.data, menu)
+                end
+            end
+            ESX.UI.Menu.Opened[i] = nil
+        end
+    end
+end
+
+---@param menuType string
+---@param namespace string
+---@param name string
+---@return ESXMenu | nil
+function ESX.UI.Menu.GetOpened(menuType, namespace, name)
+    for i = 1, #ESX.UI.Menu.Opened, 1 do
+        if ESX.UI.Menu.Opened[i] then
+            if ESX.UI.Menu.Opened[i].type == menuType and ESX.UI.Menu.Opened[i].namespace == namespace and ESX.UI.Menu.Opened[i].name == name then
+                return ESX.UI.Menu.Opened[i]
+            end
+        end
+    end
+end
+
+---@return ESXMenu[]
+function ESX.UI.Menu.GetOpenedMenus()
+    return ESX.UI.Menu.Opened
+end
+
+ESX.UI.Menu.IsOpen = ESX.UI.Menu.GetOpened
+
+---@param add boolean Whether the item is being added or removed
+---@param item string The item to show
+---@param count number How many of the item to show
+---@return nil
+function ESX.UI.ShowInventoryItemNotification(add, item, count)
+    SendNUIMessage({
+        action = "inventoryNotification",
+        add = add,
+        item = item,
+        count = count,
+    })
+end
+
+---@param coords vector3 | table coords to get the closest pickup to
+---@param text string The text to display
+---@param size? number The size of the text
+---@param font? number The font of the text
+---@return nil
+function ESX.Game.Utils.DrawText3D(coords, text, size, font)
+    local vector = type(coords) == "vector3" and coords or vec(coords.x, coords.y, coords.z)
+
+    local camCoords = GetFinalRenderedCamCoord()
+    local distance = #(vector - camCoords)
+
+    size = size or 1
+    font = font or 0
+
+    local scale = (size / distance) * 2
+    local fov = (1 / GetGameplayCamFov()) * 100
+    scale = scale * fov
+
+    SetTextScale(0.0, 0.55 * scale)
+    SetTextFont(font)
+    SetTextProportional(true)
+    SetTextColour(255, 255, 255, 215)
+    BeginTextCommandDisplayText("STRING")
+    SetTextCentre(true)
+    AddTextComponentSubstringPlayerName(text)
+    SetDrawOrigin(vector.x, vector.y, vector.z, 0)
+    EndTextCommandDisplayText(0.0, 0.0)
+    ClearDrawOrigin()
+end
+
+---@param account string Account name (money/bank/black_money)
+---@return table|nil
+function ESX.GetAccount(account)
+    for i = 1, #ESX.PlayerData.accounts, 1 do
+        if ESX.PlayerData.accounts[i].name == account then
+            return ESX.PlayerData.accounts[i]
+        end
+    end
+    return nil
+end
+
+function ESX.ShowInventory()
+    if not Config.EnableDefaultInventory then
+        return
+    end
+
+    exports.esx_inventory:ShowInventory()
+end
+
+RegisterNetEvent('esx:showNotification', ESX.ShowNotification)
+
+RegisterNetEvent('esx:showAdvancedNotification', ESX.ShowAdvancedNotification)
+
+RegisterNetEvent('esx:showHelpNotification', ESX.ShowHelpNotification)
+
+AddEventHandler("onResourceStop", function(resourceName)
+    for i = 1, #ESX.UI.Menu.Opened, 1 do
+        if ESX.UI.Menu.Opened[i] then
+            if ESX.UI.Menu.Opened[i].resourceName == resourceName or ESX.UI.Menu.Opened[i].namespace == resourceName then
+                ESX.UI.Menu.Opened[i].close()
+                ESX.UI.Menu.Opened[i] = nil
+            end
+        end
+    end
+end)
+-- Credits to txAdmin for the list.
+local mismatchedTypes = {
+    ['airtug'] = "automobile", -- trailer
+    ['avisa'] = "submarine", -- boat
+    ['blimp'] = "heli", -- plane
+    ['blimp2'] = "heli", -- plane
+    ['blimp3'] = "heli", -- plane
+    ['caddy'] = "automobile", -- trailer
+    ['caddy2'] = "automobile", -- trailer
+    ['caddy3'] = "automobile", -- trailer
+    ['chimera'] = "automobile", -- bike
+    ['docktug'] = "automobile", -- trailer
+    ['forklift'] = "automobile", -- trailer
+    ['kosatka'] = "submarine", -- boat
+    ['mower'] = "automobile", -- trailer
+    ['policeb'] = "bike", -- automobile
+    ['ripley'] = "automobile", -- trailer
+    ['rrocket'] = "automobile", -- bike
+    ['sadler'] = "automobile", -- trailer
+    ['sadler2'] = "automobile", -- trailer
+    ['scrap'] = "automobile", -- trailer
+    ['slamtruck'] = "automobile", -- trailer
+    ['Stryder'] = "automobile", -- bike
+    ['submersible'] = "submarine", -- boat
+    ['submersible2'] = "submarine", -- boat
+    ['thruster'] = "heli", -- automobile
+    ['towtruck'] = "automobile", -- trailer
+    ['towtruck2'] = "automobile", -- trailer
+    ['tractor'] = "automobile", -- trailer
+    ['tractor2'] = "automobile", -- trailer
+    ['tractor3'] = "automobile", -- trailer
+    ['trailersmall2'] = "trailer", -- automobile
+    ['utillitruck'] = "automobile", -- trailer
+    ['utillitruck2'] = "automobile", -- trailer
+    ['utillitruck3'] = "automobile", -- trailer
+}
+
+---@param model number|string
+---@return string | boolean
+function ESX.GetVehicleTypeClient(model)
+    model = type(model) == "string" and joaat(model) or model
+    if not IsModelInCdimage(model) then
+        return false
+    end
+
+    if not IsModelAVehicle(model) then
+        return false
+    end
+
+    if mismatchedTypes[model] then
+        return mismatchedTypes[model]
+    end
+
+    local vehicleType = GetVehicleClassFromName(model)
+    local types = {
+        [8] = "bike",
+        [11] = "trailer",
+        [13] = "bike",
+        [14] = "boat",
+        [15] = "heli",
+        [16] = "plane",
+        [21] = "train",
+    }
+
+    return types[vehicleType] or "automobile"
+end
+
+ESX.GetVehicleType = ESX.GetVehicleTypeClient
+`
+        },
+        {
+          "path": "client/compat.lua",
+          "source": "--All client-side functions outsourced from the Core to the lib will be stored here for compatability, e.g:\n\nESX.Game.GetClosestEntity = xLib.entity.closest\nEnumerateEntitiesWithinDistance = xLib.entity.EnumerateWithinDistance\nESX.Game.Teleport = xLib.entity.Teleport\n\nESX.Streaming = {\n    RequestModel = xLib.streaming.requestModel,\n    RequestStreamedTextureDict = xLib.streaming.requestStreamedTextureDict,\n    RequestNamedPtfxAsset = xLib.streaming.requestNamedPtfxAsset,\n    RequestAnimSet = xLib.streaming.requestAnimSet,\n    RequestAnimDict = xLib.streaming.requestAnimDict,\n    RequestWeaponAsset = xLib.streaming.requestWeaponAsset,\n}\n\nESX.Scaleform = {\n    ShowFreemodeMessage = xLib.scaleform.showFreemodeMessage,\n    ShowBreakingNews = xLib.scaleform.showBreakingNews,\n    ShowPopupWarning = xLib.scaleform.showPopupWarning,\n    ShowTrafficMovie = xLib.scaleform.showTrafficMovie,\n    Utils = {\n        RequestScaleformMovie = xLib.scaleform.utils.requestScaleformMovie,\n        RunMethod = xLib.scaleform.utils.runMethod,\n    },\n}\n\nESX.CreatePointInternal = xLib.points.create\nESX.RemovePointInternal = xLib.points.remove\nESX.HidePointInternal = xLib.points.hide\nStartPointsLoop = xLib.points.startLoop\nESX.Point = xLib.point\n\nESX.RegisterInteraction = xLib.interactions.register\nESX.RemoveInteraction = xLib.interactions.remove\nESX.GetInteractKey = xLib.interactions.getInteractKey\n\nESX.Game.GetPedMugshot = xLib.game.getPedMugshot\nESX.Game.SpawnObject = xLib.game.spawnObject\nESX.Game.SpawnLocalObject = xLib.game.spawnLocalObject\nESX.Game.DeleteVehicle = xLib.game.deleteVehicle\nESX.Game.DeleteObject = xLib.game.deleteObject\nESX.Game.SpawnVehicle = xLib.game.spawnVehicle\nESX.Game.SpawnLocalVehicle = xLib.game.spawnLocalVehicle\nESX.Game.IsVehicleEmpty = xLib.game.isVehicleEmpty\nESX.Game.GetObjects = xLib.game.getObjects\nESX.Game.GetPeds = xLib.game.getPeds\nESX.Game.GetVehicles = xLib.game.getVehicles\nESX.Game.GetPlayers = xLib.game.getPlayers\nESX.Game.GetClosestObject = xLib.game.getClosestObject\nESX.Game.GetClosestPed = xLib.game.getClosestPed\nESX.Game.GetClosestPlayer = xLib.game.getClosestPlayer\nESX.Game.GetClosestVehicle = xLib.game.getClosestVehicle\nESX.Game.GetPlayersInArea = xLib.game.getPlayersInArea\nESX.Game.GetVehiclesInArea = xLib.game.getVehiclesInArea\nESX.Game.IsSpawnPointClear = xLib.game.isSpawnPointClear\nESX.Game.GetVehicleInDirection = xLib.game.getVehicleInDirection\nESX.Game.GetVehicleProperties = xLib.game.getVehicleProperties\nESX.Game.SetVehicleProperties = xLib.game.setVehicleProperties\n\nfunction ESX.RegisterInput(command_name, label, input_group, key, on_press, on_release)\n    return xLib.addKeybind({\n        name = command_name,\n        description = label,\n        defaultMapper = input_group,\n        defaultKey = key,\n        onPressed = on_press,\n        onReleased = on_release\n    })\nend\n\n---@param raycast table The raycast object returned from ESX.Game.StartRaycasting\nESX.Game.StopRaycasting = function(raycast)\n    if raycast and raycast.active then\n        raycast:Stop()\n    end\nend\n---@param raycast table The raycast object returned from ESX.Game.StartRaycasting\nESX.Game.IsRaycastActive = function(raycast)\n    if raycast and raycast.active then\n        return raycast:IsActive()\n    end\n    return false\nend\n---@param raycast table The raycast object returned from ESX.Game.StartRaycasting\nESX.Game.GetRaycastResult = function(raycast)\n    if raycast and raycast.active then\n        return raycast.result\n    end\n    return nil\nend\n"
+        },
+        {
+          "path": "client/modules/wrapper.lua",
+          "source": 'local Chunks = {}\n\nRegisterNUICallback("__chunk", function(data, cb)\n    Chunks[data.id] = Chunks[data.id] or ""\n    Chunks[data.id] = Chunks[data.id] .. data.chunk\n\n    if data["end"] then\n        local msg = json.decode(Chunks[data.id])\n        TriggerEvent(GetCurrentResourceName() .. ":message:" .. data.__type, msg)\n        Chunks[data.id] = nil\n    end\n\n    cb("")\nend)\n'
+        },
+        {
+          "path": "client/modules/callback.lua",
+          "source": "---@diagnostic disable: duplicate-set-field\n\n---@param eventName string\n---@param callback function\n---@param ... any\n---@return nil\nfunction ESX.TriggerServerCallback(eventName, callback, ...)\n    return xLib.callback(eventName, false, callback, ...)\nend\n\n---@param eventName string\n---@param ... any\n---@return ...\nfunction ESX.AwaitServerCallback(eventName, ...)\n    return xLib.callback.await(eventName, false, ...)\nend\n\n---@param eventName string\n---@param callback function\n---@return nil\nfunction ESX.RegisterClientCallback(eventName, callback)\n    local owner = GetInvokingResource() or GetCurrentResourceName()\n    return xLib.callback.registerCompat(eventName, callback, owner)\nend\n\n---@param eventName string\n---@return boolean\nfunction ESX.DoesClientCallbackExist(eventName)\n    return xLib.isCallbackValid(eventName)\nend\n"
+        },
+        {
+          "path": "client/modules/adjustments.lua",
+          "source": `Adjustments = {}
+
+function Adjustments:RemoveHudComponents()
+    for i = 1, #Config.RemoveHudComponents do
+        if Config.RemoveHudComponents[i] then
+            SetHudComponentSize(i, 0.0, 0.0)
+            SetHudComponentPosition(i, 900.0, 900.0)
+        end
+    end
+end
+
+function Adjustments:DisableAimAssist()
+    if Config.DisableAimAssist then
+        SetPlayerTargetingMode(3)
+    end
+end
+
+function Adjustments:DisableNPCDrops()
+    if Config.DisableNPCDrops then
+        local weaponPickups = { _cfxbt_PICKUP_WEAPON_CARBINERIFLE, _cfxbt_PICKUP_WEAPON_PISTOL, _cfxbt_PICKUP_WEAPON_PUMPSHOTGUN }
+        for i = 1, #weaponPickups do
+            ToggleUsePickupsForPlayer(ESX.playerId, weaponPickups[i], false)
+        end
+    end
+end
+
+function Adjustments:SeatShuffle()
+    if Config.DisableVehicleSeatShuff and not self.seatShuffleRegistered then
+        self.seatShuffleRegistered = true
+
+        AddEventHandler("esx:enteredVehicle", function(vehicle, _, seat)
+            if seat > -1 then
+                SetPedIntoVehicle(ESX.PlayerData.ped, vehicle, seat)
+                SetPedConfigFlag(ESX.PlayerData.ped, 184, true)
+            end
+        end)
+    end
+end
+
+function Adjustments:HealthRegeneration()
+    if Config.DisableHealthRegeneration then
+        SetPlayerHealthRechargeMultiplier(ESX.playerId, 0.0)
+    end
+end
+
+function Adjustments:AmmoAndVehicleRewards()
+    CreateThread(function()
+        while ESX.PlayerLoaded do
+            if Config.DisableDisplayAmmo then
+                DisplayAmmoThisFrame(false)
+            end
+
+            if Config.DisableVehicleRewards then
+                DisablePlayerVehicleRewards(ESX.playerId)
+            end
+
+            Wait(0)
+        end
+    end)
+end
+
+function Adjustments:EnablePvP()
+    if Config.EnablePVP then
+        SetCanAttackFriendly(ESX.PlayerData.ped, true, false)
+        NetworkSetFriendlyFireOption(true)
+    end
+end
+
+function Adjustments:DispatchServices()
+    if Config.DisableDispatchServices then
+        for i = 1, 15 do
+            EnableDispatchService(i, false)
+        end
+        SetAudioFlag('PoliceScannerDisabled', true)
+    end
+end
+
+function Adjustments:NPCScenarios()
+    if Config.DisableScenarios then
+        local scenarios = {
+            "WORLD_VEHICLE_ATTRACTOR",
+            "WORLD_VEHICLE_AMBULANCE",
+            "WORLD_VEHICLE_BICYCLE_BMX",
+            "WORLD_VEHICLE_BICYCLE_BMX_BALLAS",
+            "WORLD_VEHICLE_BICYCLE_BMX_FAMILY",
+            "WORLD_VEHICLE_BICYCLE_BMX_HARMONY",
+            "WORLD_VEHICLE_BICYCLE_BMX_VAGOS",
+            "WORLD_VEHICLE_BICYCLE_MOUNTAIN",
+            "WORLD_VEHICLE_BICYCLE_ROAD",
+            "WORLD_VEHICLE_BIKE_OFF_ROAD_RACE",
+            "WORLD_VEHICLE_BIKER",
+            "WORLD_VEHICLE_BOAT_IDLE",
+            "WORLD_VEHICLE_BOAT_IDLE_ALAMO",
+            "WORLD_VEHICLE_BOAT_IDLE_MARQUIS",
+            "WORLD_VEHICLE_BROKEN_DOWN",
+            "WORLD_VEHICLE_BUSINESSMEN",
+            "WORLD_VEHICLE_HELI_LIFEGUARD",
+            "WORLD_VEHICLE_CLUCKIN_BELL_TRAILER",
+            "WORLD_VEHICLE_CONSTRUCTION_SOLO",
+            "WORLD_VEHICLE_CONSTRUCTION_PASSENGERS",
+            "WORLD_VEHICLE_DRIVE_PASSENGERS",
+            "WORLD_VEHICLE_DRIVE_PASSENGERS_LIMITED",
+            "WORLD_VEHICLE_DRIVE_SOLO",
+            "WORLD_VEHICLE_FIRE_TRUCK",
+            "WORLD_VEHICLE_EMPTY",
+            "WORLD_VEHICLE_MARIACHI",
+            "WORLD_VEHICLE_MECHANIC",
+            "WORLD_VEHICLE_MILITARY_PLANES_BIG",
+            "WORLD_VEHICLE_MILITARY_PLANES_SMALL",
+            "WORLD_VEHICLE_PARK_PARALLEL",
+            "WORLD_VEHICLE_PARK_PERPENDICULAR_NOSE_IN",
+            "WORLD_VEHICLE_PASSENGER_EXIT",
+            "WORLD_VEHICLE_POLICE_BIKE",
+            "WORLD_VEHICLE_POLICE_CAR",
+            "WORLD_VEHICLE_POLICE",
+            "WORLD_VEHICLE_POLICE_NEXT_TO_CAR",
+            "WORLD_VEHICLE_QUARRY",
+            "WORLD_VEHICLE_SALTON",
+            "WORLD_VEHICLE_SALTON_DIRT_BIKE",
+            "WORLD_VEHICLE_SECURITY_CAR",
+            "WORLD_VEHICLE_STREETRACE",
+            "WORLD_VEHICLE_TOURBUS",
+            "WORLD_VEHICLE_TOURIST",
+            "WORLD_VEHICLE_TANDL",
+            "WORLD_VEHICLE_TRACTOR",
+            "WORLD_VEHICLE_TRACTOR_BEACH",
+            "WORLD_VEHICLE_TRUCK_LOGS",
+            "WORLD_VEHICLE_TRUCKS_TRAILERS",
+            "WORLD_VEHICLE_DISTANT_EMPTY_GROUND",
+            "WORLD_HUMAN_PAPARAZZI",
+        }
+
+        for i=1, #scenarios do
+            SetScenarioTypeEnabled(scenarios[i], false)
+        end
+    end
+end
+
+function Adjustments:LicensePlates()
+    SetDefaultVehicleNumberPlateTextPattern(-1, Config.CustomAIPlates)
+end
+
+local placeHolders = {
+    server_name = function()
+        return GetConvar("sv_projectName", "ESX-Framework")
+    end,
+    server_endpoint = function()
+        return GetCurrentServerEndpoint() or "localhost:30120"
+    end,
+    server_players = function()
+        return GlobalState.playerCount or 0
+    end,
+    server_maxplayers = function()
+        return GetConvarInt("sv_maxClients", 48)
+    end,
+    player_name = function()
+        return GetPlayerName(ESX.playerId)
+    end,
+    player_rp_name = function()
+        return ESX.PlayerData.name or "John Doe"
+    end,
+    player_id = function()
+        return ESX.serverId
+    end,
+    player_street = function()
+        if not ESX.PlayerData.ped then return "Unknown" end
+
+        local playerCoords = GetEntityCoords(ESX.PlayerData.ped)
+        local streetHash = GetStreetNameAtCoord(playerCoords.x, playerCoords.y, playerCoords.z)
+
+        return GetStreetNameFromHashKey(streetHash) or "Unknown"
+    end,
+}
+
+function Adjustments:ReplacePlaceholders(text)
+    for placeholder, cb in pairs(placeHolders) do
+        local success, result = pcall(cb)
+
+        if not success then
+            print(("[^1ERROR^7] Failed to execute placeholder: ^5%s^7\\n%s"):format(placeholder, result))
+            result = "Unknown"
+        end
+
+        text = text:gsub(("{%s}"):format(placeholder), (tostring(result):gsub("%%", "%%%%")))
+    end
+    return text
+end
+
+function Adjustments:DiscordPresence()
+    if Config.DiscordActivity.appId ~= 0 then
+        CreateThread(function()
+            while ESX.PlayerLoaded do
+                SetDiscordAppId(Config.DiscordActivity.appId)
+                SetRichPresence(self:ReplacePlaceholders(Config.DiscordActivity.presence))
+                SetDiscordRichPresenceAsset(Config.DiscordActivity.assetName)
+                SetDiscordRichPresenceAssetText(self:ReplacePlaceholders(Config.DiscordActivity.assetText))
+
+                for i = 1, #Config.DiscordActivity.buttons do
+                    local button = Config.DiscordActivity.buttons[i]
+                    local buttonUrl = self:ReplacePlaceholders(button.url)
+                    SetDiscordRichPresenceAction(i - 1, button.label, buttonUrl)
+                end
+
+                Wait(Config.DiscordActivity.refresh)
+            end
+        end)
+    end
+end
+
+function Adjustments:WantedLevel()
+    if not Config.EnableWantedLevel then
+        ClearPlayerWantedLevel(ESX.playerId)
+        SetMaxWantedLevel(0)
+    end
+end
+
+function Adjustments:DisableRadio()
+    if Config.RemoveHudComponents[16] and not self.disableRadioRegistered then
+        self.disableRadioRegistered = true
+
+        AddEventHandler("esx:enteredVehicle", function(vehicle, plate, seat, displayName, netId)
+            SetVehRadioStation(vehicle,"OFF")
+            SetUserRadioControlEnabled(false)
+        end)
+    end
+end
+
+function Adjustments:Multipliers()
+    CreateThread(function()
+        while ESX.PlayerLoaded do
+            SetPedDensityMultiplierThisFrame(Config.Multipliers.pedDensity)
+            SetScenarioPedDensityMultiplierThisFrame(Config.Multipliers.scenarioPedDensityInterior, Config.Multipliers.scenarioPedDensityExterior)
+            SetAmbientVehicleRangeMultiplierThisFrame(Config.Multipliers.ambientVehicleRange)
+            SetParkedVehicleDensityMultiplierThisFrame(Config.Multipliers.parkedVehicleDensity)
+            SetRandomVehicleDensityMultiplierThisFrame(Config.Multipliers.randomVehicleDensity)
+            SetVehicleDensityMultiplierThisFrame(Config.Multipliers.vehicleDensity)
+            Wait(0)
+        end
+    end)
+end
+
+function Adjustments:Load()
+    self:RemoveHudComponents()
+    self:DisableAimAssist()
+    self:DisableNPCDrops()
+    self:SeatShuffle()
+    self:HealthRegeneration()
+    self:AmmoAndVehicleRewards()
+    self:EnablePvP()
+    self:DispatchServices()
+    self:NPCScenarios()
+    self:LicensePlates()
+    self:DiscordPresence()
+    self:WantedLevel()
+    self:DisableRadio()
+    self:Multipliers()
+end
+`
+        },
+        {
+          "path": "client/modules/events.lua",
+          "source": `local pickups = {}
+
+RegisterNetEvent("esx:requestModel", function(model)
+    xLib.streaming.requestModel(model)
+end)
+
+RegisterNetEvent("esx:playerLoaded", function(xPlayer, _, skin)
+    ESX.PlayerData = xPlayer
+
+    if not Config.Multichar then
+        ESX.SpawnPlayer(skin, ESX.PlayerData.coords, function()
+            TriggerEvent("esx:onPlayerSpawn")
+            TriggerEvent("esx:restoreLoadout")
+            TriggerServerEvent("esx:onPlayerSpawn")
+            TriggerEvent("esx:loadingScreenOff")
+            ShutdownLoadingScreen()
+            ShutdownLoadingScreenNui()
+        end)
+    end
+
+    while not DoesEntityExist(ESX.PlayerData.ped) do
+        Wait(20)
+    end
+
+    ESX.PlayerLoaded = true
+
+    local timer = GetGameTimer()
+    while not HaveAllStreamingRequestsCompleted(ESX.PlayerData.ped) and (GetGameTimer() - timer) < 2000 do
+        Wait(0)
+    end
+
+    Adjustments:Load()
+
+    ClearPedTasksImmediately(ESX.PlayerData.ped)
+
+    if not Config.Multichar then
+        Core.FreezePlayer(false)
+        if IsScreenFadedOut() then
+            DoScreenFadeIn(500)
+        end
+    end
+
+
+    Actions:Init()
+    xLib.points.startLoop()
+    StartServerSyncLoops()
+    NetworkSetLocalPlayerSyncLookAt(true)
+end)
+
+local isFirstSpawn = true
+ESX.SecureNetEvent("esx:onPlayerLogout", function()
+    ESX.PlayerLoaded = false
+    isFirstSpawn = true
+end)
+
+ESX.SecureNetEvent("esx:setMaxWeight", function(newMaxWeight)
+    ESX.SetPlayerData("maxWeight", newMaxWeight)
+end)
+
+ESX.SecureNetEvent("esx:setInventory", function(newInventory)
+    ESX.SetPlayerData("inventory", newInventory)
+end)
+
+local function onPlayerSpawn()
+    ESX.SetPlayerData("ped", PlayerPedId())
+    ESX.SetPlayerData("dead", false)
+end
+
+AddEventHandler("playerSpawned", onPlayerSpawn)
+AddEventHandler("esx:onPlayerSpawn", function()
+    onPlayerSpawn()
+
+    if isFirstSpawn then
+        isFirstSpawn = false
+
+        if ESX.PlayerData.metadata.health and (ESX.PlayerData.metadata.health > 0 or Config.SaveDeathStatus) then
+            SetEntityHealth(ESX.PlayerData.ped, ESX.PlayerData.metadata.health)
+        end
+
+        if ESX.PlayerData.metadata.armor and ESX.PlayerData.metadata.armor > 0 then
+            SetPedArmour(ESX.PlayerData.ped, ESX.PlayerData.metadata.armor)
+        end
+    end
+end)
+
+AddEventHandler("esx:onPlayerDeath", function()
+    ESX.SetPlayerData("ped", PlayerPedId())
+    ESX.SetPlayerData("dead", true)
+end)
+
+AddEventHandler("skinchanger:modelLoaded", function()
+    while not ESX.PlayerLoaded do
+        Wait(100)
+    end
+    TriggerEvent("esx:restoreLoadout")
+end)
+
+AddEventHandler("esx:restoreLoadout", function()
+    ESX.SetPlayerData("ped", PlayerPedId())
+
+    if not Config.CustomInventory then
+        local ammoTypes = {}
+        RemoveAllPedWeapons(ESX.PlayerData.ped, true)
+
+        for _, v in ipairs(ESX.PlayerData.loadout) do
+            local weaponName = v.name
+            local weaponHash = joaat(weaponName)
+
+            GiveWeaponToPed(ESX.PlayerData.ped, weaponHash, 0, false, false)
+            SetPedWeaponTintIndex(ESX.PlayerData.ped, weaponHash, v.tintIndex)
+
+            local ammoType = GetPedAmmoTypeFromWeapon(ESX.PlayerData.ped, weaponHash)
+
+            for _, v2 in ipairs(v.components) do
+                local componentHash = ESX.GetWeaponComponent(weaponName, v2).hash
+                GiveWeaponComponentToPed(ESX.PlayerData.ped, weaponHash, componentHash)
+            end
+
+            if not ammoTypes[ammoType] then
+                AddAmmoToPed(ESX.PlayerData.ped, weaponHash, v.ammo)
+                ammoTypes[ammoType] = true
+            end
+        end
+    end
+end)
+
+---@diagnostic disable-next-line: param-type-mismatch
+AddStateBagChangeHandler("VehicleProperties", nil, function(bagName, _, value)
+    if not value then
+        return
+    end
+
+    bagName = bagName:gsub("entity:", "")
+    local netId = tonumber(bagName)
+    if not netId then
+        error("Tried to set vehicle properties with invalid netId")
+        return
+    end
+
+    local tries = 0
+
+    while not NetworkDoesEntityExistWithNetworkId(netId) do
+        Wait(200)
+        tries = tries + 1
+        if tries > 20 then
+            return error(("Invalid entity - ^5%s^7!"):format(netId))
+        end
+    end
+
+    local vehicle = NetToVeh(netId)
+
+    if NetworkGetEntityOwner(vehicle) ~= ESX.playerId then
+        return
+    end
+
+    xLib.game.setVehicleProperties(vehicle, value)
+end)
+
+ESX.SecureNetEvent("esx:setAccountMoney", function(account)
+    for i = 1, #ESX.PlayerData.accounts do
+        if ESX.PlayerData.accounts[i].name == account.name then
+            ESX.PlayerData.accounts[i] = account
+            break
+        end
+    end
+
+    ESX.SetPlayerData("accounts", ESX.PlayerData.accounts)
+end)
+
+if not Config.CustomInventory then
+    ESX.SecureNetEvent("esx:addInventoryItem", function(item, count, showNotification)
+        for k, v in ipairs(ESX.PlayerData.inventory) do
+            if v.name == item then
+                ESX.UI.ShowInventoryItemNotification(true, v.label, count - v.count)
+                ESX.PlayerData.inventory[k].count = count
+                break
+            end
+        end
+
+        if showNotification then
+            ESX.UI.ShowInventoryItemNotification(true, item, count)
+        end
+    end)
+
+    ESX.SecureNetEvent("esx:removeInventoryItem", function(item, count, showNotification)
+        for i = 1, #ESX.PlayerData.inventory do
+            if ESX.PlayerData.inventory[i].name == item then
+                ESX.UI.ShowInventoryItemNotification(false, ESX.PlayerData.inventory[i].label, ESX.PlayerData.inventory[i].count - count)
+                ESX.PlayerData.inventory[i].count = count
+                break
+            end
+        end
+
+        if showNotification then
+            ESX.UI.ShowInventoryItemNotification(false, item, count)
+        end
+    end)
+
+    ESX.SecureNetEvent("esx:addLoadoutItem", function(weaponName, weaponLabel, ammo)
+        table.insert(ESX.PlayerData.loadout, {
+            name = weaponName,
+            ammo = ammo,
+            label = weaponLabel,
+            components = {},
+            tintIndex = 0,
+        })
+    end)
+
+    ESX.SecureNetEvent("esx:removeLoadoutItem", function(weaponName, weaponLabel)
+        for i = 1, #ESX.PlayerData.loadout do
+            if ESX.PlayerData.loadout[i].name == weaponName then
+                table.remove(ESX.PlayerData.loadout, i)
+                break
+            end
+        end
+    end)
+
+    RegisterNetEvent("esx:addWeapon", function()
+        error("event ^5'esx:addWeapon'^1 Has Been Removed. Please use ^5xPlayer.addWeapon^1 Instead!")
+    end)
+
+
+    RegisterNetEvent("esx:addWeaponComponent", function()
+        error("event ^5'esx:addWeaponComponent'^1 Has Been Removed. Please use ^5xPlayer.addWeaponComponent^1 Instead!")
+    end)
+
+    RegisterNetEvent("esx:setWeaponAmmo", function()
+        error("event ^5'esx:setWeaponAmmo'^1 Has Been Removed. Please use ^5xPlayer.addWeaponAmmo^1 Instead!")
+    end)
+
+    ESX.SecureNetEvent("esx:setWeaponTint", function(weapon, weaponTintIndex)
+        SetPedWeaponTintIndex(ESX.PlayerData.ped, joaat(weapon), weaponTintIndex)
+    end)
+
+    RegisterNetEvent("esx:removeWeapon", function()
+        error("event ^5'esx:removeWeapon'^1 Has Been Removed. Please use ^5xPlayer.removeWeapon^1 Instead!")
+    end)
+
+    ESX.SecureNetEvent("esx:removeWeaponComponent", function(weapon, weaponComponent)
+        local componentHash = ESX.GetWeaponComponent(weapon, weaponComponent).hash
+        RemoveWeaponComponentFromPed(ESX.PlayerData.ped, joaat(weapon), componentHash)
+    end)
+end
+
+ESX.SecureNetEvent("esx:setJob", function(Job)
+    ESX.SetPlayerData("job", Job)
+end)
+
+ESX.SecureNetEvent("esx:jobDataRefreshed", function(Job)
+    ESX.SetPlayerData("job", Job)
+end)
+
+ESX.SecureNetEvent("esx:setGroup", function(group)
+    ESX.SetPlayerData("group", group)
+end)
+
+if not Config.CustomInventory then
+    ESX.SecureNetEvent("esx:createPickup", function(pickupId, label, coords, itemType, name, components, tintIndex)
+        local function setObjectProperties(object)
+            SetEntityAsMissionEntity(object, true, false)
+            PlaceObjectOnGroundProperly(object)
+            FreezeEntityPosition(object, true)
+            SetEntityCollision(object, false, true)
+
+            pickups[pickupId] = {
+                obj = object,
+                label = label,
+                inRange = false,
+                coords = coords,
+            }
+        end
+
+        if itemType == "item_weapon" then
+            local weaponHash = joaat(name)
+            xLib.streaming.requestWeaponAsset(weaponHash)
+            local pickupObject = CreateWeaponObject(weaponHash, 50, coords.x, coords.y, coords.z, true, 1.0, 0)
+            SetWeaponObjectTintIndex(pickupObject, tintIndex)
+
+            for _, v in ipairs(components) do
+                local component = ESX.GetWeaponComponent(name, v)
+                if component then
+                    GiveWeaponComponentToWeaponObject(pickupObject, component.hash)
+                end
+            end
+
+            setObjectProperties(pickupObject)
+        else
+            xLib.game.spawnLocalObject("prop_money_bag_01", coords, setObjectProperties)
+        end
+    end)
+
+    ESX.SecureNetEvent("esx:createMissingPickups", function(missingPickups)
+        for pickupId, pickup in pairs(missingPickups) do
+            TriggerEvent("esx:createPickup", pickupId, pickup.label, vector3(pickup.coords.x, pickup.coords.y, pickup.coords.z - 1.0), pickup.type, pickup.name, pickup.components, pickup.tintIndex)
+        end
+    end)
+end
+
+ESX.SecureNetEvent("esx:registerSuggestions", function(registeredCommands)
+    for name, command in pairs(registeredCommands) do
+        if command.suggestion then
+            TriggerEvent("chat:addSuggestion", ("/%s"):format(name), command.suggestion.help, command.suggestion.arguments)
+        end
+    end
+end)
+
+if not Config.CustomInventory then
+    ESX.SecureNetEvent("esx:removePickup", function(pickupId)
+        if pickups[pickupId] and pickups[pickupId].obj then
+            xLib.game.deleteObject(pickups[pickupId].obj)
+            pickups[pickupId] = nil
+        end
+    end)
+end
+
+function StartServerSyncLoops()
+    if Config.CustomInventory then return end
+
+    local currentWeapon = {
+        ---@type number
+        ---@diagnostic disable-next-line: assign-type-mismatch
+        hash = _cfxbt_WEAPON_UNARMED,
+        ammo = 0,
+    }
+
+    local function updateCurrentWeaponAmmo(weaponName)
+        local newAmmo = GetAmmoInPedWeapon(ESX.PlayerData.ped, currentWeapon.hash)
+
+        if newAmmo ~= currentWeapon.ammo then
+            currentWeapon.ammo = newAmmo
+            TriggerServerEvent("esx:updateWeaponAmmo", weaponName, newAmmo)
+        end
+    end
+
+    CreateThread(function()
+        while ESX.PlayerLoaded do
+            currentWeapon.hash = GetSelectedPedWeapon(ESX.PlayerData.ped)
+
+            if currentWeapon.hash ~= _cfxbt_WEAPON_UNARMED then
+                local weaponConfig = ESX.GetWeaponFromHash(currentWeapon.hash)
+
+                if weaponConfig then
+                    currentWeapon.ammo = GetAmmoInPedWeapon(ESX.PlayerData.ped, currentWeapon.hash)
+
+                    while GetSelectedPedWeapon(ESX.PlayerData.ped) == currentWeapon.hash do
+                        updateCurrentWeaponAmmo(weaponConfig.name)
+                        Wait(1000)
+                    end
+
+                    updateCurrentWeaponAmmo(weaponConfig.name)
+                end
+            end
+            Wait(250)
+        end
+    end)
+
+    CreateThread(function()
+        local PARACHUTE_OPENING = 1
+        local PARACHUTE_OPEN = 2
+
+        while ESX.PlayerLoaded do
+            local parachuteState = GetPedParachuteState(ESX.PlayerData.ped)
+
+            if parachuteState == PARACHUTE_OPENING or parachuteState == PARACHUTE_OPEN then
+                TriggerServerEvent("esx:updateWeaponAmmo", "GADGET_PARACHUTE", 0)
+
+                while GetPedParachuteState(ESX.PlayerData.ped) ~= -1 do Wait(1000) end
+            end
+            Wait(500)
+        end
+    end)
+end
+
+if not Config.CustomInventory then
+    CreateThread(function()
+        while true do
+            local Sleep = 1500
+            local playerCoords = GetEntityCoords(ESX.PlayerData.ped)
+
+            for pickupId, pickup in pairs(pickups) do
+                local distance = #(playerCoords - pickup.coords)
+
+                if distance < 5 then
+                    Sleep = 0
+                    local label = pickup.label
+
+                    if distance < 1 then
+                        if IsControlJustReleased(0, 38) then
+                            local _, closestDistance = xLib.game.getClosestPlayer(playerCoords)
+
+                            if IsPedOnFoot(ESX.PlayerData.ped) and (closestDistance == -1 or closestDistance > 3) and not pickup.inRange then
+                                pickup.inRange = true
+
+                                local dict, anim = "weapons@first_person@aim_rng@generic@projectile@sticky_bomb@", "plant_floor"
+                                xLib.streaming.requestAnimDict(dict)
+                                TaskPlayAnim(ESX.PlayerData.ped, dict, anim, 8.0, 1.0, 1000, 16, 0.0, false, false, false)
+                                RemoveAnimDict(dict)
+                                Wait(1000)
+
+                                TriggerServerEvent("esx:onPickup", pickupId)
+                                PlaySoundFrontend(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", false)
+                            end
+                        end
+
+                        label = ("%s~n~%s"):format(label, TranslateCap("threw_pickup_prompt"))
+                    end
+
+                    local textCoords = pickup.coords + vector3(0.0, 0.0, 0.25)
+                    ESX.Game.Utils.DrawText3D(textCoords, label, 1.2, 1)
+                elseif pickup.inRange then
+                    pickup.inRange = false
+                end
+            end
+            Wait(Sleep)
+        end
+    end)
+end
+
+----- Admin commands from esx_adminplus
+RegisterNetEvent("esx:tpm", function()
+    local GetEntityCoords = GetEntityCoords
+    local GetGroundZFor_3dCoord = GetGroundZFor_3dCoord
+    local GetFirstBlipInfoId = GetFirstBlipInfoId
+    local DoesBlipExist = DoesBlipExist
+    local DoScreenFadeOut = DoScreenFadeOut
+    local GetBlipInfoIdCoord = GetBlipInfoIdCoord
+    local GetVehiclePedIsIn = GetVehiclePedIsIn
+
+    xLib.callback("esx:isUserAdmin", false, function(admin)
+        if not admin then
+            return
+        end
+        local blipMarker = GetFirstBlipInfoId(8)
+        if not DoesBlipExist(blipMarker) then
+            ESX.ShowNotification(TranslateCap("tpm_nowaypoint"), "error")
+            return "marker"
+        end
+
+        -- Fade screen to hide how clients get teleported.
+        DoScreenFadeOut(650)
+        while not IsScreenFadedOut() do
+            Wait(0)
+        end
+
+        local ped, coords = ESX.PlayerData.ped, GetBlipInfoIdCoord(blipMarker)
+        local vehicle = GetVehiclePedIsIn(ped, false)
+        local oldCoords = GetEntityCoords(ped)
+
+        -- Unpack coords instead of having to unpack them while iterating.
+        -- 825.0 seems to be the max a player can reach while 0.0 being the lowest.
+        local x, y, groundZ, Z_START = coords["x"], coords["y"], 850.0, 950.0
+        local found = false
+        FreezeEntityPosition(vehicle > 0 and vehicle or ped, true)
+
+        for i = Z_START, 0, -25.0 do
+            local z = i
+            if (i % 2) ~= 0 then
+                z = Z_START - i
+            end
+
+            NewLoadSceneStart(x, y, z, x, y, z, 50.0, 0)
+            local curTime = GetGameTimer()
+            while IsNetworkLoadingScene() do
+                if GetGameTimer() - curTime > 1000 then
+                    break
+                end
+                Wait(0)
+            end
+            NewLoadSceneStop()
+            SetPedCoordsKeepVehicle(ped, x, y, z)
+
+            while not HasCollisionLoadedAroundEntity(ped) do
+                RequestCollisionAtCoord(x, y, z)
+                if GetGameTimer() - curTime > 1000 then
+                    break
+                end
+                Wait(0)
+            end
+
+            -- Get ground coord. As mentioned in the natives, this only works if the client is in render distance.
+            found, groundZ = GetGroundZFor_3dCoord(x, y, z, false)
+            if found then
+                Wait(0)
+                SetPedCoordsKeepVehicle(ped, x, y, groundZ)
+                break
+            end
+            Wait(0)
+        end
+
+        -- Remove black screen once the loop has ended.
+        DoScreenFadeIn(650)
+        FreezeEntityPosition(vehicle > 0 and vehicle or ped, false)
+
+        if not found then
+            -- If we can't find the coords, set the coords to the old ones.
+            -- We don't unpack them before since they aren't in a loop and only called once.
+            SetPedCoordsKeepVehicle(ped, oldCoords["x"], oldCoords["y"], oldCoords["z"] - 1.0)
+            ESX.ShowNotification(TranslateCap("tpm_success"), "success")
+        end
+
+        -- If Z coord was found, set coords in found coords.
+        SetPedCoordsKeepVehicle(ped, x, y, groundZ)
+        ESX.ShowNotification(TranslateCap("tpm_success"), "success")
+    end)
+end)
+
+local noclip = false
+local noclip_pos = vector3(0, 0, 70)
+local heading = 0
+
+local function noclipThread()
+    while noclip do
+        SetEntityCoordsNoOffset(ESX.PlayerData.ped, noclip_pos.x, noclip_pos.y, noclip_pos.z, false, false, true)
+
+        if IsControlPressed(1, 34) then
+            heading = heading + 1.5
+            if heading > 360 then
+                heading = 0
+            end
+
+            SetEntityHeading(ESX.PlayerData.ped, heading)
+        end
+
+        if IsControlPressed(1, 9) then
+            heading = heading - 1.5
+            if heading < 0 then
+                heading = 360
+            end
+
+            SetEntityHeading(ESX.PlayerData.ped, heading)
+        end
+
+        if IsControlPressed(1, 8) then
+            noclip_pos = GetOffsetFromEntityInWorldCoords(ESX.PlayerData.ped, 0.0, 1.0, 0.0)
+        end
+
+        if IsControlPressed(1, 32) then
+            noclip_pos = GetOffsetFromEntityInWorldCoords(ESX.PlayerData.ped, 0.0, -1.0, 0.0)
+        end
+
+        if IsControlPressed(1, 27) then
+            noclip_pos = GetOffsetFromEntityInWorldCoords(ESX.PlayerData.ped, 0.0, 0.0, 1.0)
+        end
+
+        if IsControlPressed(1, 173) then
+            noclip_pos = GetOffsetFromEntityInWorldCoords(ESX.PlayerData.ped, 0.0, 0.0, -1.0)
+        end
+        Wait(0)
+    end
+end
+
+RegisterNetEvent("esx:noclip", function()
+    xLib.callback("esx:isUserAdmin", false, function(admin)
+        if not admin then
+            return
+        end
+
+        if not noclip then
+            noclip_pos = GetEntityCoords(ESX.PlayerData.ped, false)
+            heading = GetEntityHeading(ESX.PlayerData.ped)
+        end
+
+        noclip = not noclip
+        if noclip then
+            CreateThread(noclipThread)
+        end
+
+        if noclip then
+            ESX.ShowNotification(TranslateCap("noclip_message", Translate("enabled")), "success")
+        else
+            ESX.ShowNotification(TranslateCap("noclip_message", Translate("disabled")), "error")
+        end
+    end)
+end)
+
+RegisterNetEvent("esx:killPlayer", function()
+    SetEntityHealth(ESX.PlayerData.ped, 0)
+end)
+
+RegisterNetEvent("esx:repairPedVehicle", function()
+    local ped = ESX.PlayerData.ped
+    local vehicle = GetVehiclePedIsIn(ped, false)
+    SetVehicleEngineHealth(vehicle, 1000)
+    SetVehicleEngineOn(vehicle, true, true, false)
+    SetVehicleFixed(vehicle)
+    SetVehicleDirtLevel(vehicle, 0)
+end)
+
+RegisterNetEvent("esx:freezePlayer", function(input)
+    if input == "freeze" then
+        SetEntityCollision(ESX.PlayerData.ped, false, false)
+        FreezeEntityPosition(ESX.PlayerData.ped, true)
+        SetPlayerInvincible(ESX.playerId, true)
+    elseif input == "unfreeze" then
+        SetEntityCollision(ESX.PlayerData.ped, true, true)
+        FreezeEntityPosition(ESX.PlayerData.ped, false)
+        SetPlayerInvincible(ESX.playerId, false)
+    end
+end)
+
+xLib.callback.registerCompat("esx:GetVehicleType", function(cb, model)
+    cb(ESX.GetVehicleTypeClient(model))
+end)
+
+ESX.SecureNetEvent('esx:updatePlayerData', function(key, val)
+	ESX.SetPlayerData(key, val)
+end)
+
+---@param command string
+ESX.SecureNetEvent("esx:executeCommand", function(command)
+    ExecuteCommand(command)
+end)
+
+AddEventHandler("onResourceStop", function(resource)
+    if Core.Events[resource] then
+        for i = 1, #Core.Events[resource] do
+            RemoveEventHandler(Core.Events[resource][i])
+        end
+    end
+end)
+`
+        },
+        {
+          "path": "client/modules/actions.lua",
+          "source": '-- ESX glue over the generic xLib.cache.\n-- ped and weapon are tracked by the lib cache; this module mirrors them into\n-- ESX.PlayerData, re-emits the legacy esx: events resources depend on, and keeps\n-- the vehicle enter/exit state machine that produces the richer vehicle events.\n\nActions = {}\nActions._index = Actions\n\nActions.inVehicle = false\nActions.enteringVehicle = false\nActions.inPauseMenu = false\n\nfunction Actions:GetSeatPedIsIn()\n    for i = -1, 16 do\n        if GetPedInVehicleSeat(self.vehicle, i) == ESX.PlayerData.ped then\n            return i\n        end\n    end\n    return -1\nend\n\nfunction Actions:GetVehicleData()\n    if not DoesEntityExist(self.vehicle) then\n        return\n    end\n\n    local vehicleModel = GetEntityModel(self.vehicle)\n    local displayName = GetDisplayNameFromVehicleModel(vehicleModel)\n    local netId = NetworkGetEntityIsNetworked(self.vehicle) and VehToNet(self.vehicle) or self.vehicle\n    local plate = GetVehicleNumberPlateText(self.vehicle)\n\n    return displayName, netId, plate\nend\n\nfunction Actions:SetVehicleStatus()\n    ESX.SetPlayerData("vehicle", self.vehicle)\n    ESX.SetPlayerData("seat", self.seat)\nend\n\nfunction Actions:TrackPedCoordsOnce()\n    CreateThread(function()\n        while not ESX.IsPlayerLoaded() do\n            Wait(250)\n        end\n\n        ESX.PlayerData.coords = nil\n\n        setmetatable(ESX.PlayerData, {\n            __index = function(_, key)\n                if key ~= "coords" then\n                    return\n                end\n\n                local coords = GetEntityCoords(ESX.PlayerData.ped)\n\n                return coords\n            end\n        })\n    end)\nend\n\nfunction Actions:TrackPauseMenu()\n    local isActive = IsPauseMenuActive()\n\n    if isActive ~= self.inPauseMenu then\n        self.inPauseMenu = isActive\n        TriggerEvent("esx:pauseMenuActive", isActive)\n\n        if Config.EnableDebug then\n            print("[DEBUG] Pause menu active:", isActive)\n        end\n    end\nend\n\nfunction Actions:EnterVehicle()\n    self.seat = GetSeatPedIsTryingToEnter(ESX.PlayerData.ped)\n\n    local _, netId, plate = self:GetVehicleData()\n\n    self.enteringVehicle = true\n    TriggerEvent("esx:enteringVehicle", self.vehicle, plate, self.seat, netId)\n    TriggerServerEvent("esx:enteringVehicle", plate, self.seat, netId)\n\n    self:SetVehicleStatus()\n\n    if Config.EnableDebug then\n        print("[DEBUG] Entering vehicle:", self.vehicle, plate, self.seat, netId)\n    end\nend\n\nfunction Actions:ResetVehicleData()\n    self.enteringVehicle = false\n    self.vehicle = false\n    self.seat = false\n    self.inVehicle = false\n\n    self:SetVehicleStatus()\nend\n\nfunction Actions:EnterAborted()\n    self:ResetVehicleData()\n\n    TriggerEvent("esx:enteringVehicleAborted")\n    TriggerServerEvent("esx:enteringVehicleAborted")\n\n    if Config.EnableDebug then\n        print("[DEBUG] Entering vehicle aborted")\n    end\nend\n\nfunction Actions:WarpEnter()\n    self.enteringVehicle = false\n    self.inVehicle = true\n\n    self.seat = self:GetSeatPedIsIn()\n\n    local displayName, netId, plate = self:GetVehicleData()\n\n    self:SetVehicleStatus()\n    TriggerEvent("esx:enteredVehicle", self.vehicle, plate, self.seat, displayName, netId)\n    TriggerServerEvent("esx:enteredVehicle", plate, self.seat, displayName, netId)\n\n    if Config.EnableDebug then\n        print("[DEBUG] Entered vehicle:", self.vehicle, plate, self.seat, displayName, netId)\n    end\nend\n\nfunction Actions:ExitVehicle()\n    local currentVehicle = GetVehiclePedIsIn(ESX.PlayerData.ped, false)\n\n    if currentVehicle ~= self.vehicle or ESX.PlayerData.dead then\n        local displayName, netId, plate = self:GetVehicleData()\n\n        TriggerEvent("esx:exitedVehicle", self.vehicle, plate, self.seat, displayName, netId)\n        TriggerServerEvent("esx:exitedVehicle", plate, self.seat, displayName, netId)\n\n        if Config.EnableDebug then\n            print("[DEBUG] Exited vehicle:", self.vehicle, plate, self.seat, displayName, netId)\n        end\n\n        self:ResetVehicleData()\n    end\nend\n\nfunction Actions:TrackVehicle()\n    if not self.inVehicle and not ESX.PlayerData.dead then\n        local tempVehicle = GetVehiclePedIsTryingToEnter(ESX.PlayerData.ped)\n\n        if DoesEntityExist(tempVehicle) and not self.enteringVehicle then\n            self.vehicle = tempVehicle\n            self:EnterVehicle()\n        elseif not DoesEntityExist(tempVehicle) and not IsPedInAnyVehicle(ESX.PlayerData.ped, true) and self.enteringVehicle then\n            self:EnterAborted()\n        elseif IsPedInAnyVehicle(ESX.PlayerData.ped, false) then\n            self.vehicle = GetVehiclePedIsIn(ESX.PlayerData.ped, false)\n            self:WarpEnter()\n        end\n    elseif self.inVehicle then\n        self:ExitVehicle()\n        self:TrackSeat()\n    end\nend\n\nfunction Actions:TrackSeat()\n    if not self.inVehicle then\n        return\n    end\n\n    local newSeat = self:GetSeatPedIsIn()\n    if newSeat ~= self.seat then\n        self.seat = newSeat\n        ESX.SetPlayerData("seat", self.seat)\n        TriggerEvent("esx:vehicleSeatChanged", self.seat)\n\n        if Config.EnableDebug then\n            print("[DEBUG] Vehicle seat changed:", self.seat)\n        end\n    end\nend\n\nfunction Actions:SlowLoop()\n    CreateThread(function()\n        while ESX.PlayerLoaded do\n            self:TrackPauseMenu()\n            self:TrackVehicle()\n            Wait(500)\n        end\n    end)\nend\n\nfunction Actions:Init()\n    -- Re-seed the cached values on every (re)login. The change handlers below are\n    -- registered once at file load so a relogin never stacks duplicate handlers.\n    ESX.SetPlayerData("ped", xLib.cache.ped)\n    ESX.SetPlayerData("weapon", xLib.cache.weapon)\n\n    self:SlowLoop()\n    self:TrackPedCoordsOnce()\nend\n\n-- Mirror the lib cache into ESX.PlayerData and re-emit the legacy esx: events.\nAddEventHandler("xLib:cache:ped", function(ped)\n    ESX.SetPlayerData("ped", ped)\n    TriggerEvent("esx:playerPedChanged", ped)\n\n    if Config.EnableDebug then\n        print("[DEBUG] Player ped changed:", ped)\n    end\nend)\n\nAddEventHandler("xLib:cache:weapon", function(weapon)\n    ESX.SetPlayerData("weapon", weapon)\n    TriggerEvent("esx:weaponChanged", weapon)\n\n    if Config.EnableDebug then\n        print("[DEBUG] Weapon changed:", weapon)\n    end\nend)\n\nActions:Init()\n'
+        },
+        {
+          "path": "client/modules/death.lua",
+          "source": 'Death = {}\nDeath._index = Death\n\nfunction Death:ResetValues()\n    self.killerEntity = nil\n    self.deathCause = nil\n    self.killerId = nil\n    self.killerServerId = nil\nend\n\nfunction Death:ByPlayer()\n    local victimCoords = GetEntityCoords(ESX.PlayerData.ped)\n    local killerCoords = GetEntityCoords(self.killerEntity)\n    local distance = #(victimCoords - killerCoords)\n\n    local data = {\n        victimCoords = { x = ESX.Math.Round(victimCoords.x, 1), y = ESX.Math.Round(victimCoords.y, 1), z = ESX.Math.Round(victimCoords.z, 1) },\n        killerCoords = { x = ESX.Math.Round(killerCoords.x, 1), y = ESX.Math.Round(killerCoords.y, 1), z = ESX.Math.Round(killerCoords.z, 1) },\n\n        killedByPlayer = true,\n        deathCause = self.deathCause,\n        distance = ESX.Math.Round(distance, 1),\n\n        killerServerId = self.killerServerId,\n        killerClientId = self.killerId,\n    }\n\n    TriggerEvent("esx:onPlayerDeath", data)\n    TriggerServerEvent("esx:onPlayerDeath", data)\nend\n\nfunction Death:Natural()\n    local coords = GetEntityCoords(ESX.PlayerData.ped)\n\n    local data = {\n        victimCoords = { x = ESX.Math.Round(coords.x, 1), y = ESX.Math.Round(coords.y, 1), z = ESX.Math.Round(coords.z, 1) },\n\n        killedByPlayer = false,\n        deathCause = self.deathCause,\n    }\n\n    TriggerEvent("esx:onPlayerDeath", data)\n    TriggerServerEvent("esx:onPlayerDeath", data)\nend\n\nfunction Death:Died()\n    self.killerEntity = GetPedSourceOfDeath(ESX.PlayerData.ped)\n    self.deathCause = GetPedCauseOfDeath(ESX.PlayerData.ped)\n    self.killerId = NetworkGetPlayerIndexFromPed(self.killerEntity)\n    self.killerServerId = GetPlayerServerId(self.killerId)\n\n    local isActive = NetworkIsPlayerActive(self.killerId)\n\n    if self.killerEntity ~= ESX.PlayerData.ped and self.killerId and isActive then\n        self:ByPlayer()\n    else\n        self:Natural()\n    end\n\n    self:ResetValues()\nend\n\nAddEventHandler("esx:onPlayerSpawn", function()\n    Citizen.CreateThreadNow(function()\n        while not ESX.PlayerLoaded do Wait(0) end\n\n        while ESX.PlayerLoaded and not ESX.PlayerData.dead do\n            if DoesEntityExist(ESX.PlayerData.ped) and (IsPedDeadOrDying(ESX.PlayerData.ped, true) or IsPedFatallyInjured(ESX.PlayerData.ped)) then\n                Death:Died()\n                break\n            end\n            Citizen.Wait(250)\n        end\n    end)\nend)\n'
+        },
+        {
+          "path": "client/modules/npwd.lua",
+          "source": 'local npwd = GetResourceState("npwd"):find("start") and exports.npwd or nil\n\nlocal function checkPhone()\n    if not npwd then\n        return\n    end\n\n    local phoneItem = ESX.SearchInventory("phone")\n    npwd:setPhoneDisabled((phoneItem and phoneItem.count or 0) <= 0)\nend\n\nRegisterNetEvent("esx:playerLoaded", checkPhone)\n\nAddEventHandler("onClientResourceStart", function(resource)\n    if resource ~= "npwd" then\n        return\n    end\n\n    npwd = GetResourceState("npwd"):find("start") and exports.npwd or nil\n\n    if ESX.PlayerLoaded then\n        checkPhone()\n    end\nend)\n\nAddEventHandler("onClientResourceStop", function(resource)\n    if resource == "npwd" then\n        npwd = nil\n    end\nend)\n\nESX.SecureNetEvent("esx:onPlayerLogout", function()\n    if not npwd then\n        return\n    end\n\n    npwd:setPhoneVisible(false)\n    npwd:setPhoneDisabled(true)\nend)\n\nESX.SecureNetEvent("esx:removeInventoryItem", function(item, count)\n    if not npwd then\n        return\n    end\n\n    if item == "phone" and count == 0 then\n        npwd:setPhoneDisabled(true)\n    end\nend)\n\nESX.SecureNetEvent("esx:addInventoryItem", function(item)\n    if not npwd or item ~= "phone" then\n        return\n    end\n\n    npwd:setPhoneDisabled(false)\nend)\n'
+        }
+      ],
+      "uiPage": "html/ui.html",
+      "files": [
+        "imports.lua",
+        "locales/*.lua",
+        "locale.js",
+        "html/ui.html",
+        "html/css/app.css",
+        "html/js/mustache.min.js",
+        "html/js/wrapper.js",
+        "html/js/app.js",
+        "html/fonts/pdown.ttf",
+        "html/fonts/bankgothic.ttf",
+        "client/imports/*.lua"
+      ],
+      "fileContents": {
+        "imports.lua": `ESX = exports["es_extended"]:getSharedObject()
+ESX.currentResourceName = GetCurrentResourceName()
+
+OnPlayerData = function(key, val, last) end
+
+local function TrackPedCoordsOnce()
+    if not ESX or not ESX.PlayerData then
+        return
+    end
+
+    ESX.PlayerData.coords = nil
+
+    setmetatable(ESX.PlayerData, {
+        __index = function(self, key)
+            if key ~= "coords" then
+                return
+            end
+
+            local coords = GetEntityCoords(ESX.PlayerData.ped)
+
+            return coords
+        end
+    })
+end
+
+if not IsDuplicityVersion() then -- Only register this event for the client
+    AddEventHandler("esx:setPlayerData", function(key, val, last)
+        if GetInvokingResource() == "es_extended" then
+            ESX.PlayerData[key] = val
+            if OnPlayerData then
+                OnPlayerData(key, val, last)
+            end
+        end
+    end)
+
+    RegisterNetEvent("esx:playerLoaded", function(xPlayer)
+        ESX.PlayerData = xPlayer
+        while not ESX.PlayerData.ped or not DoesEntityExist(ESX.PlayerData.ped) do Wait(0) end
+        ESX.PlayerLoaded = true
+
+        TrackPedCoordsOnce()
+    end)
+
+    TrackPedCoordsOnce()
+
+    ESX.SecureNetEvent("esx:onPlayerLogout", function()
+        ESX.PlayerLoaded = false
+        ESX.PlayerData = {}
+    end)
+
+    if not ESX.GetConfig("CustomInventory") then
+        ESX.SecureNetEvent("esx:addInventoryItem", function(item, count, showNotification)
+            for i = 1, #ESX.PlayerData.inventory do
+                if ESX.PlayerData.inventory[i].name == item then
+                    ESX.PlayerData.inventory[i].count = count
+                    break
+                end
+            end
+        end)
+
+        ESX.SecureNetEvent("esx:removeInventoryItem", function(item, count, showNotification)
+            for i = 1, #ESX.PlayerData.inventory do
+                if ESX.PlayerData.inventory[i].name == item then
+                    ESX.PlayerData.inventory[i].count = count
+                    break
+                end
+            end
+        end)
+
+        ESX.SecureNetEvent("esx:addLoadoutItem", function(weaponName, weaponLabel, ammo)
+            table.insert(ESX.PlayerData.loadout, {
+                name = weaponName,
+                ammo = ammo,
+                label = weaponLabel,
+                components = {},
+                tintIndex = 0,
+            })
+        end)
+
+        ESX.SecureNetEvent("esx:removeLoadoutItem", function(weaponName, weaponLabel)
+            for i = 1, #ESX.PlayerData.loadout do
+                if ESX.PlayerData.loadout[i].name == weaponName then
+                    table.remove(ESX.PlayerData.loadout, i)
+                    break
+                end
+            end
+        end)
+    end
+
+    local external = { { "Class", "class.lua" } }
+    for i = 1, #external do
+        local module = external[i]
+        local path = string.format("client/imports/%s", module[2])
+
+        local file = LoadResourceFile("es_extended", path)
+        if file then
+            local fn, err = load(file, ('@@es_extended/%s'):format(path))
+
+            if not fn or err then
+                return error(('\\n^1Error importing module (%s)'):format(external[i]))
+            end
+
+            ESX[module[1]] = fn()
+        else
+            return error(('\\n^1Error loading module (%s)'):format(external[i]))
+        end
+    end
+else
+    ---@param src number
+    ---@return StaticPlayer
+    local function createStaticPlayer(src)
+        return setmetatable({ src = src }, {
+            __index = function(self, method)
+                return function(...)
+                    return exports.es_extended:RunStaticPlayerMethod(self.src, method, ...)
+                end
+            end
+        })
+    end
+
+    ---@param src number|string
+    ---@return StaticPlayer?
+    function ESX.Player(src)
+        if type(src) ~= "number" then
+            src = ESX.GetPlayerIdFromIdentifier(src)
+            if not src then return end
+        elseif not ESX.IsPlayerLoaded(src) then
+            return
+        end
+
+        return createStaticPlayer(src)
+    end
+
+    ---@param key? string
+    ---@param val? string|string[]
+    ---@return StaticPlayer[] | table<any, StaticPlayer[]>
+    function ESX.ExtendedPlayers(key, val)
+        local playerIds = ESX.GetExtendedPlayers(key, val, true)
+
+        if key and type(val) == "table" then
+            ---@cast playerIds table<any, number[]>
+            local retVal = {}
+            for group, ids in pairs(playerIds) do
+                retVal[group] = {}
+                for i = 1, #ids do
+                    retVal[group][i] = createStaticPlayer(ids[i])
+                end
+            end
+            return retVal
+        else
+            ---@cast playerIds number[]
+            local retVal = {}
+            for i = 1, #playerIds do
+                retVal[i] = createStaticPlayer(playerIds[i])
+            end
+            return retVal
+        end
+    end
+end
+
+if GetResourceState("ox_lib") == "missing" then
+    ---@Credits: https://github.com/overextended/ox_lib/blob/master/imports/require/shared.lua - Licensed under the GNU Lesser General Public License v3.0
+    local loaded = {}
+    local _require = require
+
+    package = {
+        path = './?.lua;./?/init.lua',
+        preload = {},
+        loaded = setmetatable({}, {
+            __index = loaded,
+            __newindex = function() end,
+            __metatable = false,
+        })
+    }
+
+    ---@param modName string
+    ---@return string
+    ---@return string
+    local function getModuleInfo(modName)
+        local resource = modName:match('^@(.-)/.+') --[[@as string?]]
+
+        if resource then
+            return resource, modName:sub(#resource + 3)
+        end
+
+        local idx = 4 -- call stack depth (kept slightly lower than expected depth "just in case")
+
+        while true do
+            local dbgInfo = debug.getinfo(idx, 'S')
+            local src = dbgInfo and dbgInfo.source
+
+            if not src then
+                return ESX.currentResourceName, modName
+            end
+
+            resource = src:match('^@@([^/]+)/.+')
+
+            if resource and not src:find('^@@es_extended/imports') then
+                return resource, modName
+            end
+
+            idx = idx + 1
+        end
+    end
+
+    local tempData = {}
+
+    ---@param name string
+    ---@param path string
+    ---@return string? filename
+    ---@return string? errmsg
+    ---@diagnostic disable-next-line: duplicate-set-field
+    function package.searchpath(name, path)
+        local resource, modName = getModuleInfo(name:gsub('%.', '/'))
+        local tried = {}
+
+        for template in path:gmatch('[^;]+') do
+            local fileName = template:gsub('^%./', ''):gsub('?', modName:gsub('%.', '/') or modName)
+            local file = LoadResourceFile(resource, fileName)
+
+            if file then
+                tempData[1] = file
+                tempData[2] = resource
+                return fileName
+            end
+
+            tried[#tried + 1] = ("no file '@%s/%s'"):format(resource, fileName)
+        end
+
+        return nil, table.concat(tried, "\\n\\t")
+    end
+
+    ---Attempts to load a module at the given path relative to the resource root directory.\\
+    ---Returns a function to load the module chunk, or a string containing all tested paths.
+    ---@param modName string
+    ---@param env? table
+    local function loadModule(modName, env)
+        local fileName, err = package.searchpath(modName, package.path)
+
+        if fileName then
+            local file = tempData[1]
+            local resource = tempData[2]
+
+            xLib.table.wipe(tempData)
+            return assert(load(file, ('@@%s/%s'):format(resource, fileName), 't', env or _ENV))
+        end
+
+        return nil, err or 'unknown error'
+    end
+
+    ---@diagnostic disable-next-line: duplicate-doc-alias
+    ---@alias PackageSearcher
+    ---| fun(modName: string): function loader
+    ---| fun(modName: string): nil|false, string errmsg
+
+    ---@type PackageSearcher[]
+    package.searchers = {
+        function(modName)
+            local ok, result = pcall(_require, modName)
+
+            if ok then return result end
+
+            return ok, result
+        end,
+        function(modName)
+            if package.preload[modName] ~= nil then
+                return package.preload[modName]
+            end
+
+            return nil, ("no field package.preload['%s']"):format(modName)
+        end,
+        function(modName) return loadModule(modName) end,
+    }
+
+    ---@param filePath string
+    ---@param env? table
+    ---@return unknown
+    ---Loads and runs a Lua file at the given path. Unlike require, the chunk is not cached for future use.
+    function ESX.load(filePath, env)
+        if type(filePath) ~= 'string' then
+            error(("file path must be a string (received '%s')"):format(filePath), 2)
+        end
+
+        local result, err = loadModule(filePath, env)
+
+        if result then return result() end
+
+        error(("file '%s' not found\\n\\t%s"):format(filePath, err))
+    end
+
+    ---@param filePath string
+    ---@return table
+    ---Loads and decodes a json file at the given path.
+    function ESX.loadJson(filePath)
+        if type(filePath) ~= 'string' then
+            error(("file path must be a string (received '%s')"):format(filePath), 2)
+        end
+
+        local resourceSrc, modPath = getModuleInfo(filePath:gsub('%.', '/'))
+        local resourceFile = LoadResourceFile(resourceSrc, ('%s.json'):format(modPath))
+
+        if resourceFile then
+            return json.decode(resourceFile)
+        end
+
+        error(("json file '%s' not found\\n\\tno file '@%s/%s.json'"):format(filePath, resourceSrc, modPath))
+    end
+
+    ---Loads the given module, returns any value returned by the seacher (\`true\` when \`nil\`).\\
+    ---Passing \`@resourceName.modName\` loads a module from a remote resource.
+    ---@param modName string
+    ---@return unknown
+    function ESX.require(modName)
+        if type(modName) ~= 'string' then
+            error(("module name must be a string (received '%s')"):format(modName), 3)
+        end
+
+        local module = loaded[modName]
+
+        if module == '__loading' then
+            error(("^1circular-dependency occurred when loading module '%s'^0"):format(modName), 2)
+        end
+
+        if module ~= nil then return module end
+
+        loaded[modName] = '__loading'
+
+        local err = {}
+
+        for i = 1, #package.searchers do
+            local result, errMsg = package.searchers[i](modName)
+            if result then
+                if type(result) == 'function' then result = result() end
+                loaded[modName] = result or result == nil
+
+                return loaded[modName]
+            end
+
+            err[#err + 1] = errMsg
+        end
+
+        error(("%s"):format(table.concat(err, "\\n\\t")))
+    end
+
+    require = ESX.require
+end
+`,
+        "locales/cs.lua": `return {
+    -- Inventory
+    ["inventory"] = "Invent\xE1\u0159 ( V\xE1ha %s / %s )",
+    ["use"] = "Pou\u017E\xEDt",
+    ["give"] = "Darovat",
+    ["remove"] = "Odhodit",
+    ["return"] = "Vr\xE1tit",
+    ["give_to"] = "Darov\xE1no",
+    ["amount"] = "Po\u010Det",
+    ["giveammo"] = "Podat n\xE1boje",
+    ["amountammo"] = "Po\u010Det n\xE1boj\u016F",
+    ["noammo"] = "Nedostatek!",
+    ["gave_item"] = "Daroval %sx %s pro %s",
+    ["received_item"] = "Z\xEDsk\xE1no %sx %s od %s",
+    ["gave_weapon"] = "P\u0159ed\xE1n\xED %s pro %s",
+    ["gave_weapon_ammo"] = "Darov\xE1n\xED ~o~%sx %s do %s pro %s",
+    ["gave_weapon_withammo"] = "Darov\xE1n\xED %s s ~o~%sx %s pro %s",
+    ["gave_weapon_hasalready"] = "%s ji\u017E vlastn\xED %s",
+    ["gave_weapon_noweapon"] = "%s nem\xE1 tuto zbra\u0148",
+    ["received_weapon"] = "Obdr\u017Eeno %s od %s",
+    ["received_weapon_ammo"] = "Obdr\u017Eeno ~o~%sx %s pro zbra\u0148 %s od %s",
+    ["received_weapon_withammo"] = "Obdr\u017Eeno %s s ~o~%sx %s od %s",
+    ["received_weapon_hasalready"] = "%s se sna\u017Eil darovat %s, ale ji\u017E tuto zbra\u0148 m\xE1\u0161",
+    ["received_weapon_noweapon"] = "%s se sna\u017Eil ti d\xE1t n\xE1boje %s, ale nem\xE1\u0161 pot\u0159ebnou zbra\u0144",
+    ["gave_account_money"] = "Darov\xE1no $%s (%s) pro %s",
+    ["received_account_money"] = "Z\xEDsk\xE1no $%s (%s) od %s",
+    ["amount_invalid"] = "\u0160patn\xE9 mno\u017Estv\xED",
+    ["players_nearby"] = "\u017D\xE1dn\xFD hr\xE1\u010D nen\xED pobl\xED\u017E",
+    ["ex_inv_lim"] = "Nelze sebrat,proto\u017Ee m\xE1\u0161 pln\xE9 kapsy %s",
+    ["imp_invalid_quantity"] = "Neplatn\xE9 mno\u017Estv\xED",
+    ["imp_invalid_amount"] = "Nelze prov\xE9st, neplatn\xE9 mno\u017Estv\xED",
+    ["threw_standard"] = "Zahozeno %sx %s",
+    ["threw_account"] = "Zahozeno $%s %s",
+    ["threw_weapon"] = "Zahozeno %s",
+    ["threw_weapon_ammo"] = "Zahozeno %s s ~o~%sx %s",
+    ["threw_weapon_already"] = "Ji\u017E vlastn\xED\u0161 tuto zbra\u0148",
+    ["threw_cannot_pickup"] = "Kapsy m\xE1\u0161 pln\xE9, nem\u016F\u017Ee\u0161 sebrat!",
+    ["threw_pickup_prompt"] = "Zm\xE1\u010Dkni E pro sebr\xE1n\xED!",
+
+    -- Key mapping
+    ["keymap_showinventory"] = "Otev\u0159\xEDt invent\xE1\u0159",
+
+    -- Salary related
+    ["received_salary"] = "Obdr\u017Eel jsi: $%s",
+    ["received_help"] = "Obdr\u017Eel jsi sv\u016Fj pod\xEDl: $%s",
+    ["company_nomoney"] = "Firma kde pracujete je p\u0159\xEDli\u0161 chud\xE1, aby v\xE1m zaplatila",
+    ["received_paycheck"] = "Obdr\u017Eena platba",
+    ["bank"] = "Banka",
+    ["account_bank"] = "V bance",
+    ["account_black_money"] = "\u0160pin\xE1ve pen\xEDze",
+    ["account_money"] = "V kapse",
+
+    ["act_imp"] = "Nelze prov\xE9st",
+    ["in_vehicle"] = "Nelze prov\xE9st, hr\xE1\u010D je v aut\u011B",
+    ["not_in_vehicle"] = "Cannot Perform Action, Player isn't in a vehicle",
+
+    -- Commands
+    ["command_bring"] = "P\u0159ivolat si hr\xE1\u010De k sob\u011B",
+    ["command_car"] = "Spawnout vozidlo",
+    ["command_car_car"] = "Zadej jm\xE9no vozidla nebo spawnname",
+    ["command_cardel"] = "Odstran\u011Bn\xED vozidla v okol\xED",
+    ["command_cardel_radius"] = "Odstran\u011Bn\xED vozidla v ur\u010Den\xE9m dosahu",
+    ["command_repair"] = "Repair your vehicle",
+    ["command_repair_success"] = "Successfully repaired vehicle",
+    ["command_repair_success_target"] = "An admin repaired your vehicle",
+    ["command_clear"] = "Vymazat text v chatu",
+    ["command_clearall"] = "Vymazat chet pro v\u0161echny hr\xE1\u010De",
+    ["command_clearinventory"] = "Vymazat v\u0161echny v\u011Bci z invet\xE1\u0159e hr\xE1\u010De",
+    ["command_clearloadout"] = "Vymazat v\u0161echny zbran\u011B z invent\xE1\u0159e hr\xE1\u010De",
+    ["command_freeze"] = "Zmrazit hr\xE1\u010De",
+    ["command_unfreeze"] = "Odmrazit hr\xE1\u010De",
+    ["command_giveaccountmoney"] = "Poslat pen\xEDze na \xFA\u010Det ",
+    ["command_giveaccountmoney_account"] = "P\u0159ev\xE9st pen\xEDze na \xFA\u010Det",
+    ["command_giveaccountmoney_amount"] = "\u010C\xE1stka k posl\xE1n\xED",
+    ["command_giveaccountmoney_invalid"] = "Nepl\xE1tn\xE9 jm\xE9no",
+    ["command_giveitem"] = "Darovat v\u011Bc hr\xE1\u010Di",
+    ["command_giveitem_item"] = "N\xE1zev v\u011Bci",
+    ["command_giveitem_count"] = "Mno\u017Estv\xED",
+    ["command_giveweapon"] = "D\xE1t zbra\u0148 hr\xE1\u010Di",
+    ["command_giveweapon_weapon"] = "N\xE1zev zbran\u011B",
+    ["command_giveweapon_ammo"] = "Mno\u017Estv\xED n\xE1boje",
+    ["command_giveweapon_hasalready"] = "Hr\xE1\u010D ji\u017E m\xE1 tuto zbra\u0148",
+    ["command_giveweaponcomponent"] = "Darovat p\u0159\xEDdavek na zbra\u0148",
+    ["command_giveweaponcomponent_component"] = "N\xE1zev zbran\u011B",
+    ["command_giveweaponcomponent_invalid"] = "\u0160patn\xE9 jm\xE9no p\u0159\xEDdavku",
+    ["command_giveweaponcomponent_hasalready"] = "Hr\xE1\u010D ji\u017E m\xE1 tento p\u0159\xEDdavek",
+    ["command_giveweaponcomponent_missingweapon"] = "Hr\xE1\u010D nem\xE1 tuto zbra\u0144",
+    ["command_goto"] = "Teleportov\xE1n\xED sebe k hr\xE1\u010Di",
+    ["command_kill"] = "Zabit\xED hr\xE1\u010De",
+    ["command_save"] = "Ulo\u017Een\xED dat hr\xE1\u010De",
+    ["command_saveall"] = "Ulo\u017Een\xED ve\u0161ker\xFDch dat hr\xE1\u010De",
+    ["command_setaccountmoney"] = "Nastaven\xED ur\u010Den\xE9ho po\u010Dtu pen\u011Bz",
+    ["command_setaccountmoney_amount"] = "Po\u010Det pen\u011Bz",
+    ["command_setcoords"] = "Teleportov\xE1n\xED na ur\u010Den\xE9 sou\u0159adnice",
+    ["command_setcoords_x"] = "Hodnota X",
+    ["command_setcoords_y"] = "Hodnota Y",
+    ["command_setcoords_z"] = "Hodnota Z",
+    ["command_setjob"] = "Nastavit pr\xE1ci hr\xE1\u010Di",
+    ["command_setjob_job"] = "N\xE1zev pr\xE1ce",
+    ["command_setjob_grade"] = "Pozice ve firm\u011B",
+    ["command_setjob_invalid"] = "\u0160patn\xE9 zad\xE1n\xED pr\xE1ce,hodnosti nebo i obou hodnot",
+    ["command_setgroup"] = "Nastaven\xED pr\xE1v hr\xE1\u010Di",
+    ["command_setgroup_group"] = "N\xE1zev skupiny",
+    ["commanderror_argumentmismatch"] = "Chybn\xFD po\u010Det hodnot (spr\xE1vn\u011B %s, pot\u0159ebn\xFDch %s)",
+    ["commanderror_argumentmismatch_number"] = "Chybn\u011B zadan\xE1 hodnot #%s  (spr\xE1vn\u011B, \u0161patn\u011B)",
+    ["commanderror_argumentmismatch_positive_number"] = "Chybn\u011B zadan\xE1 hodnota #%s (zad\xE1no z\xE1porn\xE9/nula, po\u017Eadov\xE1no kladn\xE9 \u010D\xEDslo)",
+    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_invaliditem"] = "\u0160patn\xFD p\u0159edm\u011Bt",
+    ["commanderror_invalidweapon"] = "\u0160patn\xE1 zbra\u0148",
+    ["commanderror_console"] = "p\u0159\xEDkaz nelze b\xFDt zpracov\xE1n v konzoli",
+    ["commanderror_invalidcommand"] = "\u0160patn\xFD p\u0159\xEDkaz - /%s",
+    ["commanderror_invalidplayerid"] = "Hr\xE1\u010D nen\xED dostupn\xFD",
+    ["commandgeneric_playerid"] = "Id hr\xE1\u010De",
+    ["command_giveammo_noweapon_found"] = "%s nem\xE1 tuto zbra\u0148",
+    ["command_giveammo_weapon"] = "N\xE1zev zbran\u011B",
+    ["command_giveammo_ammo"] = "Po\u010Det n\xE1boj\u016F",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = ",",
+    ["locale_currency"] = "\xA3%s",
+
+    -- Weapons
+
+    -- Melee
+    ["weapon_dagger"] = "D\xFDka",
+    ["weapon_bat"] = "Baseballov\xE1 p\xE1lka",
+    ["weapon_battleaxe"] = "Bitevn\xED sekera",
+    ["weapon_bottle"] = "Rozbit\xE1 lahve",
+    ["weapon_crowbar"] = "P\xE1\u010Didlo",
+    ["weapon_flashlight"] = "Baterka",
+    ["weapon_golfclub"] = "Golfov\xE1 h\u016Fl",
+    ["weapon_hammer"] = "Kladivo",
+    ["weapon_hatchet"] = "Sekera",
+    ["weapon_knife"] = "N\u016F\u017E",
+    ["weapon_knuckle"] = "Boxer",
+    ["weapon_machete"] = "Ma\u010Deta",
+    ["weapon_nightstick"] = "Policejn\xED obu\u0161ek",
+    ["weapon_wrench"] = "Francouzsk\xFD kl\xED\u010D",
+    ["weapon_poolcue"] = "Kule\u010Dn\xEDkov\xE9 t\xE1go",
+    ["weapon_stone_hatchet"] = "Kamenn\xE1 sekera",
+    ["weapon_switchblade"] = "Vyst\u0159elovac\xED n\u016F\u017E",
+
+    -- Handguns
+    ["weapon_appistol"] = "AP pistol",
+    ["weapon_ceramicpistol"] = "Ceramic pistol",
+    ["weapon_combatpistol"] = "Combat pistol",
+    ["weapon_doubleaction"] = "Double-Action Revolver",
+    ["weapon_navyrevolver"] = "Navy Revolver",
+    ["weapon_flaregun"] = "Flaregun",
+    ["weapon_gadgetpistol"] = "Gadget Pistol",
+    ["weapon_heavypistol"] = "Heavy Pistol",
+    ["weapon_revolver"] = "Heavy Revolver",
+    ["weapon_revolver_mk2"] = "Heavy Revolver MK2",
+    ["weapon_marksmanpistol"] = "Marksman Pistol",
+    ["weapon_pistol"] = "Pistol",
+    ["weapon_pistol_mk2"] = "Pistol MK2",
+    ["weapon_pistol50"] = "Pistol .50",
+    ["weapon_snspistol"] = "SNS Pistol",
+    ["weapon_snspistol_mk2"] = "SNS Pistol MK2",
+    ["weapon_stungun"] = "Taser",
+    ["weapon_raypistol"] = "Up-N-Atomizer",
+    ["weapon_vintagepistol"] = "Vintage Pistol",
+
+    -- Shotguns
+    ["weapon_assaultshotgun"] = "Assault Shotgun",
+    ["weapon_autoshotgun"] = "Auto Shotgun",
+    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",
+    ["weapon_combatshotgun"] = "Combat Shotgun",
+    ["weapon_dbshotgun"] = "Double Barrel Shotgun",
+    ["weapon_heavyshotgun"] = "Heavy Shotgun",
+    ["weapon_musket"] = "Musket",
+    ["weapon_pumpshotgun"] = "Pump Shotgun",
+    ["weapon_pumpshotgun_mk2"] = "Pump Shotgun MK2",
+    ["weapon_sawnoffshotgun"] = "Sawed Off Shotgun",
+
+    -- SMG & LMG
+    ["weapon_assaultsmg"] = "Assault SMG",
+    ["weapon_combatmg"] = "Combat MG",
+    ["weapon_combatmg_mk2"] = "Combat MG MK2",
+    ["weapon_combatpdw"] = "Combat PDW",
+    ["weapon_gusenberg"] = "Gusenberg Sweeper",
+    ["weapon_machinepistol"] = "Machine Pistol",
+    ["weapon_mg"] = "MG",
+    ["weapon_microsmg"] = "Micro SMG",
+    ["weapon_minismg"] = "Mini SMG",
+    ["weapon_smg"] = "SMG",
+    ["weapon_smg_mk2"] = "SMG MK2",
+    ["weapon_raycarbine"] = "Unholy Hellbringer",
+
+    -- Rifles
+    ["weapon_advancedrifle"] = "Advanced Rifle",
+    ["weapon_assaultrifle"] = "Assault Rifle",
+    ["weapon_assaultrifle_mk2"] = "Assault Rifle MK2",
+    ["weapon_bullpuprifle"] = "Bullpup Rifle",
+    ["weapon_bullpuprifle_mk2"] = "Bullpup Rifle MK2",
+    ["weapon_carbinerifle"] = "Carbine Rifle",
+    ["weapon_carbinerifle_mk2"] = "Carbine Rifle MK2",
+    ["weapon_compactrifle"] = "Compact Rifle",
+    ["weapon_militaryrifle"] = "Military Rifle",
+    ["weapon_specialcarbine"] = "Special Carbine",
+    ["weapon_specialcarbine_mk2"] = "Special Carbine MK2",
+    ["weapon_heavyrifle"] = "Heavy Rifle", -- Not Translated
+
+    -- Sniper
+    ["weapon_heavysniper"] = "Heavy Sniper",
+    ["weapon_heavysniper_mk2"] = "Heavy Sniper MK2",
+    ["weapon_marksmanrifle"] = "Marksman Rifle",
+    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle MK2",
+    ["weapon_sniperrifle"] = "Sniper Rifle",
+
+    -- Heavy / Launchers
+    ["weapon_compactlauncher"] = "Compact Launcher",
+    ["weapon_firework"] = "Firework Launcher",
+    ["weapon_grenadelauncher"] = "Grenade Launcher",
+    ["weapon_hominglauncher"] = "Homing Launcher",
+    ["weapon_minigun"] = "Minigun",
+    ["weapon_railgun"] = "Railgun",
+    ["weapon_rpg"] = "Rocket Launcher",
+    ["weapon_rayminigun"] = "Widowmaker",
+
+    -- Criminal Enterprises DLC
+    ["weapon_metaldetector"] = "Detektor kovu",
+    ["weapon_precisionrifle"] = "Precision Rifle",
+    ["weapon_tactilerifle"] = "Service Carbine",
+
+    -- Drug Wars DLC
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
+    ["weapon_acidpackage"] = "Acid Package", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
+
+    -- Thrown
+    ["weapon_ball"] = "M\xED\u010Dek",
+    ["weapon_bzgas"] = "Smrt\xEDc\xED slzn\xFD plyn",
+    ["weapon_flare"] = "Sv\u011Btlice",
+    ["weapon_grenade"] = "Gran\xE1t",
+    ["weapon_petrolcan"] = "Kanistr",
+    ["weapon_hazardcan"] = "Hazardous Jerrycan",
+    ["weapon_molotov"] = "Molot\u016Fv koktejl",
+    ["weapon_proxmine"] = "Pohybov\xE1 mina",
+    ["weapon_pipebomb"] = "Trubkov\xE1 bomba",
+    ["weapon_snowball"] = "Sn\u011Bhov\xE1 koule",
+    ["weapon_stickybomb"] = "C4",
+    ["weapon_smokegrenade"] = "Slzn\xFD plyn",
+
+    -- Special
+    ["weapon_fireextinguisher"] = "Has\xEDc\xED p\u0159\xEDstroj",
+    ["weapon_digiscanner"] = "Skener",
+    ["weapon_garbagebag"] = "Odpadkov\xFD pytel",
+    ["weapon_handcuffs"] = "Pouta",
+    ["gadget_nightvision"] = "No\u010Dn\xED vid\u011Bn\xED",
+    ["gadget_parachute"] = "Pad\xE1k",
+
+    -- Weapon Components
+    ["component_knuckle_base"] = "base Model",
+    ["component_knuckle_pimp"] = "the Pimp",
+    ["component_knuckle_ballas"] = "the Ballas",
+    ["component_knuckle_dollar"] = "the Hustler",
+    ["component_knuckle_diamond"] = "the Rock",
+    ["component_knuckle_hate"] = "the Hater",
+    ["component_knuckle_love"] = "the Lover",
+    ["component_knuckle_player"] = "the Player",
+    ["component_knuckle_king"] = "the King",
+    ["component_knuckle_vagos"] = "the Vagos",
+
+    ["component_luxary_finish"] = "luxary Weapon Finish",
+
+    ["component_handle_default"] = "default Handle",
+    ["component_handle_vip"] = "vIP Handle",
+    ["component_handle_bodyguard"] = "bodyguard Handle",
+
+    ["component_vip_finish"] = "vIP Finish",
+    ["component_bodyguard_finish"] = "bodyguard Finish",
+
+    ["component_camo_finish"] = "digital Camo",
+    ["component_camo_finish2"] = "brushstroke Camo",
+    ["component_camo_finish3"] = "woodland Camo",
+    ["component_camo_finish4"] = "skull Camo",
+    ["component_camo_finish5"] = "sessanta Nove Camo",
+    ["component_camo_finish6"] = "perseus Camo",
+    ["component_camo_finish7"] = "leopard Camo",
+    ["component_camo_finish8"] = "zebra Camo",
+    ["component_camo_finish9"] = "geometric Camo",
+    ["component_camo_finish10"] = "boom Camo",
+    ["component_camo_finish11"] = "patriotic Camo",
+
+    ["component_camo_slide_finish"] = "digital Slide Camo",
+    ["component_camo_slide_finish2"] = "brushstroke Slide Camo",
+    ["component_camo_slide_finish3"] = "woodland Slide Camo",
+    ["component_camo_slide_finish4"] = "skull Slide Camo",
+    ["component_camo_slide_finish5"] = "sessanta Nove Slide Camo",
+    ["component_camo_slide_finish6"] = "perseus Slide Camo",
+    ["component_camo_slide_finish7"] = "leopard Slide Camo",
+    ["component_camo_slide_finish8"] = "zebra Slide Camo",
+    ["component_camo_slide_finish9"] = "geometric Slide Camo",
+    ["component_camo_slide_finish10"] = "boom Slide Camo",
+    ["component_camo_slide_finish11"] = "patriotic Slide Camo",
+
+    ["component_clip_default"] = "default Magazine",
+    ["component_clip_extended"] = "extended Magazine",
+    ["component_clip_drum"] = "drum Magazine",
+    ["component_clip_box"] = "box Magazine",
+
+    ["component_scope_holo"] = "holographic Scope",
+    ["component_scope_small"] = "small Scope",
+    ["component_scope_medium"] = "medium Scope",
+    ["component_scope_large"] = "large Scope",
+    ["component_scope"] = "mounted Scope",
+    ["component_scope_advanced"] = "advanced Scope",
+    ["component_ironsights"] = "ironsights",
+
+    ["component_suppressor"] = "suppressor",
+    ["component_compensator"] = "compensator",
+
+    ["component_muzzle_flat"] = "flat Muzzle Brake",
+    ["component_muzzle_tactical"] = "tactical Muzzle Brake",
+    ["component_muzzle_fat"] = "fat-End Muzzle Brake",
+    ["component_muzzle_precision"] = "precision Muzzle Brake",
+    ["component_muzzle_heavy"] = "heavy Duty Muzzle Brake",
+    ["component_muzzle_slanted"] = "slanted Muzzle Brake",
+    ["component_muzzle_split"] = "split-End Muzzle Brake",
+    ["component_muzzle_squared"] = "squared Muzzle Brake",
+
+    ["component_flashlight"] = "flashlight",
+    ["component_grip"] = "grip",
+
+    ["component_barrel_default"] = "default Barrel",
+    ["component_barrel_heavy"] = "heavy Barrel",
+
+    ["component_ammo_tracer"] = "tracer Ammo",
+    ["component_ammo_incendiary"] = "incendiary Ammo",
+    ["component_ammo_hollowpoint"] = "hollowpoint Ammo",
+    ["component_ammo_fmj"] = "fMJ Ammo",
+    ["component_ammo_armor"] = "armor Piercing Ammo",
+    ["component_ammo_explosive"] = "armor Piercing Incendiary Ammo",
+
+    ["component_shells_default"] = "default Shells",
+    ["component_shells_incendiary"] = "dragons Breath Shells",
+    ["component_shells_armor"] = "steel Buckshot Shells",
+    ["component_shells_hollowpoint"] = "flechette Shells",
+    ["component_shells_explosive"] = "explosive Slug Shells",
+
+    -- Weapon Ammo
+    ["ammo_rounds"] = "round(s)",
+    ["ammo_shells"] = "shell(s)",
+    ["ammo_charge"] = "charge",
+    ["ammo_petrol"] = "gallons of fuel",
+    ["ammo_firework"] = "firework(s)",
+    ["ammo_rockets"] = "rocket(s)",
+    ["ammo_grenadelauncher"] = "grenade(s)",
+    ["ammo_grenade"] = "grenade(s)",
+    ["ammo_stickybomb"] = "bomb(s)",
+    ["ammo_pipebomb"] = "bomb(s)",
+    ["ammo_smokebomb"] = "bomb(s)",
+    ["ammo_molotov"] = "cocktail(s)",
+    ["ammo_proxmine"] = "mine(s)",
+    ["ammo_bzgas"] = "can(s)",
+    ["ammo_ball"] = "ball(s)",
+    ["ammo_snowball"] = "snowball(s)",
+    ["ammo_flare"] = "flare(s)",
+    ["ammo_flaregun"] = "flare(s)",
+
+    -- Weapon Tints
+    ["tint_default"] = "default skin",
+    ["tint_green"] = "green skin",
+    ["tint_gold"] = "gold skin",
+    ["tint_pink"] = "pink skin",
+    ["tint_army"] = "army skin",
+    ["tint_lspd"] = "blue skin",
+    ["tint_orange"] = "orange skin",
+    ["tint_platinum"] = "platinum skin",
+    -- MK2 Weapon Tints
+    ["tint_classic_gray"] = "klasick\xE1 \u0161ed\xE1",
+    ["tint_classic_two_tone"] = "klasick\xE1 dvout\xF3nov\xE1",
+    ["tint_classic_white"] = "klasick\xE1 b\xEDl\xE1",
+    ["tint_classic_beige"] = "klasick\xE1 b\xE9\u017Eov\xE1",
+    ["tint_classic_green"] = "klasick\xE1 zelen\xE1",
+    ["tint_classic_blue"] = "klasick\xE1 modr\xE1",
+    ["tint_classic_earth"] = "klasick\xE1 hn\u011Bd\xE1",
+    ["tint_classic_brown_black"] = "klasick\xE1 hn\u011Bd\xE1-\u010Dern\xE1",
+    ["tint_contrast_red"] = "kontrastn\xED \u010Derven\xE1",
+    ["tint_contrast_blue"] = "kontrastn\xED modr\xE1",
+    ["tint_contrast_yellow"] = "kontrastn\xED \u017Elut\xE1",
+    ["tint_contrast_orange"] = "kontrastn\xED oran\u017Eov\xE1",
+    ["tint_bold_pink"] = "odv\xE1\u017En\xE1 r\u016F\u017Eov\xE1",
+    ["tint_bold_purple_yellow"] = "odv\xE1\u017En\xE1 fialovo-\u017Elut\xE1",
+    ["tint_bold_orange"] = "odv\xE1\u017En\xE1 oran\u017Eov\xE1",
+    ["tint_bold_green_purple"] = "odv\xE1\u017En\xE1 zeleno-fialov\xE1",
+    ["tint_bold_red_feat"] = "odv\xE1\u017En\xE1 \u010Derven\xE1 feat",
+    ["tint_bold_green_feat"] = "odv\xE1\u017En\xE1 zelen\xE1 feat",
+    ["tint_bold_cyan_feat"] = "odv\xE1\u017En\xE1 azurov\xE1 feat",
+    ["tint_bold_yellow_feat"] = "odv\xE1\u017En\xE1 \u017Elut\xE1 feat",
+    ["tint_bold_red_white"] = "odv\xE1\u017En\xE1 \u010Derven\xE1 b\xEDl\xE1",
+    ["tint_bold_blue_white"] = "odv\xE1\u017En\xE1 modr\xE1 b\xEDl\xE1",
+    ["tint_metallic_gold"] = "metalick\xE1 zlat\xE1",
+    ["tint_metallic_platinum"] = "metalick\xE1 platina",
+    ["tint_metallic_gray_lilac"] = "metalick\xE1 \u0161ed\xE1 lila",
+    ["tint_metallic_purple_lime"] = "metalick\xE1 fialov\xE1 limetka",
+    ["tint_metallic_red"] = "metalick\xE1 \u010Derven\xE1",
+    ["tint_metallic_green"] = "metalick\xE1 zelen\xE1",
+    ["tint_metallic_blue"] = "metalick\xE1 modr\xE1",
+    ["tint_metallic_white_aqua"] = "metalick\xE1 b\xEDl\xE1 aqua",
+    ["tint_metallic_red_yellow"] = "metalick\xE1 \u010Derven\xE1 \u017Elut\xE1",
+}
+`,
+        "locales/de.lua": 'return {\n    -- Inventory\n    ["inventory"] = "Inventar ( Gewicht %s / %s )",\n    ["use"] = "Benutzen",\n    ["give"] = "Geben",\n    ["remove"] = "Entsorgen",\n    ["return"] = "Zur\xFCck",\n    ["give_to"] = "Geben an",\n    ["amount"] = "Anzahl",\n    ["giveammo"] = "Munition geben",\n    ["amountammo"] = "Munitions Anzahl",\n    ["noammo"] = "Nicht Genug!",\n    ["gave_item"] = "Du gibst %sx %s an %s",\n    ["received_item"] = "Du bekommst %sx %s von %s",\n    ["gave_weapon"] = "Du gibst %s an %s",\n    ["gave_weapon_ammo"] = "Du gibst ~o~%sx %s f\xFCr %s an %s",\n    ["gave_weapon_withammo"] = "Du gibst %s mit ~o~%sx %s an %s",\n    ["gave_weapon_hasalready"] = "%s hat bereits %s",\n    ["gave_weapon_noweapon"] = "%s hat diese Waffe nicht",\n    ["received_weapon"] = "Du bekommst %s von %s",\n    ["received_weapon_ammo"] = "Du bekommst ~o~%sx %s f\xFCr deine %s von %s",\n    ["received_weapon_withammo"] = "Du bekommst %s mit ~o~%sx %s von %s",\n    ["received_weapon_hasalready"] = "%s hat versucht dir eine %s zu geben, jedoch hast du diese Waffe bereits!",\n    ["received_weapon_noweapon"] = "%s hat versucht dir Munition f\xFCr eine %s zu geben, jedoch hast du diese Waffe nicht!",\n    ["gave_account_money"] = "Du gibst %s\u20AC (%s) an %s",\n    ["received_account_money"] = "Du bekommst %s\u20AC (%s) von %s",\n    ["amount_invalid"] = "Ung\xFCltige Anzahl",\n    ["players_nearby"] = "Keine Personen in der N\xE4he!",\n    ["ex_inv_lim"] = "Du kannst diese Aktion nicht ausf\xFChren!, Inventarlimit f\xFCr %s \xFCberschritten.",\n    ["imp_invalid_quantity"] = "Du kannst diese Aktion nicht ausf\xFChren!, Ung\xFCltige Anzahl!",\n    ["imp_invalid_amount"] = "Du kannst diese Aktion nicht ausf\xFChren!, Ung\xFCltige Anzahl",\n    ["threw_standard"] = "Du entsorgst %sx %s",\n    ["threw_account"] = "Du Entsorgst %s\u20AC %s",\n    ["threw_weapon"] = "Du entsorgst %s",\n    ["threw_weapon_ammo"] = "Du entsorgst %s mit ~o~%sx %s",\n    ["threw_weapon_already"] = "Du hast diese Waffe bereits!",\n    ["threw_cannot_pickup"] = "Inventar ist voll! Du kannst dies nicht aufheben",\n    ["threw_pickup_prompt"] = "Dr\xFCcke [E] zum aufheben",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "Inventar Anzeigen",\n\n    -- Salary related\n    ["received_salary"] = "Dein Gehaltscheck ist angekommen!: %s\u20AC",\n    ["received_help"] = "Deine Sozialhilfe ist angekommen: %s\u20AC",\n    ["company_nomoney"] = "Die Firma an der du Angestellt bist, ist leider Arm und kann dich nicht bezahlen :(",\n    ["received_paycheck"] = "Gehaltscheck erhalten",\n    ["bank"] = "Maze Bank",\n    ["account_bank"] = "Bank",\n    ["account_black_money"] = "Schwarzgeld",\n    ["account_money"] = "Bargeld",\n\n    ["act_imp"] = "Du kannst diese Aktion nicht ausf\xFChren!",\n    ["in_vehicle"] = "Person darf nicht in einem Fahrzeug sein!",\n    ["not_in_vehicle"] = "Person muss in einem Fahrzeug sein!",\n\n    -- Commands\n    ["command_bring"] = "Person zu dir bringen",\n    ["command_car"] = "Fahrzeug Spawnen",\n    ["command_car_car"] = "Fahrzeug Model oder Hash",\n    ["command_cardel"] = "Fahrzeuge entfernen",\n    ["command_cardel_radius"] = "Entfernt alle Fahrzeuge in einem bestimmten Radius",\n    ["command_repair"] = "Fahrzeug reparieren",\n    ["command_repair_success"] = "Fahrzeug erfolgreich repariert.",\n    ["command_repair_success_target"] = "Ein Admin hat dein Fahrzeug repariert.",\n    ["command_clear"] = "Textchat leeren",\n    ["command_clearall"] = "Textchat f\xFCr alle Spieler leeren",\n    ["command_clearinventory"] = "Alle Gegenst\xE4nde vom Inventar eines Spielers entfernen",\n    ["command_clearloadout"] = "Alle Waffen vom Loadout eines Spielers entfernen",\n    ["command_freeze"] = "Spieler Freezen",\n    ["command_unfreeze"] = "Spieler Entfreezen",\n    ["command_giveaccountmoney"] = "Geld an ein bestimmtes Konto geben",\n    ["command_giveaccountmoney_account"] = "Konto, wohin das Geld hinzugef\xFCgt werden soll",\n    ["command_giveaccountmoney_amount"] = "Menge zum Hinzuf\xFCgen",\n    ["command_giveaccountmoney_invalid"] = "Accountname ung\xFCltig!",\n    ["command_giveitem"] = "Spieler ein Gegenstand geben",\n    ["command_giveitem_item"] = "Gegenstand Name",\n    ["command_giveitem_count"] = "Menge",\n    ["command_giveweapon"] = "Spieler eine Waffe geben",\n    ["command_giveweapon_weapon"] = "Waffenname",\n    ["command_giveweapon_ammo"] = "Munitionsanzahl",\n    ["command_giveweapon_hasalready"] = "Spieler hat diese Waffe bereits!",\n    ["command_giveweaponcomponent"] = "Waffenkomponent an einen Spieler geben",\n    ["command_giveweaponcomponent_component"] = "Komponentenname",\n    ["command_giveweaponcomponent_invalid"] = "Ung\xFCltiger Komponentenname",\n    ["command_giveweaponcomponent_hasalready"] = "Spieler hat diese Komponente bereits!",\n    ["command_giveweaponcomponent_missingweapon"] = "Spieler hat diese Waffe nicht!",\n    ["command_goto"] = "Teleportiere dich zu einem Spieler",\n    ["command_kill"] = "Spieler T\xF6ten",\n    ["command_save"] = "Von einem bestimmten Spieler die Spielerdaten speichern",\n    ["command_saveall"] = "Von allen Spielern die Spielerdaten speichern",\n    ["command_setaccountmoney"] = "Geld auf einem bestimmten Konto festlegen",\n    ["command_setaccountmoney_amount"] = "Menge",\n    ["command_setcoords"] = "Zu den bestimmten Koordinaten teleportieren",\n    ["command_setcoords_x"] = "X Koordinate",\n    ["command_setcoords_y"] = "Y Koordinate",\n    ["command_setcoords_z"] = "Z Koordinate",\n    ["command_setjob"] = "Job eines Spielers setzen",\n    ["command_setjob_job"] = "Name",\n    ["command_setjob_grade"] = "Job Rang",\n    ["command_setjob_invalid"] = "Der Rang oder der Name und Rang sind ung\xFCltig",\n    ["command_setgroup"] = "Setzt eine Berechtigungs Gruppe f\xFCr einen Benutzer",\n    ["command_setgroup_group"] = "Name der Gruppe",\n    ["command_removeaccountmoney"] = "Entfernt Geld von einem bestimmten Konto",\n    ["command_removeaccountmoney_account"] = "Konto von dem es entfernt werden soll",\n    ["command_removeaccountmoney_amount"] = "Menge, die entfernt werden soll",\n    ["command_removeaccountmoney_invalid"] = "Name des Kontos ung\xFCltig",\n    ["commanderror_argumentmismatch"] = "Ung\xFCltiges Argument (gegeben %s, gewollt %s)",\n    ["commanderror_argumentmismatch_number"] = "Ung\xFCltiges Argument #%s Datentyp (String gegeben, Nummer gefordert)",\n    ["commanderror_argumentmismatch_string"] = "Ung\xFCltiges Argument #%s Datentyp (Nummer gegeben, String gefordert)",\n    ["commanderror_argumentmismatch_positive_number"] = "Ung\xFCltiges Argument #%s Datentyp (negativ/null \xFCbergeben, positive Zahl gew\xFCnscht)",\n    ["commanderror_invaliditem"] = "Ung\xFCltiger Gegenstand",\n    ["commanderror_invalidweapon"] = "Ung\xFCltige Waffe",\n    ["commanderror_console"] = "Befehl kann nicht von der Konsole aus ausgef\xFChrt werden!",\n    ["commanderror_invalidcommand"] = "Ung\xFCltiger Befehl - /%s",\n    ["commanderror_invalidplayerid"] = "Angegebener Spieler ist nicht online!",\n    ["commandgeneric_playerid"] = "Spieler ID",\n    ["commandgeneric_dimension"] = "Ziel Dimension",\n    ["command_giveammo_noweapon_found"] = "%s besitzt diese Waffe nicht!",\n    ["command_giveammo_weapon"] = "Waffenname",\n    ["command_giveammo_ammo"] = "Munitionsanzahl",\n    ["command_setdim"] = "Setzt Spieler Dimension!",\n    ["tpm_nowaypoint"] = "Kein Wegpunkt gesetzt!",\n    ["tpm_success"] = "Erfolgreich teleportiert.",\n\n    ["noclip_message"] = "Noclip wurde %s",\n    ["enabled"] = "~g~Aktiviert~s~",\n    ["disabled"] = "~r~Deaktiviert~s~",\n\n    -- Locale settings\n    ["locale_digit_grouping_symbol"] = ",",\n    ["locale_currency"] = "%s\u20AC",\n\n    -- Weapons\n\n    -- Melee\n    ["weapon_dagger"] = "Dolch",\n    ["weapon_bat"] = "Baseballschl\xE4ger",\n    ["weapon_battleaxe"] = "Kampfaxt",\n    ["weapon_bottle"] = "Flasche",\n    ["weapon_crowbar"] = "Brechstange",\n    ["weapon_flashlight"] = "Taschenlampe",\n    ["weapon_golfclub"] = "Golfschl\xE4ger",\n    ["weapon_hammer"] = "Hammer",\n    ["weapon_hatchet"] = "Beil",\n    ["weapon_knife"] = "Messer",\n    ["weapon_knuckle"] = "Schlagring",\n    ["weapon_machete"] = "Machete",\n    ["weapon_nightstick"] = "Schlagstock",\n    ["weapon_wrench"] = "Rohrzange",\n    ["weapon_poolcue"] = "Billiardstange",\n    ["weapon_stone_hatchet"] = "Steinbeil",\n    ["weapon_switchblade"] = "Springmesser",\n\n    -- Handguns\n    ["weapon_appistol"] = "AP Pistole",\n    ["weapon_ceramicpistol"] = "Keramikpistole",\n    ["weapon_combatpistol"] = "Kampfpistole",\n    ["weapon_doubleaction"] = "Double-Action Revolver",\n    ["weapon_navyrevolver"] = "Navy Revolver",\n    ["weapon_flaregun"] = "Flaregun",\n    ["weapon_gadgetpistol"] = "Gadgetpistole",\n    ["weapon_heavypistol"] = "Schwere Pistole",\n    ["weapon_revolver"] = "Schwerer Revolver",\n    ["weapon_revolver_mk2"] = "Schwerer Revolver MK2",\n    ["weapon_marksmanpistol"] = "Scharfsch\xFCtzen Pistole",\n    ["weapon_pistol"] = "Pistole",\n    ["weapon_pistol_mk2"] = "Pistole MK2",\n    ["weapon_pistol50"] = "Pistole 50 Kaliber",\n    ["weapon_snspistol"] = "SNS Pistol",\n    ["weapon_snspistol_mk2"] = "SNS Pistol MK2",\n    ["weapon_stungun"] = "Taser",\n    ["weapon_raypistol"] = "Up-N-Atomizer",\n    ["weapon_vintagepistol"] = "Vintagepistole",\n\n    -- Shotguns\n    ["weapon_assaultshotgun"] = "Sturmschrotflinte",\n    ["weapon_autoshotgun"] = "Automatische Schrotflinte",\n    ["weapon_bullpupshotgun"] = "Bullpup-Schrotflinte",\n    ["weapon_combatshotgun"] = "Kampfschrotfline",\n    ["weapon_dbshotgun"] = "Doppelbarrel Schrotflinte",\n    ["weapon_heavyshotgun"] = "Schwere Schrotflinte",\n    ["weapon_musket"] = "Muskete",\n    ["weapon_pumpshotgun"] = "Pump Schrotflinte",\n    ["weapon_pumpshotgun_mk2"] = "Pump Schrotflinte MK2",\n    ["weapon_sawnoffshotgun"] = "Abges\xE4gte Schrotflinte",\n\n    -- SMG & LMG\n    ["weapon_assaultsmg"] = "Sturm SMG",\n    ["weapon_combatmg"] = "Kampf MG",\n    ["weapon_combatmg_mk2"] = "Kampf MG MK2",\n    ["weapon_combatpdw"] = "Kampf PDW",\n    ["weapon_gusenberg"] = "Gusenberg Sweeper",\n    ["weapon_machinepistol"] = "Maschinenpistole",\n    ["weapon_mg"] = "MG",\n    ["weapon_microsmg"] = "Mikro SMG",\n    ["weapon_minismg"] = "Mini SMG",\n    ["weapon_smg"] = "SMG",\n    ["weapon_smg_mk2"] = "SMG MK2",\n    ["weapon_raycarbine"] = "Unheiliger H\xF6llenbringer",\n\n    -- Rifles\n    ["weapon_advancedrifle"] = "Fortgeschrittenes Gewehr",\n    ["weapon_assaultrifle"] = "Sturmgewehr",\n    ["weapon_assaultrifle_mk2"] = "Sturmgewehr MK2",\n    ["weapon_bullpuprifle"] = "Bullpup Gewehr",\n    ["weapon_bullpuprifle_mk2"] = "Bullpup Gewehr MK2",\n    ["weapon_carbinerifle"] = "Karabinergewehr",\n    ["weapon_carbinerifle_mk2"] = "Karabinergewehr MK2",\n    ["weapon_compactrifle"] = "Kompaktesgewehr",\n    ["weapon_militaryrifle"] = "Milit\xE4rgewehr",\n    ["weapon_specialcarbine"] = "Spezialkarabiner",\n    ["weapon_specialcarbine_mk2"] = "Spezialkarabiner MK2",\n    ["weapon_heavyrifle"] = "Schweres Gewehr",\n\n    -- Sniper\n    ["weapon_heavysniper"] = "Schwere Sniper",\n    ["weapon_heavysniper_mk2"] = "Schwere Sniper MK2",\n    ["weapon_marksmanrifle"] = "Scharfsch\xFCtzengewehr",\n    ["weapon_marksmanrifle_mk2"] = "Scharfsch\xFCtzengewehr MK2",\n    ["weapon_sniperrifle"] = "Sniper",\n\n    -- Heavy / Launchers\n    ["weapon_compactlauncher"] = "Kompaktlauncher",\n    ["weapon_firework"] = "Feuerwerklauncher",\n    ["weapon_grenadelauncher"] = "Granatwerfer",\n    ["weapon_hominglauncher"] = "Lenkraketenwerfer",\n    ["weapon_minigun"] = "Minigun",\n    ["weapon_railgun"] = "Railgun",\n    ["weapon_rpg"] = "Raketenwerfer",\n    ["weapon_rayminigun"] = "Witwenmacher",\n\n    -- Criminal Enterprises DLC\n    ["weapon_metaldetector"] = "Metalldetektor",\n    ["weapon_precisionrifle"] = "Pr\xE4zisionsgewehr",\n    ["weapon_tactilerifle"] = "Service Karabiner",\n\n    -- Drug Wars DLC\n    ["weapon_candycane"] = "Zuckerstange",\n    ["weapon_acidpackage"] = "S\xE4ure Paket",\n    ["weapon_pistolxm3"] = "WM 29 Pistole",\n    ["weapon_railgunxm3"] = "Railgun",\n\n    -- Thrown\n    ["weapon_ball"] = "Baseball",\n    ["weapon_bzgas"] = "BZ Gas",\n    ["weapon_flare"] = "Leuchtfackel",\n    ["weapon_grenade"] = "Granate",\n    ["weapon_petrolcan"] = "Benzinkanister",\n    ["weapon_hazardcan"] = "Gef\xE4hrliche Kanister",\n    ["weapon_molotov"] = "Molotov Cocktail",\n    ["weapon_proxmine"] = "Ann\xE4hrungsmine",\n    ["weapon_pipebomb"] = "Rohrbombe",\n    ["weapon_snowball"] = "Schneeball",\n    ["weapon_stickybomb"] = "Haftbombe",\n    ["weapon_smokegrenade"] = "Tr\xE4nengas",\n\n    -- Special\n    ["weapon_fireextinguisher"] = "Feuerl\xF6scher",\n    ["weapon_digiscanner"] = "Digitalscanner",\n    ["weapon_garbagebag"] = "M\xFCllsack",\n    ["weapon_handcuffs"] = "Handschelle",\n    ["gadget_nightvision"] = "Nachtsicht",\n    ["gadget_parachute"] = "Fallschirm",\n\n    -- Weapon Components\n    ["component_knuckle_base"] = "Basismodell",\n    ["component_knuckle_pimp"] = "Der Pimp",\n    ["component_knuckle_ballas"] = "Die Ballas",\n    ["component_knuckle_dollar"] = "Der Hustler",\n    ["component_knuckle_diamond"] = "Der Stein",\n    ["component_knuckle_hate"] = "Der Hater",\n    ["component_knuckle_love"] = "Der Lover",\n    ["component_knuckle_player"] = "Der Player",\n    ["component_knuckle_king"] = "Der King",\n    ["component_knuckle_vagos"] = "Die Vagos",\n\n    ["component_luxary_finish"] = "Luxuswaffenlackierung",\n\n    ["component_handle_default"] = "Normaler Handgriff",\n    ["component_handle_vip"] = "VIP Handgriff",\n    ["component_handle_bodyguard"] = "Bodyguard Handgriff",\n\n    ["component_vip_finish"] = "VIP Lackierung",\n    ["component_bodyguard_finish"] = "Bodyguard Lackierung",\n\n    ["component_camo_finish"] = "Digitales Camouflage",\n    ["component_camo_finish2"] = "Pinselstrich Camouflage",\n    ["component_camo_finish3"] = "Holzland Camouflage",\n    ["component_camo_finish4"] = "Kopf Camouflage",\n    ["component_camo_finish5"] = "Sessebta-Nove Camouflage",\n    ["component_camo_finish6"] = "Perseus Camouflage",\n    ["component_camo_finish7"] = "Leopard Camouflage",\n    ["component_camo_finish8"] = "Zebra Camouflage",\n    ["component_camo_finish9"] = "Geometrisch Camouflage",\n    ["component_camo_finish10"] = "BOOM Camouflage",\n    ["component_camo_finish11"] = "Patriotisch Camouflage",\n\n    ["component_camo_slide_finish"] = "Digital Rutschen Camouflage",\n    ["component_camo_slide_finish2"] = "Pinselstrich Rutschen Camouflage",\n    ["component_camo_slide_finish3"] = "Holzland Rutschen Camouflage",\n    ["component_camo_slide_finish4"] = "Kopf Rutschen Camouflage",\n    ["component_camo_slide_finish5"] = "Sessebta-Nove Nove Rutschen Camouflage",\n    ["component_camo_slide_finish6"] = "Perseus Rutschen Camouflage",\n    ["component_camo_slide_finish7"] = "Leopard Rutschen Camouflage",\n    ["component_camo_slide_finish8"] = "Zebra Rutschen Camouflage",\n    ["component_camo_slide_finish9"] = "Geometrisch Rutschen Camouflage",\n    ["component_camo_slide_finish10"] = "BOOM Rutschen Camouflage",\n    ["component_camo_slide_finish11"] = "Patriotisch Rutschen Camouflage",\n\n    ["component_clip_default"] = "Standard Magazin",\n    ["component_clip_extended"] = "Erweiterters Magazin",\n    ["component_clip_drum"] = "Trommelmagazin",\n    ["component_clip_box"] = "Kastenmagazin",\n\n    ["component_scope_holo"] = "Holographisches Zielfernrohr",\n    ["component_scope_small"] = "Kleines Zielfernrohr",\n    ["component_scope_medium"] = "Mittleres Zielfernrohr",\n    ["component_scope_large"] = "Gro\xDFes Zielfernrohr",\n    ["component_scope"] = "Montiertes Zielfernrohr",\n    ["component_scope_advanced"] = "Fortgeschrittenes Zielfernrohr",\n    ["component_ironsights"] = "Ironsights",\n\n    ["component_suppressor"] = "Entst\xF6rer",\n    ["component_compensator"] = "Kompensator",\n\n    ["component_muzzle_flat"] = "Flache M\xFCndung",\n    ["component_muzzle_tactical"] = "Taktische M\xFCndung",\n    ["component_muzzle_fat"] = "Fettes-Ende M\xFCndung",\n    ["component_muzzle_precision"] = "Pr\xE4zision M\xFCndung",\n    ["component_muzzle_heavy"] = "Schwere M\xFCndung",\n    ["component_muzzle_slanted"] = "Schr\xE4ge M\xFCndung",\n    ["component_muzzle_split"] = "Geteiletes-Ende M\xFCndung",\n    ["component_muzzle_squared"] = "Quadratische M\xFCndung",\n\n    ["component_flashlight"] = "Taschenlampe",\n    ["component_grip"] = "Grip",\n\n    ["component_barrel_default"] = "Normales Fass",\n    ["component_barrel_heavy"] = "Schweres Fass",\n\n    ["component_ammo_tracer"] = "Tracer Munition",\n    ["component_ammo_incendiary"] = "Aufruhr Munition",\n    ["component_ammo_hollowpoint"] = "Hohlspitze Munition",\n    ["component_ammo_fmj"] = "FMJ Munition",\n    ["component_ammo_armor"] = "Panzerbrechende Munition",\n    ["component_ammo_explosive"] = "Panzerbrechende brennende Munition",\n\n    ["component_shells_default"] = "Normale H\xFClsen",\n    ["component_shells_incendiary"] = "Drachenatem H\xFClsen",\n    ["component_shells_armor"] = "Stahlschrot H\xFClsen",\n    ["component_shells_hollowpoint"] = "Flechette H\xFClsen",\n    ["component_shells_explosive"] = "Explosives Geschoss H\xFClsen",\n\n    -- Weapon Ammo\n    ["ammo_rounds"] = "Kugel(n)",\n    ["ammo_shells"] = "Schrotpatrone(n)",\n    ["ammo_charge"] = "Nachladen",\n    ["ammo_petrol"] = "Benzinkanister",\n    ["ammo_firework"] = "Feuerwerksrakete(n)",\n    ["ammo_rockets"] = "Rakete(n)",\n    ["ammo_grenadelauncher"] = "Granate(n)",\n    ["ammo_grenade"] = "Granate(n)",\n    ["ammo_stickybomb"] = "C4(s)",\n    ["ammo_pipebomb"] = "Rohrbombe(n)",\n    ["ammo_smokebomb"] = "Rauchgranate(n)",\n    ["ammo_molotov"] = "Molotovcocktail(s)",\n    ["ammo_proxmine"] = "Ann\xE4herungsmine(n)",\n    ["ammo_bzgas"] = "Bzgas",\n    ["ammo_ball"] = "Ball",\n    ["ammo_snowball"] = "Schneeb\xE4lle",\n    ["ammo_flare"] = "Signalfackel(n)",\n    ["ammo_flaregun"] = "Signalfackeln(munition)",\n\n    -- Weapon Tints\n    ["tint_default"] = "Standard",\n    ["tint_green"] = "Gr\xFCn",\n    ["tint_gold"] = "Gold",\n    ["tint_pink"] = "Pink",\n    ["tint_army"] = "Camouflage",\n    ["tint_lspd"] = "Blau",\n    ["tint_orange"] = "Orange",\n    ["tint_platinum"] = "Platin",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "klassisches Schwarz",\n    ["tint_classic_gray"] = "klassisches Grau",\n    ["tint_classic_two_tone"] = "klassisches Zwei-Ton",\n    ["tint_classic_white"] = "klassisches Wei\xDF",\n    ["tint_classic_beige"] = "klassisches Beige",\n    ["tint_classic_green"] = "klassisches Gr\xFCn",\n    ["tint_classic_blue"] = "klassisches Blau",\n    ["tint_classic_earth"] = "klassisches Erdfarben",\n    ["tint_classic_brown_black"] = "klassisches Braun-Schwarz",\n    ["tint_contrast_red"] = "Kontrast Rot",\n    ["tint_contrast_blue"] = "Kontrast Blau",\n    ["tint_contrast_yellow"] = "Kontrast Gelb",\n    ["tint_contrast_orange"] = "Kontrast Orange",\n    ["tint_bold_pink"] = "fette Pink",\n    ["tint_bold_purple_yellow"] = "fette Lila-Gelb",\n    ["tint_bold_orange"] = "fette Orange",\n    ["tint_bold_green_purple"] = "fette Gr\xFCn-Lila",\n    ["tint_bold_red_feat"] = "fette Rot feat",\n    ["tint_bold_green_feat"] = "fette Gr\xFCn feat",\n    ["tint_bold_cyan_feat"] = "fette Cyan feat",\n    ["tint_bold_yellow_feat"] = "fette Gelb feat",\n    ["tint_bold_red_white"] = "fette Rot Wei\xDF",\n    ["tint_bold_blue_white"] = "fette Blau Wei\xDF",\n    ["tint_metallic_gold"] = "metallisches Gold",\n    ["tint_metallic_platinum"] = "metallisches Platin",\n    ["tint_metallic_gray_lilac"] = "metallisches Grau-Lila",\n    ["tint_metallic_purple_lime"] = "metallisches Lila-Limette",\n    ["tint_metallic_red"] = "metallisches Rot",\n    ["tint_metallic_green"] = "metallisches Gr\xFCn",\n    ["tint_metallic_blue"] = "metallisches Blau",\n    ["tint_metallic_white_aqua"] = "metallisches Wei\xDF-Aqua",\n    ["tint_metallic_red_yellow"] = "metallisches Rot-Gelb",\n}\n',
+        "locales/el.lua": 'return {\n    -- Inventory\n    ["inventory"] = "\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B7 ( \u0392\u03AC\u03C1\u03BF\u03C2 %s / %s )",\n    ["use"] = "\u03A7\u03C1\u03AE\u03C3\u03B7",\n    ["give"] = "\u0394\u03CE\u03C3\u03B5",\n    ["remove"] = "\u03A0\u03AD\u03C4\u03B1",\n    ["return"] = "\u0395\u03C0\u03B9\u03C3\u03C4\u03C1\u03BF\u03C6\u03AE",\n    ["give_to"] = "\u0394\u03CE\u03C3\u03B5 \u03C3\u03B5",\n    ["amount"] = "\u03A0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B1",\n    ["giveammo"] = "\u0394\u03CE\u03C3\u03B5 \u03C3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2",\n    ["amountammo"] = "\u03A0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B1 \u03C3\u03C6\u03B1\u03B9\u03C1\u03CE\u03BD",\n    ["noammo"] = "\u0394\u03B5\u03BD \u03C5\u03C0\u03AC\u03C1\u03C7\u03BF\u03C5\u03BD \u03B1\u03C1\u03BA\u03B5\u03C4\u03AD\u03C2 \u03C3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2!",\n    ["gave_item"] = "\u0394\u03CE\u03C3\u03B1\u03C4\u03B5 %sx %s \u03C3\u03C4\u03BF\u03BD/\u03C3\u03C4\u03B7\u03BD %s",\n    ["received_item"] = "\u039B\u03AC\u03B2\u03B1\u03C4\u03B5 %sx %s \u03B1\u03C0\u03CC \u03C4\u03BF\u03BD/\u03C4\u03B7\u03BD %s",\n    ["gave_weapon"] = "\u0394\u03AF\u03BD\u03B5\u03C4\u03B5 %s \u03C3\u03C4\u03BF\u03BD/\u03C3\u03C4\u03B7\u03BD %s",\n    ["gave_weapon_ammo"] = "\u0394\u03AF\u03BD\u03B5\u03C4\u03B5 ~o~%sx %s \u03B3\u03B9\u03B1 %s \u03C3\u03C4\u03BF\u03BD/\u03C3\u03C4\u03B7\u03BD %s",\n    ["gave_weapon_withammo"] = "\u0394\u03AF\u03BD\u03B5\u03C4\u03B5 %s \u03BC\u03B5 ~o~%sx %s \u03C3\u03C4\u03BF\u03BD/\u03C3\u03C4\u03B7\u03BD %s",\n    ["gave_weapon_hasalready"] = "\u039F/\u0397 %s \u03AD\u03C7\u03B5\u03B9 \u03AE\u03B4\u03B7 \u03AD\u03BD\u03B1 %s",\n    ["gave_weapon_noweapon"] = "\u039F/\u0397 %s \u03B4\u03B5\u03BD \u03AD\u03C7\u03B5\u03B9 \u03B1\u03C5\u03C4\u03CC \u03C4\u03BF \u03CC\u03C0\u03BB\u03BF",\n    ["received_weapon"] = "\u039B\u03AC\u03B2\u03B1\u03C4\u03B5 %s \u03B1\u03C0\u03CC \u03C4\u03BF\u03BD/\u03C4\u03B7\u03BD %s",\n    ["received_weapon_ammo"] = "\u039B\u03AC\u03B2\u03B1\u03C4\u03B5 ~o~%sx %s \u03B3\u03B9\u03B1 \u03C4\u03BF %s \u03B1\u03C0\u03CC \u03C4\u03BF\u03BD/\u03C4\u03B7\u03BD %s",\n    ["received_weapon_withammo"] = "\u039B\u03AC\u03B2\u03B1\u03C4\u03B5 %s \u03B3\u03B9\u03B1 ~o~%sx %s \u03B1\u03C0\u03CC \u03C4\u03BF\u03BD/\u03C4\u03B7\u03BD %s",\n    ["received_weapon_hasalready"] = "\u039F/\u0397 %s \u03C0\u03C1\u03BF\u03C3\u03C0\u03AC\u03B8\u03B7\u03C3\u03B5 \u03BD\u03B1 \u03C3\u03B1\u03C2 \u03B4\u03CE\u03C3\u03B5\u03B9 \u03AD\u03BD\u03B1 %s, \u03B1\u03BB\u03BB\u03AC \u03C4\u03BF \u03AD\u03C7\u03B5\u03C4\u03B5 \u03AE\u03B4\u03B7",\n    ["received_weapon_noweapon"] = "\u039F/\u0397 %s \u03C0\u03C1\u03BF\u03C3\u03C0\u03AC\u03B8\u03B7\u03C3\u03B5 \u03BD\u03B1 \u03C3\u03B1\u03C2 \u03B4\u03CE\u03C3\u03B5\u03B9 \u03C3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2 \u03B3\u03B9\u03B1 \u03C4\u03BF %s, \u03B1\u03BB\u03BB\u03AC \u03B4\u03B5\u03BD \u03AD\u03C7\u03B5\u03C4\u03B5 \u03B1\u03C5\u03C4\u03CC \u03C4\u03BF \u03CC\u03C0\u03BB\u03BF",\n    ["gave_account_money"] = "\u0394\u03AF\u03BD\u03B5\u03C4\u03B5 $%s (%s) \u03C3\u03C4\u03BF\u03BD/\u03C3\u03C4\u03B7\u03BD %s",\n    ["received_account_money"] = "\u039B\u03AC\u03B2\u03B1\u03C4\u03B5 $%s (%s) \u03B1\u03C0\u03CC \u03C4\u03BF\u03BD/\u03C4\u03B7\u03BD %s",\n    ["amount_invalid"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03C0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B1",\n    ["players_nearby"] = "\u0394\u03B5\u03BD \u03C5\u03C0\u03AC\u03C1\u03C7\u03BF\u03C5\u03BD \u03BA\u03BF\u03BD\u03C4\u03B9\u03BD\u03BF\u03AF \u03C0\u03B1\u03AF\u03BA\u03C4\u03B5\u03C2",\n    ["ex_inv_lim"] = "\u0394\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03B4\u03C5\u03BD\u03B1\u03C4\u03AE \u03B7 \u03B5\u03BD\u03AD\u03C1\u03B3\u03B5\u03B9\u03B1, \u03C5\u03C0\u03AD\u03C1\u03B2\u03B1\u03C3\u03B7 \u03C4\u03BF\u03C5 \u03BC\u03AD\u03B3\u03B9\u03C3\u03C4\u03BF\u03C5 \u03B2\u03AC\u03C1\u03BF\u03C5\u03C2 \u03C4\u03C9\u03BD %s",\n    ["imp_invalid_quantity"] = "\u0394\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03B4\u03C5\u03BD\u03B1\u03C4\u03AE \u03B7 \u03B5\u03BD\u03AD\u03C1\u03B3\u03B5\u03B9\u03B1, \u03B7 \u03C0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B1 \u03B4\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7",\n    ["imp_invalid_amount"] = "\u0394\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03B4\u03C5\u03BD\u03B1\u03C4\u03AE \u03B7 \u03B5\u03BD\u03AD\u03C1\u03B3\u03B5\u03B9\u03B1, \u03C4\u03BF \u03C0\u03BF\u03C3\u03CC \u03B4\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF",\n    ["threw_standard"] = "\u03A1\u03AF\u03C7\u03BD\u03BF\u03BD\u03C4\u03B1\u03C2 %sx %s",\n    ["threw_account"] = "\u03A1\u03AF\u03C7\u03BD\u03BF\u03BD\u03C4\u03B1\u03C2 $%s %s",\n    ["threw_weapon"] = "\u03A1\u03AF\u03C7\u03BD\u03BF\u03BD\u03C4\u03B1\u03C2 %s",\n    ["threw_weapon_ammo"] = "\u03A1\u03AF\u03C7\u03BD\u03BF\u03BD\u03C4\u03B1\u03C2 %s \u03BC\u03B5 ~o~%sx %s",\n    ["threw_weapon_already"] = "\u0389\u03B4\u03B7 \u03AD\u03C7\u03B5\u03C4\u03B5 \u03B1\u03C5\u03C4\u03CC \u03C4\u03BF \u03CC\u03C0\u03BB\u03BF",\n    ["threw_cannot_pickup"] = "\u0397 \u03B1\u03C0\u03BF\u03B8\u03AE\u03BA\u03B7 \u03B5\u03AF\u03BD\u03B1\u03B9 \u03B3\u03B5\u03BC\u03AC\u03C4\u03B7, \u03B4\u03B5\u03BD \u03BC\u03C0\u03BF\u03C1\u03B5\u03AF\u03C4\u03B5 \u03BD\u03B1 \u03C3\u03B7\u03BA\u03CE\u03C3\u03B5\u03C4\u03B5!",\n    ["threw_pickup_prompt"] = "\u03A0\u03B1\u03C4\u03AE\u03C3\u03C4\u03B5 E \u03B3\u03B9\u03B1 \u03BD\u03B1 \u03C3\u03B7\u03BA\u03CE\u03C3\u03B5\u03C4\u03B5",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "\u0395\u03BC\u03C6\u03AC\u03BD\u03B9\u03C3\u03B7 \u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B7\u03C2",\n\n    -- Salary related\n    ["received_salary"] = "\u0388\u03C7\u03B5\u03C4\u03B5 \u03BB\u03AC\u03B2\u03B5\u03B9 \u03BC\u03B9\u03C3\u03B8\u03CC: $%s",\n    ["received_help"] = "\u0388\u03C7\u03B5\u03C4\u03B5 \u03BB\u03AC\u03B2\u03B5\u03B9 \u03C4\u03BF \u03B2\u03BF\u03AE\u03B8\u03B7\u03BC\u03AC \u03C3\u03B1\u03C2: $%s",\n    ["company_nomoney"] = "\u0397 \u03B5\u03C4\u03B1\u03B9\u03C1\u03B5\u03AF\u03B1 \u03C3\u03C4\u03B7\u03BD \u03BF\u03C0\u03BF\u03AF\u03B1 \u03B5\u03AF\u03C3\u03C4\u03B5 \u03B1\u03C0\u03B1\u03C3\u03C7\u03BF\u03BB\u03BF\u03CD\u03BC\u03B5\u03BD\u03BF\u03C2/\u03B7 \u03B4\u03B5\u03BD \u03AD\u03C7\u03B5\u03B9 \u03B1\u03C1\u03BA\u03B5\u03C4\u03AC \u03C7\u03C1\u03AE\u03BC\u03B1\u03C4\u03B1 \u03B3\u03B9\u03B1 \u03BD\u03B1 \u03BA\u03B1\u03C4\u03B1\u03B2\u03AC\u03BB\u03B5\u03B9 \u03C4\u03BF\u03BD \u03BC\u03B9\u03C3\u03B8\u03CC \u03C3\u03B1\u03C2",\n    ["received_paycheck"] = "\u03BB\u03AC\u03B2\u03B1\u03C4\u03B5 \u03BC\u03B9\u03C3\u03B8\u03CC",\n    ["bank"] = "\u03A4\u03C1\u03AC\u03C0\u03B5\u03B6\u03B1 Maze",\n    ["account_bank"] = "\u03A4\u03C1\u03B1\u03C0\u03B5\u03B6\u03B9\u03BA\u03CC\u03C2 \u039B\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03CC\u03C2",\n    ["account_black_money"] = "\u0392\u03C1\u03CE\u03BC\u03B9\u03BA\u03B1 \u03A7\u03C1\u03AE\u03BC\u03B1\u03C4\u03B1",\n    ["account_money"] = "\u039C\u03B5\u03C4\u03C1\u03B7\u03C4\u03AC",\n\n    ["act_imp"] = "\u0394\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03B4\u03C5\u03BD\u03B1\u03C4\u03AE \u03B7 \u03B5\u03BA\u03C4\u03AD\u03BB\u03B5\u03C3\u03B7 \u03C4\u03B7\u03C2 \u03B5\u03BD\u03AD\u03C1\u03B3\u03B5\u03B9\u03B1\u03C2",\n    ["in_vehicle"] = "\u0394\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03B4\u03C5\u03BD\u03B1\u03C4\u03AE \u03B7 \u03B5\u03BA\u03C4\u03AD\u03BB\u03B5\u03C3\u03B7 \u03C4\u03B7\u03C2 \u03B5\u03BD\u03AD\u03C1\u03B3\u03B5\u03B9\u03B1\u03C2, \u03BF \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7\u03C2 \u03B2\u03C1\u03AF\u03C3\u03BA\u03B5\u03C4\u03B1\u03B9 \u03C3\u03B5 \u03CC\u03C7\u03B7\u03BC\u03B1",\n    ["not_in_vehicle"] = "\u0394\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03B4\u03C5\u03BD\u03B1\u03C4\u03AE \u03B7 \u03B5\u03BA\u03C4\u03AD\u03BB\u03B5\u03C3\u03B7 \u03C4\u03B7\u03C2 \u03B5\u03BD\u03AD\u03C1\u03B3\u03B5\u03B9\u03B1\u03C2, \u03BF \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7\u03C2 \u03B4\u03B5\u03BD \u03B2\u03C1\u03AF\u03C3\u03BA\u03B5\u03C4\u03B1\u03B9 \u03C3\u03B5 \u03BA\u03AC\u03C0\u03BF\u03B9\u03BF \u03CC\u03C7\u03B7\u03BC\u03B1",\n\n    -- Commands\n    ["command_bring"] = "\u03A6\u03AD\u03C1\u03C4\u03B5 \u03C4\u03BF\u03BD \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7 \u03C3\u03B5 \u03B5\u03C3\u03AC\u03C2",\n    ["command_car"] = "\u039A\u03BB\u03AE\u03C3\u03B7 \u03BF\u03C7\u03AE\u03BC\u03B1\u03C4\u03BF\u03C2",\n    ["command_car_car"] = "\u039C\u03BF\u03BD\u03C4\u03AD\u03BB\u03BF \u03AE \u03BA\u03C9\u03B4\u03B9\u03BA\u03CC\u03C2 \u03BF\u03C7\u03AE\u03BC\u03B1\u03C4\u03BF\u03C2",\n    ["command_cardel"] = "\u039A\u03B1\u03C4\u03AC\u03C1\u03B3\u03B7\u03C3\u03B7 \u03BF\u03C7\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u03BA\u03BF\u03BD\u03C4\u03AC",\n    ["command_cardel_radius"] = "\u039A\u03B1\u03C4\u03B1\u03C1\u03B3\u03B5\u03AF \u03CC\u03BB\u03B1 \u03C4\u03B1 \u03BF\u03C7\u03AE\u03BC\u03B1\u03C4\u03B1 \u03B5\u03BD\u03C4\u03CC\u03C2 \u03C4\u03B7\u03C2 \u03BA\u03B1\u03B8\u03BF\u03C1\u03B9\u03C3\u03BC\u03AD\u03BD\u03B7\u03C2 \u03B1\u03BA\u03C4\u03AF\u03BD\u03B1\u03C2",\n    ["command_repair"] = "\u0395\u03C0\u03B9\u03C3\u03BA\u03AD\u03C5\u03B1\u03C3\u03B5 \u03C4\u03BF \u03CC\u03C7\u03B7\u03BC\u03B1 \u03C3\u03BF\u03C5",\n    ["command_repair_success"] = "\u03A4\u03BF \u03CC\u03C7\u03B7\u03BC\u03B1 \u03C3\u03BF\u03C5 \u03B5\u03C0\u03B9\u03C3\u03BA\u03B5\u03C5\u03AC\u03C3\u03C4\u03B7\u03BA\u03B5",\n    ["command_repair_success_target"] = "\u0388\u03BD\u03B1\u03C2 \u03B4\u03B9\u03B1\u03C7\u03B5\u03B9\u03C1\u03B9\u03C3\u03C4\u03AE\u03C2 \u03B5\u03C0\u03B9\u03C3\u03BA\u03B5\u03CD\u03B1\u03C3\u03B5 \u03C4\u03BF \u03CC\u03C7\u03B7\u03BC\u03B1 \u03C3\u03BF\u03C5",\n    ["command_clear"] = "\u039A\u03B1\u03B8\u03B1\u03C1\u03B9\u03C3\u03BC\u03CC\u03C2 \u03BA\u03B5\u03B9\u03BC\u03AD\u03BD\u03BF\u03C5 \u03C3\u03C4\u03BF chat",\n    ["command_clearall"] = "\u039A\u03B1\u03B8\u03B1\u03C1\u03B9\u03C3\u03BC\u03CC\u03C2 \u03BA\u03B5\u03B9\u03BC\u03AD\u03BD\u03BF\u03C5 \u03C3\u03C4\u03BF chat \u03B3\u03B9\u03B1 \u03CC\u03BB\u03BF\u03C5\u03C2 \u03C4\u03BF\u03C5\u03C2 \u03C0\u03B1\u03AF\u03BA\u03C4\u03B5\u03C2",\n    ["command_clearinventory"] = "\u039A\u03B1\u03C4\u03AC\u03C1\u03B3\u03B7\u03C3\u03B7 \u03CC\u03BB\u03C9\u03BD \u03C4\u03C9\u03BD \u03B1\u03BD\u03C4\u03B9\u03BA\u03B5\u03B9\u03BC\u03AD\u03BD\u03C9\u03BD \u03B1\u03C0\u03CC \u03C4\u03B7\u03BD \u03B1\u03C0\u03BF\u03B8\u03AE\u03BA\u03B7 \u03C4\u03C9\u03BD \u03C0\u03B1\u03B9\u03BA\u03C4\u03CE\u03BD",\n    ["command_clearloadout"] = "\u039A\u03B1\u03C4\u03AC\u03C1\u03B3\u03B7\u03C3\u03B7 \u03CC\u03BB\u03C9\u03BD \u03C4\u03C9\u03BD \u03CC\u03C0\u03BB\u03C9\u03BD \u03B1\u03C0\u03CC \u03C4\u03B7\u03BD \u03B5\u03BE\u03AC\u03C1\u03C4\u03B7\u03C3\u03B7 \u03C4\u03C9\u03BD \u03C0\u03B1\u03B9\u03BA\u03C4\u03CE\u03BD",\n    ["command_freeze"] = "\u03A0\u03AC\u03B3\u03C9\u03BC\u03B1 \u03B5\u03BD\u03CC\u03C2 \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7",\n    ["command_unfreeze"] = "\u039E\u03B5\u03C0\u03AC\u03B3\u03C9\u03BC\u03B1 \u03B5\u03BD\u03CC\u03C2 \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7",\n    ["command_giveaccountmoney"] = "\u0394\u03CE\u03C3\u03C4\u03B5 \u03C7\u03C1\u03AE\u03BC\u03B1\u03C4\u03B1 \u03C3\u03B5 \u03BA\u03B1\u03B8\u03BF\u03C1\u03B9\u03C3\u03BC\u03AD\u03BD\u03BF \u03BB\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03CC",\n    ["command_giveaccountmoney_account"] = "\u039B\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03CC\u03C2 \u03C0\u03C1\u03BF\u03C2 \u03C0\u03C1\u03BF\u03C3\u03B8\u03AE\u03BA\u03B7",\n    ["command_giveaccountmoney_amount"] = "\u03A0\u03BF\u03C3\u03CC \u03C0\u03C1\u03BF\u03C2 \u03C0\u03C1\u03BF\u03C3\u03B8\u03AE\u03BA\u03B7",\n    ["command_giveaccountmoney_invalid"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF \u03CC\u03BD\u03BF\u03BC\u03B1 \u03BB\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03BF\u03CD",\n    ["command_removeaccountmoney"] = "\u039A\u03B1\u03C4\u03AC\u03C1\u03B3\u03B7\u03C3\u03B7 \u03C7\u03C1\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u03B1\u03C0\u03CC \u03BA\u03B1\u03B8\u03BF\u03C1\u03B9\u03C3\u03BC\u03AD\u03BD\u03BF \u03BB\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03CC",\n    ["command_removeaccountmoney_account"] = "\u039B\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03CC\u03C2 \u03B1\u03C0\u03CC \u03C4\u03BF\u03BD \u03BF\u03C0\u03BF\u03AF\u03BF \u03B8\u03B1 \u03BA\u03B1\u03C4\u03B1\u03C1\u03B3\u03B7\u03B8\u03BF\u03CD\u03BD \u03C4\u03B1 \u03C7\u03C1\u03AE\u03BC\u03B1\u03C4\u03B1",\n    ["command_removeaccountmoney_amount"] = "\u03A0\u03BF\u03C3\u03CC \u03C0\u03C1\u03BF\u03C2 \u03B1\u03C6\u03B1\u03AF\u03C1\u03B5\u03C3\u03B7",\n    ["command_removeaccountmoney_invalid"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF \u03CC\u03BD\u03BF\u03BC\u03B1 \u03BB\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03BF\u03CD",\n    ["command_giveitem"] = "\u0394\u03CE\u03C3\u03C4\u03B5 \u03C3\u03B5 \u03AD\u03BD\u03B1\u03BD \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7 \u03AD\u03BD\u03B1 \u03B1\u03BD\u03C4\u03B9\u03BA\u03B5\u03AF\u03BC\u03B5\u03BD\u03BF",\n    ["command_giveitem_item"] = "\u038C\u03BD\u03BF\u03BC\u03B1 \u03B1\u03BD\u03C4\u03B9\u03BA\u03B5\u03B9\u03BC\u03AD\u03BD\u03BF\u03C5",\n    ["command_giveitem_count"] = "\u03A0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B1",\n    ["command_giveweapon"] = "\u0394\u03CE\u03C3\u03C4\u03B5 \u03C3\u03B5 \u03AD\u03BD\u03B1\u03BD \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7 \u03AD\u03BD\u03B1 \u03CC\u03C0\u03BB\u03BF",\n    ["command_giveweapon_weapon"] = "\u038C\u03BD\u03BF\u03BC\u03B1 \u03CC\u03C0\u03BB\u03BF\u03C5",\n    ["command_giveweapon_ammo"] = "\u03A0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B1 \u03C0\u03C5\u03C1\u03BF\u03BC\u03B1\u03C7\u03B9\u03BA\u03CE\u03BD",\n    ["command_giveweapon_hasalready"] = "\u039F \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7\u03C2 \u03AD\u03C7\u03B5\u03B9 \u03AE\u03B4\u03B7 \u03B1\u03C5\u03C4\u03CC \u03C4\u03BF \u03CC\u03C0\u03BB\u03BF",\n    ["command_giveweaponcomponent"] = "\u0394\u03CE\u03C3\u03C4\u03B5 \u03C3\u03B5 \u03AD\u03BD\u03B1\u03BD \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7 \u03BC\u03B9\u03B1 \u03B5\u03BE\u03AC\u03C1\u03C4\u03B7\u03C3\u03B7 \u03CC\u03C0\u03BB\u03BF\u03C5",\n    ["command_giveweaponcomponent_component"] = "\u038C\u03BD\u03BF\u03BC\u03B1 \u03B5\u03BE\u03AC\u03C1\u03C4\u03B7\u03C3\u03B7\u03C2",\n    ["command_giveweaponcomponent_invalid"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03BE\u03AC\u03C1\u03C4\u03B7\u03C3\u03B7 \u03CC\u03C0\u03BB\u03BF\u03C5",\n    ["command_giveweaponcomponent_hasalready"] = "\u039F \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7\u03C2 \u03AD\u03C7\u03B5\u03B9 \u03AE\u03B4\u03B7 \u03B1\u03C5\u03C4\u03AE\u03BD \u03C4\u03B7\u03BD \u03B5\u03BE\u03AC\u03C1\u03C4\u03B7\u03C3\u03B7 \u03CC\u03C0\u03BB\u03BF\u03C5",\n    ["command_giveweaponcomponent_missingweapon"] = "\u039F \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7\u03C2 \u03B4\u03B5\u03BD \u03AD\u03C7\u03B5\u03B9 \u03B1\u03C5\u03C4\u03CC \u03C4\u03BF \u03CC\u03C0\u03BB\u03BF",\n    ["command_goto"] = "\u03A4\u03B7\u03BB\u03B5\u03BC\u03B5\u03C4\u03B1\u03C6\u03AD\u03C1\u03B5\u03C3\u03C4\u03B5 \u03C3\u03B5 \u03AD\u03BD\u03B1\u03BD \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7",\n    ["command_kill"] = "\u03A3\u03BA\u03BF\u03C4\u03CE\u03C3\u03C4\u03B5 \u03AD\u03BD\u03B1\u03BD \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7",\n    ["command_save"] = "\u0395\u03BE\u03B1\u03BD\u03B1\u03B3\u03BA\u03B1\u03C3\u03C4\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7 \u03B4\u03B5\u03B4\u03BF\u03BC\u03AD\u03BD\u03C9\u03BD \u03B5\u03BD\u03CC\u03C2 \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7",\n    ["command_saveall"] = "\u0395\u03BE\u03B1\u03BD\u03B1\u03B3\u03BA\u03B1\u03C3\u03C4\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7 \u03CC\u03BB\u03C9\u03BD \u03C4\u03C9\u03BD \u03B4\u03B5\u03B4\u03BF\u03BC\u03AD\u03BD\u03C9\u03BD \u03C4\u03C9\u03BD \u03C0\u03B1\u03B9\u03BA\u03C4\u03CE\u03BD",\n    ["command_setaccountmoney"] = "\u039F\u03C1\u03AF\u03C3\u03C4\u03B5 \u03C4\u03B1 \u03C7\u03C1\u03AE\u03BC\u03B1\u03C4\u03B1 \u03C3\u03B5 \u03AD\u03BD\u03B1\u03BD \u03BA\u03B1\u03B8\u03BF\u03C1\u03B9\u03C3\u03BC\u03AD\u03BD\u03BF \u03BB\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03CC",\n    ["command_setaccountmoney_amount"] = "\u03A0\u03BF\u03C3\u03CC",\n    ["command_setcoords"] = "\u03A4\u03B7\u03BB\u03B5\u03BC\u03B5\u03C4\u03B1\u03C6\u03B5\u03C1\u03B8\u03B5\u03AF\u03C4\u03B5 \u03C3\u03B5 \u03BA\u03B1\u03B8\u03BF\u03C1\u03B9\u03C3\u03BC\u03AD\u03BD\u03B5\u03C2 \u03C3\u03C5\u03BD\u03C4\u03B5\u03C4\u03B1\u03B3\u03BC\u03AD\u03BD\u03B5\u03C2",\n    ["command_setcoords_x"] = "\u03A4\u03B9\u03BC\u03AE X",\n    ["command_setcoords_y"] = "\u03A4\u03B9\u03BC\u03AE Y",\n    ["command_setcoords_z"] = "\u03A4\u03B9\u03BC\u03AE Z",\n    ["command_setjob"] = "\u039F\u03C1\u03AF\u03C3\u03C4\u03B5 \u03C4\u03BF \u03B5\u03C0\u03AC\u03B3\u03B3\u03B5\u03BB\u03BC\u03B1 \u03B5\u03BD\u03CC\u03C2 \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7",\n    ["command_setjob_job"] = "\u038C\u03BD\u03BF\u03BC\u03B1",\n    ["command_setjob_grade"] = "\u0392\u03B1\u03B8\u03BC\u03CC\u03C2 \u03B5\u03C0\u03B1\u03B3\u03B3\u03AD\u03BB\u03BC\u03B1\u03C4\u03BF\u03C2",\n    ["command_setjob_invalid"] = "\u03A4\u03BF \u03B5\u03C0\u03AC\u03B3\u03B3\u03B5\u03BB\u03BC\u03B1, \u03BF \u03B2\u03B1\u03B8\u03BC\u03CC\u03C2 \u03AE \u03BA\u03B1\u03B9 \u03BF\u03B9 \u03B4\u03CD\u03BF \u03B5\u03AF\u03BD\u03B1\u03B9 \u03BC\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B1",\n    ["command_setgroup"] = "\u039F\u03C1\u03AF\u03C3\u03C4\u03B5 \u03C4\u03B7\u03BD \u03BF\u03BC\u03AC\u03B4\u03B1 \u03B4\u03B9\u03BA\u03B1\u03B9\u03C9\u03BC\u03AC\u03C4\u03C9\u03BD \u03B5\u03BD\u03CC\u03C2 \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7",\n    ["command_setgroup_group"] = "\u038C\u03BD\u03BF\u03BC\u03B1 \u039F\u03BC\u03AC\u03B4\u03B1\u03C2",\n    ["commanderror_argumentmismatch"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF\u03C2 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC\u03C2 \u03BF\u03C1\u03B9\u03C3\u03BC\u03AC\u03C4\u03C9\u03BD (\u03B4\u03CC\u03B8\u03B7\u03BA\u03B1\u03BD %s, \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03BC\u03B5\u03BD\u03B1 %s)",\n    ["commanderror_argumentmismatch_number"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF\u03C2 \u03C4\u03CD\u03C0\u03BF\u03C2 \u03B4\u03B5\u03B4\u03BF\u03BC\u03AD\u03BD\u03C9\u03BD \u03B3\u03B9\u03B1 \u03C4\u03BF \u03CC\u03C1\u03B9\u03C3\u03BC\u03B1 #%s (\u03B4\u03CC\u03B8\u03B7\u03BA\u03B5 \u03C3\u03C5\u03BC\u03B2\u03BF\u03BB\u03BF\u03C3\u03B5\u03B9\u03C1\u03AC, \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03BC\u03B5\u03BD\u03BF\u03C2 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC\u03C2)",\n    ["commanderror_argumentmismatch_string"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF\u03C2 \u03C4\u03CD\u03C0\u03BF\u03C2 \u03B4\u03B5\u03B4\u03BF\u03BC\u03AD\u03BD\u03C9\u03BD \u03B3\u03B9\u03B1 \u03C4\u03BF \u03CC\u03C1\u03B9\u03C3\u03BC\u03B1 #%s (\u03B4\u03CC\u03B8\u03B7\u03BA\u03B5 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC\u03C2, \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03BC\u03B5\u03BD\u03B7 \u03C3\u03C5\u03BC\u03B2\u03BF\u03BB\u03BF\u03C3\u03B5\u03B9\u03C1\u03AC)",\n    ["commanderror_argumentmismatch_positive_number"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF\u03C2 \u03C4\u03CD\u03C0\u03BF\u03C2 \u03B4\u03B5\u03B4\u03BF\u03BC\u03AD\u03BD\u03C9\u03BD \u03B3\u03B9\u03B1 \u03C4\u03BF \u03CC\u03C1\u03B9\u03C3\u03BC\u03B1 #%s (\u03B4\u03CC\u03B8\u03B7\u03BA\u03B5 \u03B1\u03C1\u03BD\u03B7\u03C4\u03B9\u03BA\u03CC\u03C2/\u03BC\u03B7\u03B4\u03AD\u03BD, \u03B1\u03BD\u03B1\u03BC\u03B5\u03BD\u03CC\u03BC\u03B5\u03BD\u03BF\u03C2 \u03B8\u03B5\u03C4\u03B9\u03BA\u03CC\u03C2 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC\u03C2)",\n    ["commanderror_invaliditem"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF \u03B1\u03BD\u03C4\u03B9\u03BA\u03B5\u03AF\u03BC\u03B5\u03BD\u03BF",\n    ["commanderror_invalidweapon"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03BF \u03CC\u03C0\u03BB\u03BF",\n    ["commanderror_console"] = "\u0397 \u03B5\u03BD\u03C4\u03BF\u03BB\u03AE \u03B4\u03B5\u03BD \u03BC\u03C0\u03BF\u03C1\u03B5\u03AF \u03BD\u03B1 \u03B5\u03BA\u03C4\u03B5\u03BB\u03B5\u03C3\u03C4\u03B5\u03AF \u03B1\u03C0\u03CC \u03C4\u03B7\u03BD \u03BA\u03BF\u03BD\u03C3\u03CC\u03BB\u03B1",\n    ["commanderror_invalidcommand"] = "\u039C\u03B7 \u03AD\u03B3\u03BA\u03C5\u03C1\u03B7 \u03B5\u03BD\u03C4\u03BF\u03BB\u03AE - /%s",\n    ["commanderror_invalidplayerid"] = "\u039F \u03BA\u03B1\u03B8\u03BF\u03C1\u03B9\u03C3\u03BC\u03AD\u03BD\u03BF\u03C2 \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7\u03C2 \u03B4\u03B5\u03BD \u03B5\u03AF\u03BD\u03B1\u03B9 \u03C3\u03C5\u03BD\u03B4\u03B5\u03B4\u03B5\u03BC\u03AD\u03BD\u03BF\u03C2",\n    ["commandgeneric_playerid"] = "\u0391\u03BD\u03B1\u03B3\u03BD\u03C9\u03C1\u03B9\u03C3\u03C4\u03B9\u03BA\u03CC \u03B4\u03B9\u03B1\u03BA\u03BF\u03BC\u03B9\u03C3\u03C4\u03AE \u03C4\u03BF\u03C5 \u03C0\u03B1\u03AF\u03BA\u03C4\u03B7",\n    ["command_giveammo_noweapon_found"] = "\u039F %s \u03B4\u03B5\u03BD \u03AD\u03C7\u03B5\u03B9 \u03B1\u03C5\u03C4\u03CC \u03C4\u03BF \u03CC\u03C0\u03BB\u03BF",\n    ["command_giveammo_weapon"] = "\u038C\u03BD\u03BF\u03BC\u03B1 \u03CC\u03C0\u03BB\u03BF\u03C5",\n    ["command_giveammo_ammo"] = "\u03A0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B1 \u03C0\u03C5\u03C1\u03BF\u03BC\u03B1\u03C7\u03B9\u03BA\u03CE\u03BD",\n    ["tpm_nowaypoint"] = "\u0394\u03B5\u03BD \u03AD\u03C7\u03B5\u03B9 \u03BF\u03C1\u03B9\u03C3\u03C4\u03B5\u03AF \u03C3\u03B7\u03BC\u03B5\u03AF\u03BF \u03C0\u03C1\u03BF\u03BF\u03C1\u03B9\u03C3\u03BC\u03BF\u03CD.",\n    ["tpm_success"] = "\u0395\u03C0\u03B9\u03C4\u03C5\u03C7\u03AE\u03C2 \u03C4\u03B7\u03BB\u03B5\u03BC\u03B5\u03C4\u03B1\u03C6\u03BF\u03C1\u03AC",\n\n    ["noclip_message"] = "\u03A4\u03BF Noclip \u03AD\u03C7\u03B5\u03B9 %s",\n    ["enabled"] = "~g~\u03B5\u03BD\u03B5\u03C1\u03B3\u03BF\u03C0\u03BF\u03B9\u03AE\u03B8\u03B7\u03BA\u03B5~s~",\n    ["disabled"] = "~r~\u03B1\u03C0\u03B5\u03BD\u03B5\u03C1\u03B3\u03BF\u03C0\u03BF\u03B9\u03AE\u03B8\u03B7\u03BA\u03B5~s~",\n\n    -- \u03A1\u03C5\u03B8\u03BC\u03AF\u03C3\u03B5\u03B9\u03C2 \u03C4\u03BF\u03C0\u03B9\u03BA\u03AE\u03C2 \u03B3\u03BB\u03CE\u03C3\u03C3\u03B1\u03C2\n    ["locale_digit_grouping_symbol"] = ",",\n    ["locale_currency"] = "\xA3%s",\n\n    -- \u038C\u03C0\u03BB\u03B1\n\n    -- \u03A7\u03B5\u03B9\u03C1\u03BF\u03C0\u03BF\u03AF\u03B7\u03C4\u03B1\n    ["weapon_dagger"] = "\u03A3\u03C4\u03B9\u03BB\u03AD\u03C4\u03BF",\n    ["weapon_bat"] = "\u039C\u03C0\u03B1\u03C3\u03C4\u03BF\u03CD\u03BD\u03B9",\n    ["weapon_battleaxe"] = "\u03A0\u03BF\u03BB\u03B5\u03BC\u03B9\u03BA\u03AE \u03C3\u03B5\u03AF\u03C1\u03B1",\n    ["weapon_bottle"] = "\u039C\u03C0\u03BF\u03C5\u03BA\u03AC\u03BB\u03B9",\n    ["weapon_crowbar"] = "\u03A1\u03BF\u03C0\u03B1\u03BB\u03AC\u03BA\u03B9",\n    ["weapon_flashlight"] = "\u03A6\u03B1\u03BA\u03CC\u03C2",\n    ["weapon_golfclub"] = "\u0393\u03BA\u03BF\u03BB\u03C6",\n    ["weapon_hammer"] = "\u03A3\u03C6\u03C5\u03C1\u03AF",\n    ["weapon_hatchet"] = "\u03A0\u03AD\u03BB\u03B5\u03BA\u03C5\u03C2",\n    ["weapon_knife"] = "\u039C\u03B1\u03C7\u03B1\u03AF\u03C1\u03B9",\n    ["weapon_knuckle"] = "\u03A7\u03B5\u03B9\u03C1\u03BF\u03C0\u03AD\u03B4\u03B5\u03C2",\n    ["weapon_machete"] = "\u039C\u03B1\u03C7\u03B1\u03AF\u03C1\u03B9 \u03BC\u03B1\u03C7\u03B1\u03B9\u03C1\u03BF\u03C0\u03AF\u03C1\u03BF\u03C5\u03BD\u03BF\u03C5",\n    ["weapon_nightstick"] = "\u03A1\u03CC\u03C0\u03B1\u03BB\u03BF \u03BD\u03C5\u03C7\u03C4\u03B5\u03C1\u03AF\u03B4\u03B1\u03C2",\n    ["weapon_wrench"] = "\u03A1\u03BF\u03BA\u03B1\u03BD\u03AF\u03B4\u03B9",\n    ["weapon_poolcue"] = "\u039A\u03B1\u03C3\u03C4\u03AE\u03BB\u03B1",\n    ["weapon_stone_hatchet"] = "\u03A0\u03AD\u03BB\u03B5\u03BA\u03C5\u03C2 \u03B1\u03C0\u03CC \u03C0\u03AD\u03C4\u03C1\u03B1",\n    ["weapon_switchblade"] = "\u039E\u03C5\u03C1\u03B1\u03C6\u03AC\u03BA\u03B9",\n\n    -- \u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9\u03B1\n    ["weapon_appistol"] = "AP \u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9",\n    ["weapon_ceramicpistol"] = "\u039A\u03B5\u03C1\u03B1\u03BC\u03B9\u03BA\u03CC \u03C0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9",\n    ["weapon_combatpistol"] = "\u03A0\u03BF\u03BB\u03B5\u03BC\u03B9\u03BA\u03CC \u03C0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9",\n    ["weapon_doubleaction"] = "\u0394\u03B9\u03C0\u03BB\u03AE\u03C2 \u03B4\u03C1\u03AC\u03C3\u03B7\u03C2 \u03A1\u03B9\u03B2\u03CC\u03BB\u03B2\u03B5\u03C1",\n    ["weapon_navyrevolver"] = "\u039D\u03B1\u03C5\u03C4\u03B9\u03BA\u03CC \u03A1\u03B5\u03B2\u03CC\u03BB\u03B2\u03B5\u03C1",\n    ["weapon_flaregun"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9 \u03B1\u03C3\u03C4\u03C1\u03B1\u03C0\u03CE\u03BD",\n    ["weapon_gadgetpistol"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9 \u03C3\u03C5\u03C3\u03BA\u03B5\u03C5\u03CE\u03BD",\n    ["weapon_heavypistol"] = "\u0392\u03B1\u03C1\u03CD \u03C0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9",\n    ["weapon_revolver"] = "\u0392\u03B1\u03C1\u03CD \u03A1\u03B5\u03B2\u03CC\u03BB\u03B2\u03B5\u03C1",\n    ["weapon_revolver_mk2"] = "\u0392\u03B1\u03C1\u03CD \u03A1\u03B5\u03B2\u03CC\u03BB\u03B2\u03B5\u03C1 MK2",\n    ["weapon_marksmanpistol"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9 \u03BC\u03BF\u03BD\u03BF\u03BC\u03AC\u03C7\u03BF\u03C5",\n    ["weapon_pistol"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9",\n    ["weapon_pistol_mk2"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9 MK2",\n    ["weapon_pistol50"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9 .50",\n    ["weapon_snspistol"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9 SNS",\n    ["weapon_snspistol_mk2"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9 SNS MK2",\n    ["weapon_stungun"] = "\u0397\u03BB\u03B5\u03BA\u03C4\u03C1\u03BF\u03C0\u03BB\u03B7\u03BE\u03AF\u03B1",\n    ["weapon_raypistol"] = "Up-N-Atomizer",\n    ["weapon_vintagepistol"] = "\u0392\u03B9\u03BF\u03BC\u03B7\u03C7\u03B1\u03BD\u03B9\u03BA\u03CC \u03C0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9",\n\n    -- \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B5\u03C2\n    ["weapon_assaultshotgun"] = "\u03A0\u03BF\u03BB\u03B5\u03BC\u03B9\u03BA\u03AE \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_autoshotgun"] = "\u0391\u03C5\u03C4\u03CC\u03BC\u03B1\u03C4\u03B7 \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_bullpupshotgun"] = "Bullpup \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_combatshotgun"] = "\u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 \u03C0\u03BF\u03BB\u03AD\u03BC\u03BF\u03C5",\n    ["weapon_dbshotgun"] = "\u0394\u03B9\u03C0\u03BB\u03AE\u03C2 \u03BA\u03AC\u03BD\u03BD\u03B7\u03C2 \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_heavyshotgun"] = "\u0392\u03B1\u03C1\u03B9\u03AC \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_musket"] = "\u039C\u03BF\u03C5\u03C3\u03BA\u03AD\u03C4\u03B1",\n    ["weapon_pumpshotgun"] = "\u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 \u03B1\u03BD\u03C4\u03BB\u03AF\u03B1\u03C2",\n    ["weapon_pumpshotgun_mk2"] = "\u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 \u03B1\u03BD\u03C4\u03BB\u03AF\u03B1\u03C2 MK2",\n    ["weapon_sawnoffshotgun"] = "\u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 \u03BC\u03B5 \u03BA\u03BF\u03BD\u03C4\u03AC \u03BA\u03AC\u03BD\u03BD\u03B7",\n\n    -- SMG & LMG\n    ["weapon_assaultsmg"] = "\u03A0\u03BF\u03BB\u03B5\u03BC\u03B9\u03BA\u03CC SMG",\n    ["weapon_combatmg"] = "\u03A0\u03BF\u03BB\u03B5\u03BC\u03B9\u03BA\u03CC MG",\n    ["weapon_combatmg_mk2"] = "\u03A0\u03BF\u03BB\u03B5\u03BC\u03B9\u03BA\u03CC MG MK2",\n    ["weapon_combatpdw"] = "\u03A0\u03BF\u03BB\u03B5\u03BC\u03B9\u03BA\u03CC PDW",\n    ["weapon_gusenberg"] = "Gusenberg Sweeper",\n    ["weapon_machinepistol"] = "\u03A0\u03B9\u03C3\u03C4\u03CC\u03BB\u03B9 \u0391\u03C5\u03C4\u03CC\u03BC\u03B1\u03C4\u03B7\u03C2 \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1\u03C2",\n    ["weapon_mg"] = "MG",\n    ["weapon_microsmg"] = "\u039C\u03B9\u03BA\u03C1\u03CC SMG",\n    ["weapon_minismg"] = "\u039C\u03B9\u03BA\u03C1\u03CC SMG",\n    ["weapon_smg"] = "SMG",\n    ["weapon_smg_mk2"] = "SMG MK2",\n    ["weapon_raycarbine"] = "\u0391\u03BD\u03B5\u03BE\u03AF\u03C4\u03B7\u03BB\u03BF Hellbringer",\n\n    -- \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B5\u03C2\n    ["weapon_advancedrifle"] = "\u03A0\u03C1\u03BF\u03B7\u03B3\u03BC\u03AD\u03BD\u03B7 \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_assaultrifle"] = "\u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 \u0395\u03C0\u03AF\u03B8\u03B5\u03C3\u03B7\u03C2",\n    ["weapon_assaultrifle_mk2"] = "\u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 \u0395\u03C0\u03AF\u03B8\u03B5\u03C3\u03B7\u03C2 MK2",\n    ["weapon_bullpuprifle"] = "Bullpup \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_bullpuprifle_mk2"] = "Bullpup \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 MK2",\n    ["weapon_carbinerifle"] = "\u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_carbinerifle_mk2"] = "\u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 MK2",\n    ["weapon_compactrifle"] = "\u03A3\u03C5\u03BC\u03C0\u03B1\u03B3\u03AE\u03C2 \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_militaryrifle"] = "\u03A3\u03C4\u03C1\u03B1\u03C4\u03B9\u03C9\u03C4\u03B9\u03BA\u03AE \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_specialcarbine"] = "\u0395\u03B9\u03B4\u03B9\u03BA\u03AE \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1",\n    ["weapon_specialcarbine_mk2"] = "\u0395\u03B9\u03B4\u03B9\u03BA\u03AE \u039A\u03B1\u03C1\u03B1\u03BC\u03C0\u03AF\u03BD\u03B1 MK2",\n\n    -- \u039A\u03C5\u03BD\u03B7\u03B3\u03B5\u03C4\u03B9\u03BA\u03AC\n    ["weapon_heavysniper"] = "\u0392\u03B1\u03C1\u03CD \u039A\u03C5\u03BD\u03B7\u03B3\u03B5\u03C4\u03B9\u03BA\u03CC \u03A1\u03AF\u03C6\u03BB\u03B5",\n    ["weapon_heavysniper_mk2"] = "\u0392\u03B1\u03C1\u03CD \u039A\u03C5\u03BD\u03B7\u03B3\u03B5\u03C4\u03B9\u03BA\u03CC \u03A1\u03AF\u03C6\u03BB\u03B5 MK2",\n    ["weapon_marksmanrifle"] = "\u03A1\u03AF\u03C6\u03BB\u03B5 \u0395\u03C0\u03B1\u03B3\u03B3\u03B5\u03BB\u03BC\u03B1\u03C4\u03AF\u03B1 \u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03AE",\n    ["weapon_marksmanrifle_mk2"] = "\u03A1\u03AF\u03C6\u03BB\u03B5 \u0395\u03C0\u03B1\u03B3\u03B3\u03B5\u03BB\u03BC\u03B1\u03C4\u03AF\u03B1 \u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03AE MK2",\n    ["weapon_sniperrifle"] = "\u039A\u03C5\u03BD\u03B7\u03B3\u03B5\u03C4\u03B9\u03BA\u03CC \u03A1\u03AF\u03C6\u03BB\u03B5",\n    ["weapon_heavyrifle"] = "\u03B2\u03B1\u03C1\u03CD \u03C4\u03BF\u03C5\u03C6\u03AD\u03BA\u03B9",\n\n    -- \u0392\u03B1\u03C1\u03B9\u03AC / \u0395\u03BA\u03C4\u03BF\u03BE\u03B5\u03C5\u03C4\u03AD\u03C2\n    ["weapon_compactlauncher"] = "\u03A3\u03C5\u03BC\u03C0\u03B1\u03B3\u03AE\u03C2 \u0395\u03BA\u03C4\u03BF\u03BE\u03B5\u03C5\u03C4\u03AE\u03C2",\n    ["weapon_firework"] = "\u0395\u03BA\u03C4\u03BF\u03BE\u03B5\u03C5\u03C4\u03AE\u03C2 \u03A0\u03C5\u03C1\u03BF\u03C4\u03B5\u03C7\u03BD\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD",\n    ["weapon_grenadelauncher"] = "\u0395\u03BA\u03C4\u03BF\u03BE\u03B5\u03C5\u03C4\u03AE\u03C2 \u0393\u03C1\u03B1\u03BD\u03B1\u03C4\u03CE\u03BD",\n    ["weapon_hominglauncher"] = "\u0395\u03BA\u03C4\u03BF\u03BE\u03B5\u03C5\u03C4\u03AE\u03C2 \u0395\u03BE\u03CC\u03C1\u03C5\u03BE\u03B7\u03C2",\n    ["weapon_minigun"] = "Minigun",\n    ["weapon_railgun"] = "Railgun",\n    ["weapon_rpg"] = "\u0395\u03BA\u03C4\u03BF\u03BE\u03B5\u03C5\u03C4\u03AE\u03C2 \u03A0\u03C5\u03C1\u03B1\u03CD\u03BB\u03C9\u03BD",\n    ["weapon_rayminigun"] = "Widowmaker",\n\n    -- \u0395\u03C0\u03B9\u03C0\u03BB\u03AD\u03BF\u03BD \u038C\u03C0\u03BB\u03B1 \u03B1\u03C0\u03CC \u03C4\u03BF Criminal Enterprises DLC\n    ["weapon_metaldetector"] = "\u0391\u03BD\u03B9\u03C7\u03BD\u03B5\u03C5\u03C4\u03AE\u03C2 \u039C\u03B5\u03C4\u03AC\u03BB\u03BB\u03C9\u03BD",\n    ["weapon_precisionrifle"] = "\u038C\u03C0\u03BB\u03BF \u0391\u03BA\u03C1\u03AF\u03B2\u03B5\u03B9\u03B1\u03C2",\n    ["weapon_tactilerifle"] = "\u038C\u03C0\u03BB\u03BF \u0395\u03BE\u03C5\u03C0\u03B7\u03C1\u03AD\u03C4\u03B7\u03C3\u03B7\u03C2",\n\n    -- Drug wars dlc\n    ["weapon_candycane"] = "Candycane",\n    ["weapon_acidpackage"] = "Acid Package",\n    ["weapon_pistolxm3"] = "Pistol8 x3m",\n    ["weapon_railgunxm3"] = "Railgun",\n\n    -- \u03A1\u03AF\u03C8\u03B5\u03B9\u03C2\n    ["weapon_ball"] = "\u039C\u03C0\u03AC\u03BB\u03B1",\n    ["weapon_bzgas"] = "BZ Gas",\n    ["weapon_flare"] = "\u03A0\u03C5\u03C1\u03BF\u03C4\u03B5\u03C7\u03BD\u03AE\u03BC\u03B1\u03C4\u03B1",\n    ["weapon_grenade"] = "\u03A7\u03B5\u03B9\u03C1\u03BF\u03B2\u03BF\u03BC\u03B2\u03AF\u03B4\u03B1",\n    ["weapon_petrolcan"] = "\u039A\u03B1\u03BD\u03AD\u03BB\u03B1 \u0392\u03B5\u03BD\u03B6\u03AF\u03BD\u03B7\u03C2",\n    ["weapon_hazardcan"] = "\u039A\u03B1\u03BD\u03AD\u03BB\u03B1 \u0395\u03C0\u03B9\u03BA\u03AF\u03BD\u03B4\u03C5\u03BD\u03B7\u03C2 \u03A5\u03BB\u03B9\u03BA\u03CC\u03C4\u03B7\u03C4\u03B1\u03C2",\n    ["weapon_molotov"] = "\u039C\u03BF\u03BB\u03CC\u03C4\u03BF\u03C6",\n    ["weapon_proxmine"] = "\u039D\u03AC\u03C1\u03BA\u03B7 \u0395\u03B3\u03B3\u03CD\u03C4\u03B7\u03C4\u03B1\u03C2",\n    ["weapon_pipebomb"] = "\u0392\u03CC\u03BC\u03B2\u03B1 \u03A3\u03C9\u03BB\u03AE\u03BD\u03B1",\n    ["weapon_snowball"] = "\u03A7\u03B9\u03BF\u03BD\u03CC\u03BC\u03C0\u03B1\u03BB\u03B1",\n    ["weapon_stickybomb"] = "\u039A\u03BF\u03BB\u03BB\u03B7\u03C4\u03AE \u0392\u03CC\u03BC\u03B2\u03B1",\n    ["weapon_smokegrenade"] = "\u0394\u03B1\u03BA\u03C1\u03C5\u03B3\u03CC\u03BD\u03BF",\n\n    -- \u0395\u03B9\u03B4\u03B9\u03BA\u03AC\n    ["weapon_fireextinguisher"] = "\u03A0\u03C5\u03C1\u03BF\u03C3\u03B2\u03B5\u03C3\u03C4\u03AE\u03C1\u03B1\u03C2",\n    ["weapon_digiscanner"] = "\u03A8\u03B7\u03C6\u03B9\u03B1\u03BA\u03CC\u03C2 \u03A3\u03B1\u03C1\u03C9\u03C4\u03AE\u03C2",\n    ["weapon_garbagebag"] = "\u03A3\u03B1\u03BA\u03BF\u03CD\u03BB\u03B1 \u0391\u03C0\u03BF\u03C1\u03C1\u03B9\u03BC\u03BC\u03AC\u03C4\u03C9\u03BD",\n    ["weapon_handcuffs"] = "\u03A7\u03B5\u03B9\u03C1\u03BF\u03C0\u03AD\u03B4\u03B5\u03C2",\n    ["gadget_nightvision"] = "\u039D\u03C5\u03C7\u03C4\u03B5\u03C1\u03B9\u03BD\u03AE \u038C\u03C1\u03B1\u03C3\u03B7",\n    ["gadget_parachute"] = "\u0391\u03BB\u03B5\u03BE\u03AF\u03C0\u03C4\u03C9\u03C4\u03BF",\n\n    -- \u03A3\u03C5\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03AC \u038C\u03C0\u03BB\u03C9\u03BD\n    ["component_knuckle_base"] = "\u0392\u03B1\u03C3\u03B9\u03BA\u03CC \u039C\u03BF\u03BD\u03C4\u03AD\u03BB\u03BF",\n    ["component_knuckle_pimp"] = "\u039F \u03A6\u03B9\u03BB\u03CC\u03C4\u03B9\u03BC\u03BF\u03C2",\n    ["component_knuckle_ballas"] = "\u039F\u03B9 Ballas",\n    ["component_knuckle_dollar"] = "\u039F \u0395\u03BE\u03B1\u03C0\u03B1\u03C4\u03B7\u03C4\u03AE\u03C2",\n    ["component_knuckle_diamond"] = "\u0397 \u03A1\u03CC\u03BA\u03B1",\n    ["component_knuckle_hate"] = "\u039F \u039C\u03B9\u03C3\u03B7\u03C4\u03CC\u03C2",\n    ["component_knuckle_love"] = "\u039F \u0395\u03C1\u03B1\u03C3\u03C4\u03AE\u03C2",\n    ["component_knuckle_player"] = "\u039F \u03A0\u03B1\u03AF\u03BA\u03C4\u03B7\u03C2",\n    ["component_knuckle_king"] = "\u039F \u0392\u03B1\u03C3\u03B9\u03BB\u03B9\u03AC\u03C2",\n    ["component_knuckle_vagos"] = "\u039F\u03B9 Vagos",\n\n    ["component_luxary_finish"] = "\u03A0\u03BF\u03BB\u03C5\u03C4\u03B5\u03BB\u03AD\u03C2 \u03A6\u03B9\u03BD\u03AF\u03C1\u03B9\u03C3\u03BC\u03B1 \u038C\u03C0\u03BB\u03BF\u03C5",\n\n    ["component_handle_default"] = "\u03A0\u03C1\u03BF\u03B5\u03C0\u03B9\u03BB\u03B5\u03B3\u03BC\u03AD\u03BD\u03B7 \u03A7\u03B5\u03B9\u03C1\u03BF\u03BB\u03B1\u03B2\u03AE",\n    ["component_handle_vip"] = "\u03A7\u03B5\u03B9\u03C1\u03BF\u03BB\u03B1\u03B2\u03AE VIP",\n    ["component_handle_bodyguard"] = "\u03A7\u03B5\u03B9\u03C1\u03BF\u03BB\u03B1\u03B2\u03AE \u03A3\u03C9\u03BC\u03B1\u03C4\u03BF\u03C6\u03CD\u03BB\u03B1\u03BA\u03B1",\n\n    ["component_vip_finish"] = "\u03A0\u03BF\u03BB\u03C5\u03C4\u03B5\u03BB\u03AD\u03C2 \u03A6\u03B9\u03BD\u03AF\u03C1\u03B9\u03C3\u03BC\u03B1 VIP",\n    ["component_bodyguard_finish"] = "\u03A0\u03BF\u03BB\u03C5\u03C4\u03B5\u03BB\u03AD\u03C2 \u03A6\u03B9\u03BD\u03AF\u03C1\u03B9\u03C3\u03BC\u03B1 \u03A3\u03C9\u03BC\u03B1\u03C4\u03BF\u03C6\u03CD\u03BB\u03B1\u03BA\u03B1",\n\n    ["component_camo_finish"] = "\u03A8\u03B7\u03C6\u03B9\u03B1\u03BA\u03CC \u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6",\n    ["component_camo_finish2"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u03A0\u03B9\u03BD\u03B5\u03BB\u03AF\u03BF\u03C5",\n    ["component_camo_finish3"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u0394\u03AC\u03C3\u03BF\u03C5\u03C2",\n    ["component_camo_finish4"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u039A\u03C1\u03B1\u03BD\u03AF\u03BF\u03C5",\n    ["component_camo_finish5"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Sessanta Nove",\n    ["component_camo_finish6"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Perseus",\n    ["component_camo_finish7"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u039B\u03B5\u03BF\u03C0\u03AC\u03C1\u03B4\u03B1\u03BB\u03B7\u03C2",\n    ["component_camo_finish8"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u0396\u03AD\u03B2\u03C1\u03B1\u03C2",\n    ["component_camo_finish9"] = "\u0393\u03B5\u03C9\u03BC\u03B5\u03C4\u03C1\u03B9\u03BA\u03CC \u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6",\n    ["component_camo_finish10"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Boom",\n    ["component_camo_finish11"] = "\u03A0\u03B1\u03C4\u03C1\u03B9\u03C9\u03C4\u03B9\u03BA\u03CC \u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6",\n\n    ["component_camo_slide_finish"] = "\u03A8\u03B7\u03C6\u03B9\u03B1\u03BA\u03CC \u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Slide",\n    ["component_camo_slide_finish2"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u03A0\u03B9\u03BD\u03B5\u03BB\u03AF\u03BF\u03C5 Slide",\n    ["component_camo_slide_finish3"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u0394\u03AC\u03C3\u03BF\u03C5\u03C2 Slide",\n    ["component_camo_slide_finish4"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u039A\u03C1\u03B1\u03BD\u03AF\u03BF\u03C5 Slide",\n    ["component_camo_slide_finish5"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Sessanta Nove Slide",\n    ["component_camo_slide_finish6"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Perseus Slide",\n    ["component_camo_slide_finish7"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u039B\u03B5\u03BF\u03C0\u03AC\u03C1\u03B4\u03B1\u03BB\u03B7\u03C2 Slide",\n    ["component_camo_slide_finish8"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 \u0396\u03AD\u03B2\u03C1\u03B1\u03C2 Slide",\n    ["component_camo_slide_finish9"] = "\u0393\u03B5\u03C9\u03BC\u03B5\u03C4\u03C1\u03B9\u03BA\u03CC \u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Slide",\n    ["component_camo_slide_finish10"] = "\u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Boom Slide",\n    ["component_camo_slide_finish11"] = "\u03A0\u03B1\u03C4\u03C1\u03B9\u03C9\u03C4\u03B9\u03BA\u03CC \u039A\u03B1\u03BC\u03BF\u03C5\u03C6\u03BB\u03AC\u03B6 Slide",\n\n    ["component_clip_default"] = "\u03A0\u03C1\u03BF\u03B5\u03C0\u03B9\u03BB\u03B5\u03B3\u03BC\u03AD\u03BD\u03BF \u03A0\u03B5\u03C1\u03B9\u03BF\u03B4\u03B9\u03BA\u03CC",\n    ["component_clip_extended"] = "\u0395\u03C0\u03AD\u03BA\u03C4\u03B1\u03C3\u03B7 \u03A0\u03B5\u03C1\u03B9\u03BF\u03B4\u03B9\u03BA\u03BF\u03CD",\n    ["component_clip_drum"] = "\u03A0\u03B5\u03C1\u03B9\u03BF\u03B4\u03B9\u03BA\u03CC \u039A\u03AC\u03B4\u03BF\u03C2",\n    ["component_clip_box"] = "\u03A0\u03B5\u03C1\u03B9\u03BF\u03B4\u03B9\u03BA\u03CC \u039A\u03B9\u03B2\u03CE\u03C4\u03B9\u03BF",\n\n    ["component_scope_holo"] = "\u039F\u03BB\u03BF\u03B3\u03C1\u03B1\u03C6\u03B9\u03BA\u03AE \u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03B9\u03BA\u03AE \u03A3\u03C5\u03C3\u03BA\u03B5\u03C5\u03AE",\n    ["component_scope_small"] = "\u039C\u03B9\u03BA\u03C1\u03AE \u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03B9\u03BA\u03AE \u03A3\u03C5\u03C3\u03BA\u03B5\u03C5\u03AE",\n    ["component_scope_medium"] = "\u039C\u03B5\u03C3\u03B1\u03AF\u03B1 \u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03B9\u03BA\u03AE \u03A3\u03C5\u03C3\u03BA\u03B5\u03C5\u03AE",\n    ["component_scope_large"] = "\u039C\u03B5\u03B3\u03AC\u03BB\u03B7 \u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03B9\u03BA\u03AE \u03A3\u03C5\u03C3\u03BA\u03B5\u03C5\u03AE",\n    ["component_scope"] = "\u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03B9\u03BA\u03AE \u03A3\u03C5\u03C3\u03BA\u03B5\u03C5\u03AE \u0395\u03B3\u03BA\u03B1\u03C4\u03B5\u03C3\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7",\n    ["component_scope_advanced"] = "\u03A0\u03C1\u03BF\u03B7\u03B3\u03BC\u03AD\u03BD\u03B7 \u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03B9\u03BA\u03AE \u03A3\u03C5\u03C3\u03BA\u03B5\u03C5\u03AE",\n    ["component_ironsights"] = "\u03A3\u03BA\u03BF\u03C0\u03B5\u03C5\u03C4\u03B9\u03BA\u03AC \u03A3\u03B9\u03B4\u03B5\u03C1\u03AC",\n\n    ["component_suppressor"] = "\u039A\u03B1\u03C4\u03B1\u03C3\u03C4\u03B5\u03BD\u03B1\u03B3\u03BC\u03B1\u03C4\u03BF\u03C0\u03BF\u03B9\u03B7\u03C4\u03AE\u03C2",\n    ["component_compensator"] = "\u0391\u03C0\u03BF\u03B6\u03B7\u03BC\u03B9\u03C9\u03C4\u03AE\u03C2",\n\n    ["component_muzzle_flat"] = "\u0395\u03C0\u03AF\u03C0\u03B5\u03B4\u03BF \u03A6\u03C1\u03AD\u03BD\u03BF \u0391\u03AD\u03C1\u03B1",\n    ["component_muzzle_tactical"] = "\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC \u03A6\u03C1\u03AD\u03BD\u03BF \u0391\u03AD\u03C1\u03B1",\n    ["component_muzzle_fat"] = "\u03A6\u03C1\u03AD\u03BD\u03BF \u0391\u03AD\u03C1\u03B1 \u03A0\u03B1\u03C7\u03CD \u0386\u03BA\u03C1\u03BF",\n    ["component_muzzle_precision"] = "\u03A6\u03C1\u03AD\u03BD\u03BF \u0391\u03AD\u03C1\u03B1 \u0391\u03BA\u03C1\u03AF\u03B2\u03B5\u03B9\u03B1\u03C2",\n    ["component_muzzle_heavy"] = "\u03A6\u03C1\u03AD\u03BD\u03BF \u0391\u03AD\u03C1\u03B1 \u0392\u03B1\u03C1\u03AD\u03C9\u03C2 \u03A4\u03CD\u03C0\u03BF\u03C5",\n    ["component_muzzle_slanted"] = "\u03A6\u03C1\u03AD\u03BD\u03BF \u0391\u03AD\u03C1\u03B1 \u0391\u03BD\u03BF\u03B9\u03B3\u03BF\u03BA\u03BB\u03B5\u03B9\u03C3\u03C4\u03CC",\n    ["component_muzzle_split"] = "\u03A6\u03C1\u03AD\u03BD\u03BF \u0391\u03AD\u03C1\u03B1 \u03A5\u03C0\u03BF\u03BA\u03BB\u03B9\u03BC\u03B1\u03BA\u03BF\u03CD\u03BC\u03B5\u03BD\u03BF",\n    ["component_muzzle_squared"] = "\u03A6\u03C1\u03AD\u03BD\u03BF \u0391\u03AD\u03C1\u03B1 \u03A4\u03B5\u03C4\u03C1\u03B1\u03B3\u03C9\u03BD\u03B9\u03C3\u03BC\u03AD\u03BD\u03BF",\n\n    ["component_flashlight"] = "\u03A6\u03B1\u03BA\u03CC\u03C2",\n    ["component_grip"] = "\u039B\u03B1\u03B2\u03AE",\n\n    ["component_barrel_default"] = "\u03A0\u03C1\u03BF\u03B5\u03C0\u03B9\u03BB\u03B5\u03B3\u03BC\u03AD\u03BD\u03BF \u039A\u03AC\u03BD\u03BD\u03B1",\n    ["component_barrel_heavy"] = "\u0392\u03B1\u03C1\u03B9\u03AC \u039A\u03AC\u03BD\u03BD\u03B1",\n\n    ["component_ammo_tracer"] = "\u03A3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2 \u03BC\u03B5 \u0399\u03C7\u03BD\u03B7\u03B8\u03AD\u03BD \u03A6\u03C9\u03C4\u03CC\u03C2",\n    ["component_ammo_incendiary"] = "\u03A3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2 \u03A6\u03C9\u03C4\u03B9\u03AC\u03C2",\n    ["component_ammo_hollowpoint"] = "\u03A3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2 \u039A\u03B5\u03BD\u03AD\u03C2 \u0386\u03BA\u03C1\u03B5\u03C2",\n    ["component_ammo_fmj"] = "\u03A3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2 FMJ",\n    ["component_ammo_armor"] = "\u03A3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2 \u0394\u03B9\u03AC\u03C4\u03C1\u03B7\u03C3\u03B7\u03C2 \u0398\u03C9\u03C1\u03AC\u03BA\u03B9\u03C3\u03B7\u03C2",\n    ["component_ammo_explosive"] = "\u0395\u03BA\u03C1\u03B7\u03BA\u03C4\u03B9\u03BA\u03AD\u03C2 \u03A3\u03C6\u03B1\u03AF\u03C1\u03B5\u03C2 \u0394\u03B9\u03AC\u03C4\u03C1\u03B7\u03C3\u03B7\u03C2 \u0398\u03C9\u03C1\u03AC\u03BA\u03B9\u03C3\u03B7\u03C2",\n\n    ["component_shells_default"] = "\u03A0\u03C1\u03BF\u03B5\u03C0\u03B9\u03BB\u03B5\u03B3\u03BC\u03AD\u03BD\u03B5\u03C2 \u03A6\u03C5\u03C3\u03AF\u03B3\u03B3\u03B9\u03B1",\n    ["component_shells_incendiary"] = "\u03A6\u03C5\u03C3\u03AF\u03B3\u03B3\u03B9\u03B1 \u0394\u03B9\u03B1\u03BC\u03B1\u03BD\u03C4\u03B9\u03BD\u03CE\u03BD",\n    ["component_shells_armor"] = "\u03A6\u03C5\u03C3\u03AF\u03B3\u03B3\u03B9\u03B1 \u0398\u03C9\u03C1\u03AC\u03BA\u03B9\u03C3\u03B7\u03C2 \u03A7\u03AC\u03BB\u03C5\u03B2\u03B1",\n    ["component_shells_hollowpoint"] = "\u03A6\u03C5\u03C3\u03AF\u03B3\u03B3\u03B9\u03B1 \u039A\u03B5\u03BD\u03CE\u03BD \u0386\u03BA\u03C1\u03C9\u03BD",\n    ["component_shells_explosive"] = "\u03A6\u03C5\u03C3\u03AF\u03B3\u03B3\u03B9\u03B1 \u0395\u03BA\u03C1\u03B7\u03BA\u03C4\u03B9\u03BA\u03CE\u03BD",\n\n    -- \u03A0\u03C5\u03C1\u03BF\u03BC\u03B1\u03C7\u03B9\u03BA\u03AC \u038C\u03C0\u03BB\u03C9\u03BD\n    ["ammo_rounds"] = "\u03C3\u03C6\u03B1\u03B9\u03C1\u03AF\u03B4\u03B9\u03BF(\u03B1)",\n    ["ammo_shells"] = "\u03C6\u03C5\u03C3\u03AF\u03B3\u03B3\u03B9\u03BF(\u03B1)",\n    ["ammo_charge"] = "\u03C6\u03BF\u03C1\u03C4\u03AF\u03BF",\n    ["ammo_petrol"] = "\u03B3\u03B1\u03BB\u03CC\u03BD\u03B9\u03B1 \u03BA\u03B1\u03C5\u03C3\u03AF\u03BC\u03BF\u03C5",\n    ["ammo_firework"] = "\u03C0\u03C5\u03C1\u03BF\u03C4\u03B5\u03C7\u03BD\u03AE\u03BC\u03B1\u03C4\u03BF(\u03B1)",\n    ["ammo_rockets"] = "\u03C0\u03CD\u03C1\u03B1\u03C5\u03BB\u03BF(\u03B9)",\n    ["ammo_grenadelauncher"] = "\u03C7\u03B5\u03B9\u03C1\u03BF\u03B2\u03BF\u03BC\u03B2\u03AF\u03B4\u03B1(\u03B5\u03C2)",\n    ["ammo_grenade"] = "\u03C7\u03B5\u03B9\u03C1\u03BF\u03B2\u03BF\u03BC\u03B2\u03AF\u03B4\u03B1(\u03B5\u03C2)",\n    ["ammo_stickybomb"] = "\u03B2\u03CC\u03BC\u03B2\u03B1(\u03B5\u03C2)",\n    ["ammo_pipebomb"] = "\u03B2\u03CC\u03BC\u03B2\u03B1(\u03B5\u03C2)",\n    ["ammo_smokebomb"] = "\u03B2\u03CC\u03BC\u03B2\u03B1(\u03B5\u03C2) \u03BA\u03B1\u03C0\u03BD\u03BF\u03CD",\n    ["ammo_molotov"] = "\u03BA\u03BF\u03BA\u03C4\u03AD\u03B9\u03BB \u03BC\u03BF\u03BB\u03CC\u03C4\u03BF\u03C6(\u03B1)",\n    ["ammo_proxmine"] = "\u03BC\u03AF\u03BD\u03B1(\u03B5\u03C2) \u03B5\u03B3\u03B3\u03CD\u03C4\u03B7\u03C4\u03B1\u03C2",\n    ["ammo_bzgas"] = "\u03BA\u03B1\u03BD\u03AF\u03C3\u03C4\u03C1\u03B1(\u03B5\u03C2)",\n    ["ammo_ball"] = "\u03BC\u03C0\u03AC\u03BB\u03B1(\u03B5\u03C2)",\n    ["ammo_snowball"] = "\u03C7\u03B9\u03BF\u03BD\u03CC\u03BC\u03C0\u03B1\u03BB\u03B1(\u03B5\u03C2)",\n    ["ammo_flare"] = "\u03C6\u03BB\u03BF\u03B3\u03BF\u03B2\u03BF\u03BB\u03AF\u03B4\u03B1(\u03B5\u03C2)",\n    ["ammo_flaregun"] = "\u03C6\u03BB\u03BF\u03B3\u03BF\u03B2\u03BF\u03BB\u03AF\u03B4\u03B1(\u03B5\u03C2)",\n\n    -- \u0395\u03C0\u03B9\u03C3\u03C4\u03C1\u03CE\u03C3\u03B5\u03B9\u03C2 \u038C\u03C0\u03BB\u03C9\u03BD\n    ["tint_default"] = "\u03C0\u03C1\u03BF\u03B5\u03C0\u03B9\u03BB\u03B5\u03B3\u03BC\u03AD\u03BD\u03BF \u03B4\u03AD\u03C1\u03BC\u03B1",\n    ["tint_green"] = "\u03C0\u03C1\u03AC\u03C3\u03B9\u03BD\u03BF \u03B4\u03AD\u03C1\u03BC\u03B1",\n    ["tint_gold"] = "\u03C7\u03C1\u03C5\u03C3\u03CC \u03B4\u03AD\u03C1\u03BC\u03B1",\n    ["tint_pink"] = "\u03C1\u03BF\u03B6 \u03B4\u03AD\u03C1\u03BC\u03B1",\n    ["tint_army"] = "\u03C3\u03C4\u03C1\u03B1\u03C4\u03B9\u03C9\u03C4\u03B9\u03BA\u03CC \u03B4\u03AD\u03C1\u03BC\u03B1",\n    ["tint_lspd"] = "\u03BC\u03C0\u03BB\u03B5 \u03B4\u03AD\u03C1\u03BC\u03B1",\n    ["tint_orange"] = "\u03C0\u03BF\u03C1\u03C4\u03BF\u03BA\u03B1\u03BB\u03AF \u03B4\u03AD\u03C1\u03BC\u03B1",\n    ["tint_platinum"] = "\u03C0\u03BB\u03B1\u03C4\u03AF\u03BD\u03B5\u03BD\u03BF \u03B4\u03AD\u03C1\u03BC\u03B1",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03CC \u03BC\u03B1\u03CD\u03C1\u03BF",\n    ["tint_classic_gray"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03CC \u03B3\u03BA\u03C1\u03B9",\n    ["tint_classic_two_tone"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03CC \u03B4\u03AF\u03C7\u03C1\u03C9\u03BC\u03BF",\n    ["tint_classic_white"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03CC \u03BB\u03B5\u03C5\u03BA\u03CC",\n    ["tint_classic_beige"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03CC \u03BC\u03C0\u03B5\u03B6",\n    ["tint_classic_green"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03CC \u03C0\u03C1\u03AC\u03C3\u03B9\u03BD\u03BF",\n    ["tint_classic_blue"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03CC \u03BC\u03C0\u03BB\u03B5",\n    ["tint_classic_earth"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03AE \u03B3\u03AE",\n    ["tint_classic_brown_black"] = "\u03BA\u03BB\u03B1\u03C3\u03B9\u03BA\u03CC \u03BA\u03B1\u03C6\u03AD-\u03BC\u03B1\u03CD\u03C1\u03BF",\n    ["tint_contrast_red"] = "\u03B1\u03BD\u03C4\u03AF\u03B8\u03B5\u03C3\u03B7 \u03BA\u03CC\u03BA\u03BA\u03B9\u03BD\u03BF",\n    ["tint_contrast_blue"] = "\u03B1\u03BD\u03C4\u03AF\u03B8\u03B5\u03C3\u03B7 \u03BC\u03C0\u03BB\u03B5",\n    ["tint_contrast_yellow"] = "\u03B1\u03BD\u03C4\u03AF\u03B8\u03B5\u03C3\u03B7 \u03BA\u03AF\u03C4\u03C1\u03B9\u03BD\u03BF",\n    ["tint_contrast_orange"] = "\u03B1\u03BD\u03C4\u03AF\u03B8\u03B5\u03C3\u03B7 \u03C0\u03BF\u03C1\u03C4\u03BF\u03BA\u03B1\u03BB\u03AF",\n    ["tint_bold_pink"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03C1\u03BF\u03B6",\n    ["tint_bold_purple_yellow"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03BC\u03BF\u03B2-\u03BA\u03AF\u03C4\u03C1\u03B9\u03BD\u03BF",\n    ["tint_bold_orange"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03C0\u03BF\u03C1\u03C4\u03BF\u03BA\u03B1\u03BB\u03AF",\n    ["tint_bold_green_purple"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03C0\u03C1\u03AC\u03C3\u03B9\u03BD\u03BF-\u03BC\u03BF\u03B2",\n    ["tint_bold_red_feat"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03BA\u03CC\u03BA\u03BA\u03B9\u03BD\u03BF feat",\n    ["tint_bold_green_feat"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03C0\u03C1\u03AC\u03C3\u03B9\u03BD\u03BF feat",\n    ["tint_bold_cyan_feat"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03BA\u03C5\u03B1\u03BD\u03CC feat",\n    ["tint_bold_yellow_feat"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03BA\u03AF\u03C4\u03C1\u03B9\u03BD\u03BF feat",\n    ["tint_bold_red_white"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03BA\u03CC\u03BA\u03BA\u03B9\u03BD\u03BF \u03BB\u03B5\u03C5\u03BA\u03CC",\n    ["tint_bold_blue_white"] = "\u03C4\u03BF\u03BB\u03BC\u03B7\u03C1\u03CC \u03BC\u03C0\u03BB\u03B5 \u03BB\u03B5\u03C5\u03BA\u03CC",\n    ["tint_metallic_gold"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03C7\u03C1\u03C5\u03C3\u03CC",\n    ["tint_metallic_platinum"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03C0\u03BB\u03B1\u03C4\u03AF\u03BD\u03B1",\n    ["tint_metallic_gray_lilac"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03B3\u03BA\u03C1\u03B9 \u03BB\u03B9\u03BB\u03AC",\n    ["tint_metallic_purple_lime"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03BC\u03BF\u03B2-\u03BB\u03AC\u03B9\u03BC",\n    ["tint_metallic_red"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03BA\u03CC\u03BA\u03BA\u03B9\u03BD\u03BF",\n    ["tint_metallic_green"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03C0\u03C1\u03AC\u03C3\u03B9\u03BD\u03BF",\n    ["tint_metallic_blue"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03BC\u03C0\u03BB\u03B5",\n    ["tint_metallic_white_aqua"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03BB\u03B5\u03C5\u03BA\u03CC aqua",\n    ["tint_metallic_red_yellow"] = "\u03BC\u03B5\u03C4\u03B1\u03BB\u03BB\u03B9\u03BA\u03CC \u03BA\u03CC\u03BA\u03BA\u03B9\u03BD\u03BF-\u03BA\u03AF\u03C4\u03C1\u03B9\u03BD\u03BF",\n}\n',
+        "locales/en.lua": 'return {\n    -- Inventory\n    ["inventory"] = "Inventory ( Weight %s / %s )",\n    ["use"] = "Use",\n    ["give"] = "Give",\n    ["remove"] = "Throw",\n    ["return"] = "Return",\n    ["give_to"] = "Give to",\n    ["amount"] = "Amount",\n    ["giveammo"] = "Give ammo",\n    ["amountammo"] = "Ammo Amount",\n    ["noammo"] = "Not Enough!",\n    ["gave_item"] = "Giving %sx %s to %s",\n    ["received_item"] = "Received %sx %s from %s",\n    ["gave_weapon"] = "Giving %s to %s",\n    ["gave_weapon_ammo"] = "Giving ~o~%sx %s for %s to %s",\n    ["gave_weapon_withammo"] = "Giving %s with ~o~%sx %s to %s",\n    ["gave_weapon_hasalready"] = "%s already has a %s",\n    ["gave_weapon_noweapon"] = "%s does not have that weapon",\n    ["received_weapon"] = "Received %s from %s",\n    ["received_weapon_ammo"] = "Received ~o~%sx %s for your %s from %s",\n    ["received_weapon_withammo"] = "Received %s with ~o~%sx %s from %s",\n    ["received_weapon_hasalready"] = "%s has attempted to give you a %s, but you already this weapon",\n    ["received_weapon_noweapon"] = "%s has attempted to give you ammo for a %s, but you do not have this weapon",\n    ["gave_account_money"] = "Giving $%s (%s) to %s",\n    ["received_account_money"] = "Received $%s (%s) from %s",\n    ["amount_invalid"] = "Invalid quantity",\n    ["players_nearby"] = "No nearby Players",\n    ["ex_inv_lim"] = "Cannot perfom action,exceeding max weight of %s",\n    ["imp_invalid_quantity"] = "Cannot perfom action, the quantity is invalid",\n    ["imp_invalid_amount"] = "Cannot perfom action, the amount is invalid",\n    ["threw_standard"] = "Throwing %sx %s",\n    ["threw_account"] = "Throwing $%s %s",\n    ["threw_weapon"] = "Throwing %s",\n    ["threw_weapon_ammo"] = "Throwing %s with ~o~%sx %s",\n    ["threw_weapon_already"] = "You already have this weapon",\n    ["threw_cannot_pickup"] = "Inventory is full, Cannot Pickup!",\n    ["threw_pickup_prompt"] = "Press E to Pickup",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "Show Inventory",\n\n    -- Salary related\n    ["received_salary"] = "You have been paid: $%s",\n    ["received_help"] = "You have been paid your welfare check: $%s",\n    ["company_nomoney"] = "the company you\'re employeed at is too poor to pay out your salary",\n    ["received_paycheck"] = "received paycheck",\n    ["bank"] = "Maze Bank",\n    ["account_bank"] = "Bank",\n    ["account_black_money"] = "Dirty Money",\n    ["account_money"] = "Cash",\n\n    ["act_imp"] = "Cannot Perform Action",\n    ["in_vehicle"] = "Cannot Perform Action, Player is in a vehicle",\n    ["not_in_vehicle"] = "Cannot Perform Action, Player isn\'t in a vehicle",\n\n    -- Commands\n    ["command_bring"] = "Bring player to you",\n    ["command_car"] = "Spawn a vehicle",\n    ["command_car_car"] = "Vehicle model or hash",\n    ["command_cardel"] = "Remove vehicles in proximity",\n    ["command_cardel_radius"] = "Removes all vehicles within the specified radius",\n    ["command_repair"] = "Repair your vehicle",\n    ["command_repair_success"] = "Successfully repaired vehicle",\n    ["command_repair_success_target"] = "An admin repaired your vehicle",\n    ["command_clear"] = "Clear chat Text",\n    ["command_clearall"] = "Clear chat Text for all players",\n    ["command_refreshitems"] = "Reload all items from the database.",\n    ["command_refreshitems_success"] = "Successfully reloaded %d items.",\n    ["command_clearinventory"] = "Remove All items from the Players Inventory",\n    ["command_clearloadout"] = "Remove All weapons from the Players Loadout",\n    ["command_freeze"] = "Freeze a player",\n    ["command_unfreeze"] = "Unfreeze a player",\n    ["command_giveaccountmoney"] = "Give Money to a specified Account",\n    ["command_giveaccountmoney_account"] = "Account to add to",\n    ["command_giveaccountmoney_amount"] = "Amount to add",\n    ["command_giveaccountmoney_invalid"] = "Account Name Invalid",\n    ["command_removeaccountmoney"] = "Remove Money from a specified Account",\n    ["command_removeaccountmoney_account"] = "Account to remove from",\n    ["command_removeaccountmoney_amount"] = "Amount to remove",\n    ["command_removeaccountmoney_invalid"] = "Account Name Invalid",\n    ["command_giveitem"] = "Give Player an item",\n    ["command_giveitem_item"] = "Item name",\n    ["command_giveitem_count"] = "Quantity",\n    ["command_giveweapon"] = "Give player a weapon",\n    ["command_giveweapon_weapon"] = "Weapon name",\n    ["command_giveweapon_ammo"] = "Ammo Quantity",\n    ["command_giveweapon_hasalready"] = "Player already has this weapon",\n    ["command_giveweaponcomponent"] = "Give weapon component to player",\n    ["command_giveweaponcomponent_component"] = "Component name",\n    ["command_giveweaponcomponent_invalid"] = "Invalid weapon component",\n    ["command_giveweaponcomponent_hasalready"] = "Player already has this weapon component",\n    ["command_giveweaponcomponent_missingweapon"] = "Player does not have this weapon",\n    ["command_goto"] = "Teleport yourself to a player",\n    ["command_kill"] = "Kill a player",\n    ["command_save"] = "Force Save a player`s Data",\n    ["command_saveall"] = "Force Save all player data",\n    ["command_setaccountmoney"] = "Set the money within a specified account",\n    ["command_setaccountmoney_amount"] = "Amount",\n    ["command_setcoords"] = "Teleport to specified Coordinates",\n    ["command_setcoords_x"] = "X value",\n    ["command_setcoords_y"] = "Y value",\n    ["command_setcoords_z"] = "Z value",\n    ["command_setjob"] = "Set a player`s job",\n    ["command_setjob_job"] = "Name",\n    ["command_setjob_grade"] = "Job grade",\n    ["command_setjob_invalid"] = "the job, grade or both are invalid",\n    ["command_setgroup"] = "Set a players permission group",\n    ["command_setgroup_group"] = "Name of Group",\n    ["commanderror_argumentmismatch"] = "Invalid Argument Count (passed %s, wanted %s)",\n    ["commanderror_argumentmismatch_number"] = "Invalid Argument #%s data type (passed string, wanted number)",\n    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",\n    ["commanderror_argumentmismatch_positive_number"] = "Invalid Argument #%s data type (passed negative/zero, wanted positive number)",\n    ["commanderror_invaliditem"] = "Invalid item",\n    ["commanderror_invalidweapon"] = "Invalid weapon",\n    ["commanderror_console"] = "Command Cannot be executed from console",\n    ["commanderror_invalidcommand"] = "Invalid Command - /%s",\n    ["commanderror_invalidplayerid"] = "Specified Player is not online",\n    ["commandgeneric_playerid"] = "Player`s Server Id",\n    ["commandgeneric_dimension"] = "Target Dimension",\n    ["command_giveammo_noweapon_found"] = "%s does not have that weapon",\n    ["command_giveammo_weapon"] = "Weapon name",\n    ["command_giveammo_ammo"] = "Ammo Quantity",\n    ["command_setdim"] = "Set a players dimension",\n    ["tpm_nowaypoint"] = "No Waypoint Set.",\n    ["tpm_success"] = "Successfully Teleported",\n\n    ["noclip_message"] = "Noclip has been %s",\n    ["enabled"] = "~g~enabled~s~",\n    ["disabled"] = "~r~disabled~s~",\n\n    -- Locale settings\n    ["locale_digit_grouping_symbol"] = ",",\n    ["locale_currency"] = "\xA3%s",\n\n    -- Weapons\n\n    -- Melee\n    ["weapon_dagger"] = "Dagger",\n    ["weapon_bat"] = "Bat",\n    ["weapon_battleaxe"] = "Battle Axe",\n    ["weapon_bottle"] = "Bottle",\n    ["weapon_crowbar"] = "Crowbar",\n    ["weapon_flashlight"] = "Flashlight",\n    ["weapon_golfclub"] = "Golf Club",\n    ["weapon_hammer"] = "Hammer",\n    ["weapon_hatchet"] = "Hatchet",\n    ["weapon_knife"] = "Knife",\n    ["weapon_knuckle"] = "Knuckledusters",\n    ["weapon_machete"] = "Machete",\n    ["weapon_nightstick"] = "Nightstick",\n    ["weapon_wrench"] = "Pipe Wrench",\n    ["weapon_poolcue"] = "Pool Cue",\n    ["weapon_stone_hatchet"] = "Stone Hatchet",\n    ["weapon_switchblade"] = "Switchblade",\n\n    -- Handguns\n    ["weapon_appistol"] = "AP Pistol",\n    ["weapon_ceramicpistol"] = "Ceramic Pistol",\n    ["weapon_combatpistol"] = "Combat Pistol",\n    ["weapon_doubleaction"] = "Double-Action Revolver",\n    ["weapon_navyrevolver"] = "Navy Revolver",\n    ["weapon_flaregun"] = "Flaregun",\n    ["weapon_gadgetpistol"] = "Gadget Pistol",\n    ["weapon_heavypistol"] = "Heavy Pistol",\n    ["weapon_revolver"] = "Heavy Revolver",\n    ["weapon_revolver_mk2"] = "Heavy Revolver MK2",\n    ["weapon_marksmanpistol"] = "Marksman Pistol",\n    ["weapon_pistol"] = "Pistol",\n    ["weapon_pistol_mk2"] = "Pistol MK2",\n    ["weapon_pistol50"] = "Pistol .50",\n    ["weapon_snspistol"] = "SNS Pistol",\n    ["weapon_snspistol_mk2"] = "SNS Pistol MK2",\n    ["weapon_stungun"] = "Taser",\n    ["weapon_raypistol"] = "Up-N-Atomizer",\n    ["weapon_vintagepistol"] = "Vintage Pistol",\n\n    -- Shotguns\n    ["weapon_assaultshotgun"] = "Assault Shotgun",\n    ["weapon_autoshotgun"] = "Auto Shotgun",\n    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",\n    ["weapon_combatshotgun"] = "Combat Shotgun",\n    ["weapon_dbshotgun"] = "Double Barrel Shotgun",\n    ["weapon_heavyshotgun"] = "Heavy Shotgun",\n    ["weapon_musket"] = "Musket",\n    ["weapon_pumpshotgun"] = "Pump Shotgun",\n    ["weapon_pumpshotgun_mk2"] = "Pump Shotgun MK2",\n    ["weapon_sawnoffshotgun"] = "Sawed Off Shotgun",\n\n    -- SMG & LMG\n    ["weapon_assaultsmg"] = "Assault SMG",\n    ["weapon_combatmg"] = "Combat MG",\n    ["weapon_combatmg_mk2"] = "Combat MG MK2",\n    ["weapon_combatpdw"] = "Combat PDW",\n    ["weapon_gusenberg"] = "Gusenberg Sweeper",\n    ["weapon_machinepistol"] = "Machine Pistol",\n    ["weapon_mg"] = "MG",\n    ["weapon_microsmg"] = "Micro SMG",\n    ["weapon_minismg"] = "Mini SMG",\n    ["weapon_smg"] = "SMG",\n    ["weapon_smg_mk2"] = "SMG MK2",\n    ["weapon_raycarbine"] = "Unholy Hellbringer",\n    ["weapon_tecpistol"] = "Tactical SMG",\n\n    -- Rifles\n    ["weapon_advancedrifle"] = "Advanced Rifle",\n    ["weapon_assaultrifle"] = "Assault Rifle",\n    ["weapon_assaultrifle_mk2"] = "Assault Rifle MK2",\n    ["weapon_bullpuprifle"] = "Bullpup Rifle",\n    ["weapon_bullpuprifle_mk2"] = "Bullpup Rifle MK2",\n    ["weapon_carbinerifle"] = "Carbine Rifle",\n    ["weapon_carbinerifle_mk2"] = "Carbine Rifle MK2",\n    ["weapon_compactrifle"] = "Compact Rifle",\n    ["weapon_militaryrifle"] = "Military Rifle",\n    ["weapon_specialcarbine"] = "Special Carbine",\n    ["weapon_specialcarbine_mk2"] = "Special Carbine MK2",\n    ["weapon_heavyrifle"] = "Heavy Rifle",\n    ["weapon_battlerifle"] = "Battle Rifle",\n\n    -- Sniper\n    ["weapon_heavysniper"] = "Heavy Sniper",\n    ["weapon_heavysniper_mk2"] = "Heavy Sniper MK2",\n    ["weapon_marksmanrifle"] = "Marksman Rifle",\n    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle MK2",\n    ["weapon_sniperrifle"] = "Sniper Rifle",\n\n    -- Heavy / Launchers\n    ["weapon_compactlauncher"] = "Compact Launcher",\n    ["weapon_firework"] = "Firework Launcher",\n    ["weapon_grenadelauncher"] = "Grenade Launcher",\n    ["weapon_hominglauncher"] = "Homing Launcher",\n    ["weapon_minigun"] = "Minigun",\n    ["weapon_railgun"] = "Railgun",\n    ["weapon_rpg"] = "Rocket Launcher",\n    ["weapon_rayminigun"] = "Widowmaker",\n\n    -- Criminal Enterprises DLC\n    ["weapon_metaldetector"] = "Metal Detector",\n    ["weapon_precisionrifle"] = "Precision Rifle",\n    ["weapon_tactilerifle"] = "Service Carbine",\n\n    -- Drug wars dlc\n    ["weapon_candycane"] = "Candycane",\n    ["weapon_acidpackage"] = "Acid Package",\n    ["weapon_pistolxm3"] = "Pistol8 x3m",\n    ["weapon_railgunxm3"] = "Railgun",\n\n    -- Chop Shop DLC\n    ["weapon_snowlauncher"] = "Snow Launcher",\n    ["weapon_hackingdevice"] = "Hacking Device",\n\n    -- Bottom Dollar Bounties DLC\n    ["weapon_stunrod"] = "The Shocker",\n\n    -- Thrown\n    ["weapon_ball"] = "Baseball",\n    ["weapon_bzgas"] = "BZ Gas",\n    ["weapon_flare"] = "Flare",\n    ["weapon_grenade"] = "Grenade",\n    ["weapon_petrolcan"] = "Jerrycan",\n    ["weapon_hazardcan"] = "Hazardous Jerrycan",\n    ["weapon_molotov"] = "Molotov Cocktail",\n    ["weapon_proxmine"] = "Proximity Mine",\n    ["weapon_pipebomb"] = "Pipe Bomb",\n    ["weapon_snowball"] = "Snowball",\n    ["weapon_stickybomb"] = "Sticky Bomb",\n    ["weapon_smokegrenade"] = "Tear Gas",\n\n    -- Special\n    ["weapon_fireextinguisher"] = "Fire Extinguisher",\n    ["weapon_digiscanner"] = "Digital Scanner",\n    ["weapon_garbagebag"] = "Garbage Bag",\n    ["weapon_handcuffs"] = "Handcuffs",\n    ["gadget_nightvision"] = "Night Vision",\n    ["gadget_parachute"] = "parachute",\n\n    -- Weapon Components\n    ["component_knuckle_base"] = "base Model",\n    ["component_knuckle_pimp"] = "the Pimp",\n    ["component_knuckle_ballas"] = "the Ballas",\n    ["component_knuckle_dollar"] = "the Hustler",\n    ["component_knuckle_diamond"] = "the Rock",\n    ["component_knuckle_hate"] = "the Hater",\n    ["component_knuckle_love"] = "the Lover",\n    ["component_knuckle_player"] = "the Player",\n    ["component_knuckle_king"] = "the King",\n    ["component_knuckle_vagos"] = "the Vagos",\n\n    ["component_luxary_finish"] = "luxary Weapon Finish",\n\n    ["component_handle_default"] = "default Handle",\n    ["component_handle_vip"] = "vIP Handle",\n    ["component_handle_bodyguard"] = "bodyguard Handle",\n\n    ["component_vip_finish"] = "vIP Finish",\n    ["component_bodyguard_finish"] = "bodyguard Finish",\n\n    ["component_camo_finish"] = "digital Camo",\n    ["component_camo_finish2"] = "brushstroke Camo",\n    ["component_camo_finish3"] = "woodland Camo",\n    ["component_camo_finish4"] = "skull Camo",\n    ["component_camo_finish5"] = "sessanta Nove Camo",\n    ["component_camo_finish6"] = "perseus Camo",\n    ["component_camo_finish7"] = "leopard Camo",\n    ["component_camo_finish8"] = "zebra Camo",\n    ["component_camo_finish9"] = "geometric Camo",\n    ["component_camo_finish10"] = "boom Camo",\n    ["component_camo_finish11"] = "patriotic Camo",\n\n    ["component_camo_slide_finish"] = "digital Slide Camo",\n    ["component_camo_slide_finish2"] = "brushstroke Slide Camo",\n    ["component_camo_slide_finish3"] = "woodland Slide Camo",\n    ["component_camo_slide_finish4"] = "skull Slide Camo",\n    ["component_camo_slide_finish5"] = "sessanta Nove Slide Camo",\n    ["component_camo_slide_finish6"] = "perseus Slide Camo",\n    ["component_camo_slide_finish7"] = "leopard Slide Camo",\n    ["component_camo_slide_finish8"] = "zebra Slide Camo",\n    ["component_camo_slide_finish9"] = "geometric Slide Camo",\n    ["component_camo_slide_finish10"] = "boom Slide Camo",\n    ["component_camo_slide_finish11"] = "patriotic Slide Camo",\n\n    ["component_clip_default"] = "default Magazine",\n    ["component_clip_extended"] = "extended Magazine",\n    ["component_clip_drum"] = "drum Magazine",\n    ["component_clip_box"] = "box Magazine",\n\n    ["component_scope_holo"] = "holographic Scope",\n    ["component_scope_small"] = "small Scope",\n    ["component_scope_medium"] = "medium Scope",\n    ["component_scope_large"] = "large Scope",\n    ["component_scope"] = "mounted Scope",\n    ["component_scope_advanced"] = "advanced Scope",\n    ["component_ironsights"] = "ironsights",\n\n    ["component_suppressor"] = "suppressor",\n    ["component_compensator"] = "compensator",\n\n    ["component_muzzle_flat"] = "flat Muzzle Brake",\n    ["component_muzzle_tactical"] = "tactical Muzzle Brake",\n    ["component_muzzle_fat"] = "fat-End Muzzle Brake",\n    ["component_muzzle_precision"] = "precision Muzzle Brake",\n    ["component_muzzle_heavy"] = "heavy Duty Muzzle Brake",\n    ["component_muzzle_slanted"] = "slanted Muzzle Brake",\n    ["component_muzzle_split"] = "split-End Muzzle Brake",\n    ["component_muzzle_squared"] = "squared Muzzle Brake",\n\n    ["component_flashlight"] = "flashlight",\n    ["component_grip"] = "grip",\n\n    ["component_barrel_default"] = "default Barrel",\n    ["component_barrel_heavy"] = "heavy Barrel",\n\n    ["component_ammo_tracer"] = "tracer Ammo",\n    ["component_ammo_incendiary"] = "incendiary Ammo",\n    ["component_ammo_hollowpoint"] = "hollowpoint Ammo",\n    ["component_ammo_fmj"] = "fMJ Ammo",\n    ["component_ammo_armor"] = "armor Piercing Ammo",\n    ["component_ammo_explosive"] = "armor Piercing Incendiary Ammo",\n\n    ["component_shells_default"] = "default Shells",\n    ["component_shells_incendiary"] = "dragons Breath Shells",\n    ["component_shells_armor"] = "steel Buckshot Shells",\n    ["component_shells_hollowpoint"] = "flechette Shells",\n    ["component_shells_explosive"] = "explosive Slug Shells",\n\n    -- Weapon Ammo\n    ["ammo_rounds"] = "round(s)",\n    ["ammo_shells"] = "shell(s)",\n    ["ammo_charge"] = "charge",\n    ["ammo_petrol"] = "gallons of fuel",\n    ["ammo_firework"] = "firework(s)",\n    ["ammo_rockets"] = "rocket(s)",\n    ["ammo_grenadelauncher"] = "grenade(s)",\n    ["ammo_grenade"] = "grenade(s)",\n    ["ammo_stickybomb"] = "bomb(s)",\n    ["ammo_pipebomb"] = "bomb(s)",\n    ["ammo_smokebomb"] = "bomb(s)",\n    ["ammo_molotov"] = "cocktail(s)",\n    ["ammo_proxmine"] = "mine(s)",\n    ["ammo_bzgas"] = "can(s)",\n    ["ammo_ball"] = "ball(s)",\n    ["ammo_snowball"] = "snowball(s)",\n    ["ammo_flare"] = "flare(s)",\n    ["ammo_flaregun"] = "flare(s)",\n\n    -- Weapon Tints\n    ["tint_default"] = "default skin",\n    ["tint_green"] = "green skin",\n    ["tint_gold"] = "gold skin",\n    ["tint_pink"] = "pink skin",\n    ["tint_army"] = "army skin",\n    ["tint_lspd"] = "blue skin",\n    ["tint_orange"] = "orange skin",\n    ["tint_platinum"] = "platinum skin",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "classic black",\n    ["tint_classic_gray"] = "classic gray",\n    ["tint_classic_two_tone"] = "classic two-tone",\n    ["tint_classic_white"] = "classic white",\n    ["tint_classic_beige"] = "classic beige",\n    ["tint_classic_green"] = "classic green",\n    ["tint_classic_blue"] = "classic blue",\n    ["tint_classic_earth"] = "classic earth",\n    ["tint_classic_brown_black"] = "classic brown-black",\n    ["tint_contrast_red"] = "contrast red",\n    ["tint_contrast_blue"] = "contrast blue",\n    ["tint_contrast_yellow"] = "contrast yellow",\n    ["tint_contrast_orange"] = "contrast orange",\n    ["tint_bold_pink"] = "bold pink",\n    ["tint_bold_purple_yellow"] = "bold purple-yellow",\n    ["tint_bold_orange"] = "bold orange",\n    ["tint_bold_green_purple"] = "bold green-purple",\n    ["tint_bold_red_feat"] = "bold red feat",\n    ["tint_bold_green_feat"] = "bold green feat",\n    ["tint_bold_cyan_feat"] = "bold cyan feat",\n    ["tint_bold_yellow_feat"] = "bold yellow feat",\n    ["tint_bold_red_white"] = "bold red-white",\n    ["tint_bold_blue_white"] = "bold blue-white",\n    ["tint_metallic_gold"] = "metallic gold",\n    ["tint_metallic_platinum"] = "metallic platinum",\n    ["tint_metallic_gray_lilac"] = "metallic gray-lilac",\n    ["tint_metallic_purple_lime"] = "metallic purple-lime",\n    ["tint_metallic_red"] = "metallic red",\n    ["tint_metallic_green"] = "metallic green",\n    ["tint_metallic_blue"] = "metallic blue",\n    ["tint_metallic_white_aqua"] = "metallic white-aqua",\n    ["tint_metallic_red_yellow"] = "metallic red-yellow",\n}\n',
+        "locales/es.lua": 'return {\n    -- Inventory\n    ["inventory"] = "Inventario (Peso %s / %s)",\n    ["use"] = "Usar",\n    ["give"] = "Dar",\n    ["remove"] = "Tirar",\n    ["return"] = "Devolver",\n    ["give_to"] = "Dar a",\n    ["amount"] = "Cantidad",\n    ["giveammo"] = "Dar munici\xF3n",\n    ["amountammo"] = "Cantidad de munici\xF3n",\n    ["noammo"] = "\xA1Insuficiente!",\n    ["gave_item"] = "Dando %sx %s a %s",\n    ["received_item"] = "Recibido %sx %s de %s",\n    ["gave_weapon"] = "Dando %s a %s",\n    ["gave_weapon_ammo"] = "Dando ~o~%sx %s para %s a %s",\n    ["gave_weapon_withammo"] = "Dando %s con ~o~%sx %s a %s",\n    ["gave_weapon_hasalready"] = "%s ya tiene un %s",\n    ["gave_weapon_noweapon"] = "%s no tiene esa arma",\n    ["received_weapon"] = "Recibido %s de %s",\n    ["received_weapon_ammo"] = "Recibido ~o~%sx %s para tu %s de %s",\n    ["received_weapon_withammo"] = "Recibido %s con ~o~%sx %s de %s",\n    ["received_weapon_hasalready"] = "%s ha intentado darte un %s, pero ya tienes esta arma",\n    ["received_weapon_noweapon"] = "%s ha intentado darte munici\xF3n para un %s, pero no tienes esta arma",\n    ["gave_account_money"] = "Dando $%s (%s) a %s",\n    ["received_account_money"] = "Recibido $%s (%s) de %s",\n    ["amount_invalid"] = "Cantidad inv\xE1lida",\n    ["players_nearby"] = "No hay jugadores cerca",\n    ["ex_inv_lim"] = "No se puede realizar la acci\xF3n, se excede el peso m\xE1ximo de %s",\n    ["imp_invalid_quantity"] = "No se puede realizar la acci\xF3n, la cantidad es inv\xE1lida",\n    ["imp_invalid_amount"] = "No se puede realizar la acci\xF3n, la cantidad es inv\xE1lida",\n    ["threw_standard"] = "Tirando %sx %s",\n    ["threw_account"] = "Tirando $%s %s",\n    ["threw_weapon"] = "Tirando %s",\n    ["threw_weapon_ammo"] = "Tirando %s con ~o~%sx %s",\n    ["threw_weapon_already"] = "Ya tienes esta arma",\n    ["threw_cannot_pickup"] = "\xA1Inventario lleno, no se puede recoger!",\n    ["threw_pickup_prompt"] = "Pulsa E para recoger",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "Mostrar inventario",\n\n    -- Salary related\n    ["received_salary"] = "Has cobrado: $%s",\n    ["received_help"] = "Has cobrado tu subsidio: $%s",\n    ["company_nomoney"] = "La empresa para la que trabajas es demasiado pobre para pagarte el sueldo",\n    ["received_paycheck"] = "N\xF3mina recibida",\n    ["bank"] = "Maze Bank",\n    ["account_bank"] = "Banco",\n    ["account_black_money"] = "Dinero negro",\n    ["account_money"] = "Efectivo",\n\n    ["act_imp"] = "No se puede realizar la acci\xF3n",\n    ["in_vehicle"] = "No se puede realizar la acci\xF3n, el jugador est\xE1 en un veh\xEDculo",\n    ["not_in_vehicle"] = "No se puede realizar la acci\xF3n, el jugador no est\xE1 en un veh\xEDculo",\n\n    -- Commands\n    ["command_bring"] = "Traer jugador hacia ti",\n    ["command_car"] = "Generar un veh\xEDculo",\n    ["command_car_car"] = "Modelo o hash del veh\xEDculo",\n    ["command_cardel"] = "Eliminar veh\xEDculos cercanos",\n    ["command_cardel_radius"] = "Elimina todos los veh\xEDculos dentro del radio especificado",\n    ["command_repair"] = "Reparar tu veh\xEDculo",\n    ["command_repair_success"] = "Veh\xEDculo reparado con \xE9xito",\n    ["command_repair_success_target"] = "Un administrador repar\xF3 tu veh\xEDculo",\n    ["command_clear"] = "Limpiar texto del chat",\n    ["command_clearall"] = "Limpiar texto del chat para todos los jugadores",\n    ["command_clearinventory"] = "Eliminar todos los objetos del inventario del jugador",\n    ["command_clearloadout"] = "Eliminar todas las armas del equipamiento del jugador",\n    ["command_freeze"] = "Congelar a un jugador",\n    ["command_unfreeze"] = "Descongelar a un jugador",\n    ["command_giveaccountmoney"] = "Dar dinero a una cuenta espec\xEDfica",\n    ["command_giveaccountmoney_account"] = "Cuenta a la que a\xF1adir",\n    ["command_giveaccountmoney_amount"] = "Cantidad a a\xF1adir",\n    ["command_giveaccountmoney_invalid"] = "Nombre de cuenta inv\xE1lido",\n    ["command_removeaccountmoney"] = "Quitar dinero de una cuenta espec\xEDfica",\n    ["command_removeaccountmoney_account"] = "Cuenta de la que quitar",\n    ["command_removeaccountmoney_amount"] = "Cantidad a quitar",\n    ["command_removeaccountmoney_invalid"] = "Nombre de cuenta inv\xE1lido",\n    ["command_giveitem"] = "Dar un objeto al jugador",\n    ["command_giveitem_item"] = "Nombre del objeto",\n    ["command_giveitem_count"] = "Cantidad",\n    ["command_giveweapon"] = "Dar un arma al jugador",\n    ["command_giveweapon_weapon"] = "Nombre del arma",\n    ["command_giveweapon_ammo"] = "Cantidad de munici\xF3n",\n    ["command_giveweapon_hasalready"] = "El jugador ya tiene esta arma",\n    ["command_giveweaponcomponent"] = "Dar componente de arma al jugador",\n    ["command_giveweaponcomponent_component"] = "Nombre del componente",\n    ["command_giveweaponcomponent_invalid"] = "Componente de arma inv\xE1lido",\n    ["command_giveweaponcomponent_hasalready"] = "El jugador ya tiene este componente de arma",\n    ["command_giveweaponcomponent_missingweapon"] = "El jugador no tiene esta arma",\n    ["command_goto"] = "Teletransportarte a un jugador",\n    ["command_kill"] = "Matar a un jugador",\n    ["command_save"] = "Forzar guardado de datos de un jugador",\n    ["command_saveall"] = "Forzar guardado de todos los datos de los jugadores",\n    ["command_setaccountmoney"] = "Establecer el dinero en una cuenta espec\xEDfica",\n    ["command_setaccountmoney_amount"] = "Cantidad",\n    ["command_setcoords"] = "Teletransportar a coordenadas espec\xEDficas",\n    ["command_setcoords_x"] = "Valor X",\n    ["command_setcoords_y"] = "Valor Y",\n    ["command_setcoords_z"] = "Valor Z",\n    ["command_setjob"] = "Establecer el trabajo de un jugador",\n    ["command_setjob_job"] = "Nombre",\n    ["command_setjob_grade"] = "Rango del trabajo",\n    ["command_setjob_invalid"] = "El trabajo, el rango o ambos son inv\xE1lidos",\n    ["command_setgroup"] = "Establecer el grupo de permisos de un jugador",\n    ["command_setgroup_group"] = "Nombre del grupo",\n    ["commanderror_argumentmismatch"] = "N\xFAmero de argumentos inv\xE1lido (pasados %s, esperados %s)",\n    ["commanderror_argumentmismatch_number"] = "Tipo de datos del argumento #%s inv\xE1lido (pasado string, esperado n\xFAmero)",\n    ["commanderror_argumentmismatch_string"] = "Tipo de datos del argumento #%s inv\xE1lido (pasado n\xFAmero, esperado string)",\n    ["commanderror_argumentmismatch_positive_number"] = "Argumento inv\xE1lido #%s tipo de datos (pasado negativo/cero, se requiere n\xFAmero positivo)",\n    ["commanderror_invaliditem"] = "Objeto inv\xE1lido",\n    ["commanderror_invalidweapon"] = "Arma inv\xE1lida",\n    ["commanderror_console"] = "El comando no se puede ejecutar desde la consola",\n    ["commanderror_invalidcommand"] = "Comando inv\xE1lido - /%s",\n    ["commanderror_invalidplayerid"] = "El jugador especificado no est\xE1 en l\xEDnea",\n    ["commandgeneric_playerid"] = "ID del servidor del jugador",\n    ["commandgeneric_dimension"] = "Dimensi\xF3n de destino",\n    ["command_giveammo_noweapon_found"] = "%s no tiene esa arma",\n    ["command_giveammo_weapon"] = "Nombre del arma",\n    ["command_giveammo_ammo"] = "Cantidad de munici\xF3n",\n    ["command_setdim"] = "Establecer la dimensi\xF3n de un jugador",\n    ["tpm_nowaypoint"] = "No hay punto de ruta establecido.",\n    ["tpm_success"] = "Teletransportado con \xE9xito",\n\n    ["noclip_message"] = "Noclip ha sido %s",\n    ["enabled"] = "~g~activado~s~",\n    ["disabled"] = "~r~desactivado~s~",\n\n    -- Locale settings\n    ["locale_digit_grouping_symbol"] = ".",\n    ["locale_currency"] = "%s\u20AC",\n\n    -- Weapons\n\n    -- Melee\n    ["weapon_dagger"] = "Daga",\n    ["weapon_bat"] = "Bate",\n    ["weapon_battleaxe"] = "Hacha de guerra",\n    ["weapon_bottle"] = "Botella",\n    ["weapon_crowbar"] = "Palanca",\n    ["weapon_flashlight"] = "Linterna",\n    ["weapon_golfclub"] = "Palo de golf",\n    ["weapon_hammer"] = "Martillo",\n    ["weapon_hatchet"] = "Hachuela",\n    ["weapon_knife"] = "Cuchillo",\n    ["weapon_knuckle"] = "Pu\xF1o americano",\n    ["weapon_machete"] = "Machete",\n    ["weapon_nightstick"] = "Porra",\n    ["weapon_wrench"] = "Llave inglesa",\n    ["weapon_poolcue"] = "Taco de billar",\n    ["weapon_stone_hatchet"] = "Hacha de piedra",\n    ["weapon_switchblade"] = "Navaja autom\xE1tica",\n\n    -- Handguns\n    ["weapon_appistol"] = "Pistola PA",\n    ["weapon_ceramicpistol"] = "Pistola de cer\xE1mica",\n    ["weapon_combatpistol"] = "Pistola de combate",\n    ["weapon_doubleaction"] = "Rev\xF3lver de doble acci\xF3n",\n    ["weapon_navyrevolver"] = "Rev\xF3lver de la Marina",\n    ["weapon_flaregun"] = "Pistola de bengalas",\n    ["weapon_gadgetpistol"] = "Pistola de Cayo Perico",\n    ["weapon_heavypistol"] = "Pistola pesada",\n    ["weapon_revolver"] = "Rev\xF3lver pesado",\n    ["weapon_revolver_mk2"] = "Rev\xF3lver pesado Mk2",\n    ["weapon_marksmanpistol"] = "Pistola de tirador",\n    ["weapon_pistol"] = "Pistola",\n    ["weapon_pistol_mk2"] = "Pistola Mk2",\n    ["weapon_pistol50"] = "Pistola .50",\n    ["weapon_snspistol"] = "Pistola SNS",\n    ["weapon_snspistol_mk2"] = "Pistola SNS Mk2",\n    ["weapon_stungun"] = "Pistola el\xE9ctrica",\n    ["weapon_raypistol"] = "Pistola de Rayos",\n    ["weapon_vintagepistol"] = "Pistola vintage",\n\n    -- Shotguns\n    ["weapon_assaultshotgun"] = "Escopeta de asalto",\n    ["weapon_autoshotgun"] = "Escopeta autom\xE1tica",\n    ["weapon_bullpupshotgun"] = "Escopeta bullpup",\n    ["weapon_combatshotgun"] = "Escopeta de combate",\n    ["weapon_dbshotgun"] = "Escopeta de dos ca\xF1ones",\n    ["weapon_heavyshotgun"] = "Escopeta pesada",\n    ["weapon_musket"] = "Mosquete",\n    ["weapon_pumpshotgun"] = "Escopeta de corredera",\n    ["weapon_pumpshotgun_mk2"] = "Escopeta de corredera Mk2",\n    ["weapon_sawnoffshotgun"] = "Escopeta recortada",\n\n    -- SMG & LMG\n    ["weapon_assaultsmg"] = "Subfusil de asalto",\n    ["weapon_combatmg"] = "Ametralladora de combate",\n    ["weapon_combatmg_mk2"] = "Ametralladora de combate Mk2",\n    ["weapon_combatpdw"] = "PDW de combate",\n    ["weapon_gusenberg"] = "Subfusil Gusenberg",\n    ["weapon_machinepistol"] = "Pistola ametralladora",\n    ["weapon_mg"] = "Ametralladora",\n    ["weapon_microsmg"] = "Microsubfusil",\n    ["weapon_minismg"] = "Minisubfusil",\n    ["weapon_smg"] = "Subfusil",\n    ["weapon_smg_mk2"] = "Subfusil Mk2",\n    ["weapon_raycarbine"] = "Carabina de Rayos",\n    ["weapon_tecpistol"] = "Subfusil t\xE1ctico",\n\n    -- Rifles\n    ["weapon_advancedrifle"] = "Fusil avanzado",\n    ["weapon_assaultrifle"] = "Fusil de asalto",\n    ["weapon_assaultrifle_mk2"] = "Fusil de asalto Mk2",\n    ["weapon_bullpuprifle"] = "Fusil bullpup",\n    ["weapon_bullpuprifle_mk2"] = "Fusil bullpup Mk2",\n    ["weapon_carbinerifle"] = "Carabina",\n    ["weapon_carbinerifle_mk2"] = "Carabina Mk2",\n    ["weapon_compactrifle"] = "Fusil compacto",\n    ["weapon_militaryrifle"] = "Fusil militar",\n    ["weapon_specialcarbine"] = "Carabina especial",\n    ["weapon_specialcarbine_mk2"] = "Carabina especial Mk2",\n    ["weapon_heavyrifle"] = "Fusil pesado",\n    ["weapon_battlerifle"] = "Fusil de combate",\n\n    -- Sniper\n    ["weapon_heavysniper"] = "Francotirador pesado",\n    ["weapon_heavysniper_mk2"] = "Francotirador pesado Mk2",\n    ["weapon_marksmanrifle"] = "Fusil de tirador",\n    ["weapon_marksmanrifle_mk2"] = "Fusil de tirador Mk2",\n    ["weapon_sniperrifle"] = "Fusil de francotirador",\n\n    -- Heavy / Launchers\n    ["weapon_compactlauncher"] = "Lanzagranadas compacto",\n    ["weapon_firework"] = "Lanzador de pirotecnia",\n    ["weapon_grenadelauncher"] = "Lanzagranadas",\n    ["weapon_hominglauncher"] = "Lanzacohetes teledirigido",\n    ["weapon_minigun"] = "Minigun",\n    ["weapon_railgun"] = "Ca\xF1\xF3n de riel",\n    ["weapon_rpg"] = "Lanzacohetes",\n    ["weapon_rayminigun"] = "Ametralladora de rayos",\n\n    -- Criminal Enterprises DLC\n    ["weapon_metaldetector"] = "Detector de metales",\n    ["weapon_precisionrifle"] = "Fusil de precisi\xF3n",\n    ["weapon_tactilerifle"] = "Carabina de servicio",\n\n    -- Drug wars dlc\n    ["weapon_candycane"] = "Bast\xF3n de caramelo",\n    ["weapon_acidpackage"] = "Paquete de \xE1cido",\n    ["weapon_pistolxm3"] = "Pistola WM 29",\n    ["weapon_railgunxm3"] = "Ca\xF1\xF3n de riel",\n\n    -- Chop Shop DLC\n    ["weapon_snowlauncher"] = "Lanzador de nieve",\n    ["weapon_hackingdevice"] = "Dispositivo de hackeo",\n\n    -- Bottom Dollar Bounties DLC\n    ["weapon_stunrod"] = "Porra el\xE9ctrica",\n\n    -- Thrown\n    ["weapon_ball"] = "Pelota de b\xE9isbol",\n    ["weapon_bzgas"] = "Gas BZ",\n    ["weapon_flare"] = "Bengala",\n    ["weapon_grenade"] = "Granada",\n    ["weapon_petrolcan"] = "Bid\xF3n de gasolina",\n    ["weapon_hazardcan"] = "Bid\xF3n de material peligroso",\n    ["weapon_molotov"] = "C\xF3ctel molotov",\n    ["weapon_proxmine"] = "Mina de proximidad",\n    ["weapon_pipebomb"] = "Bomba casera",\n    ["weapon_snowball"] = "Bola de nieve",\n    ["weapon_stickybomb"] = "Bomba lapa",\n    ["weapon_smokegrenade"] = "Granada de humo",\n\n    -- Special\n    ["weapon_fireextinguisher"] = "Extintor",\n    ["weapon_digiscanner"] = "Esc\xE1ner digital",\n    ["weapon_garbagebag"] = "Bolsa de basura",\n    ["weapon_handcuffs"] = "Esposas",\n    ["gadget_nightvision"] = "Visi\xF3n nocturna",\n    ["gadget_parachute"] = "Paraca\xEDdas",\n\n    -- Weapon Components\n    ["component_knuckle_base"] = "Modelo base",\n    ["component_knuckle_pimp"] = "El Chulo",\n    ["component_knuckle_ballas"] = "Los Ballas",\n    ["component_knuckle_dollar"] = "El Buscavidas",\n    ["component_knuckle_diamond"] = "La Roca",\n    ["component_knuckle_hate"] = "El Odiador",\n    ["component_knuckle_love"] = "El Amante",\n    ["component_knuckle_player"] = "El Jugador",\n    ["component_knuckle_king"] = "El Rey",\n    ["component_knuckle_vagos"] = "Los Vagos",\n\n    ["component_luxary_finish"] = "Acabado de arma de lujo",\n\n    ["component_handle_default"] = "Empu\xF1adura por defecto",\n    ["component_handle_vip"] = "Empu\xF1adura VIP",\n    ["component_handle_bodyguard"] = "Empu\xF1adura de guardaespaldas",\n\n    ["component_vip_finish"] = "Acabado VIP",\n    ["component_bodyguard_finish"] = "Acabado de guardaespaldas",\n\n    ["component_camo_finish"] = "Camuflaje digital",\n    ["component_camo_finish2"] = "Camuflaje pincelada",\n    ["component_camo_finish3"] = "Camuflaje boscoso",\n    ["component_camo_finish4"] = "Camuflaje calavera",\n    ["component_camo_finish5"] = "Camuflaje Sessanta Nove",\n    ["component_camo_finish6"] = "Camuflaje Perseo",\n    ["component_camo_finish7"] = "Camuflaje leopardo",\n    ["component_camo_finish8"] = "Camuflaje cebra",\n    ["component_camo_finish9"] = "Camuflaje geom\xE9trico",\n    ["component_camo_finish10"] = "Camuflaje Boom",\n    ["component_camo_finish11"] = "Camuflaje patri\xF3tico",\n\n    ["component_camo_slide_finish"] = "Camuflaje digital (corredera)",\n    ["component_camo_slide_finish2"] = "Camuflaje pincelada (corredera)",\n    ["component_camo_slide_finish3"] = "Camuflaje boscoso (corredera)",\n    ["component_camo_slide_finish4"] = "Camuflaje calavera (corredera)",\n    ["component_camo_slide_finish5"] = "Camuflaje Sessanta Nove (corredera)",\n    ["component_camo_slide_finish6"] = "Camuflaje Perseo (corredera)",\n    ["component_camo_slide_finish7"] = "Camuflaje leopardo (corredera)",\n    ["component_camo_slide_finish8"] = "Camuflaje cebra (corredera)",\n    ["component_camo_slide_finish9"] = "Camuflaje geom\xE9trico (corredera)",\n    ["component_camo_slide_finish10"] = "Camuflaje Boom (corredera)",\n    ["component_camo_slide_finish11"] = "Camuflaje patri\xF3tico (corredera)",\n\n    ["component_clip_default"] = "Cargador por defecto",\n    ["component_clip_extended"] = "Cargador ampliado",\n    ["component_clip_drum"] = "Cargador de tambor",\n    ["component_clip_box"] = "Cargador de caja",\n\n    ["component_scope_holo"] = "Mira hologr\xE1fica",\n    ["component_scope_small"] = "Mira peque\xF1a",\n    ["component_scope_medium"] = "Mira mediana",\n    ["component_scope_large"] = "Mira telesc\xF3pica",\n    ["component_scope"] = "Mira \xF3ptica",\n    ["component_scope_advanced"] = "Mira avanzada",\n    ["component_ironsights"] = "Miras de hierro",\n\n    ["component_suppressor"] = "Silenciador",\n    ["component_compensator"] = "Compensador",\n\n    ["component_muzzle_flat"] = "Freno de boca plano",\n    ["component_muzzle_tactical"] = "Freno de boca t\xE1ctico",\n    ["component_muzzle_fat"] = "Freno de boca grueso",\n    ["component_muzzle_precision"] = "Freno de boca de precisi\xF3n",\n    ["component_muzzle_heavy"] = "Freno de boca pesado",\n    ["component_muzzle_slanted"] = "Freno de boca inclinado",\n    ["component_muzzle_split"] = "Freno de boca dividido",\n    ["component_muzzle_squared"] = "Freno de boca cuadrado",\n\n    ["component_flashlight"] = "Linterna",\n    ["component_grip"] = "Empu\xF1adura",\n\n    ["component_barrel_default"] = "Ca\xF1\xF3n por defecto",\n    ["component_barrel_heavy"] = "Ca\xF1\xF3n pesado",\n\n    ["component_ammo_tracer"] = "Munici\xF3n trazadora",\n    ["component_ammo_incendiary"] = "Munici\xF3n incendiaria",\n    ["component_ammo_hollowpoint"] = "Munici\xF3n de punta hueca",\n    ["component_ammo_fmj"] = "Munici\xF3n FMJ",\n    ["component_ammo_armor"] = "Munici\xF3n perforante",\n    ["component_ammo_explosive"] = "Munici\xF3n explosiva perforante",\n\n    ["component_shells_default"] = "Cartuchos por defecto",\n    ["component_shells_incendiary"] = "Cartuchos Aliento de drag\xF3n",\n    ["component_shells_armor"] = "Cartuchos de postas de acero",\n    ["component_shells_hollowpoint"] = "Cartuchos de perdigones expansivos",\n    ["component_shells_explosive"] = "Cartuchos de postas explosivas",\n\n    -- Weapon Ammo\n    ["ammo_rounds"] = "proyectil(es)",\n    ["ammo_shells"] = "cartucho(s)",\n    ["ammo_charge"] = "carga(s)",\n    ["ammo_petrol"] = "litros de combustible",\n    ["ammo_firework"] = "cohete(s) de pirotecnia",\n    ["ammo_rockets"] = "cohete(s)",\n    ["ammo_grenadelauncher"] = "granada(s)",\n    ["ammo_grenade"] = "granada(s)",\n    ["ammo_stickybomb"] = "bomba(s) lapa",\n    ["ammo_pipebomb"] = "bomba(s) casera",\n    ["ammo_smokebomb"] = "bomba(s) de humo",\n    ["ammo_molotov"] = "c\xF3ctel(es) molotov",\n    ["ammo_proxmine"] = "mina(s) de proximidad",\n    ["ammo_bzgas"] = "bote(s) de gas",\n    ["ammo_ball"] = "pelota(s)",\n    ["ammo_snowball"] = "bola(s) de nieve",\n    ["ammo_flare"] = "bengala(s)",\n    ["ammo_flaregun"] = "bengala(s)",\n\n    -- Weapon Tints\n    ["tint_default"] = "Dise\xF1o por defecto",\n    ["tint_green"] = "Dise\xF1o verde",\n    ["tint_gold"] = "Dise\xF1o dorado",\n    ["tint_pink"] = "Dise\xF1o rosa",\n    ["tint_army"] = "Dise\xF1o militar",\n    ["tint_lspd"] = "Dise\xF1o LSPD",\n    ["tint_orange"] = "Dise\xF1o naranja",\n    ["tint_platinum"] = "Dise\xF1o platino",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "Negro cl\xE1sico",\n    ["tint_classic_gray"] = "Gris cl\xE1sico",\n    ["tint_classic_two_tone"] = "Dos tonos cl\xE1sico",\n    ["tint_classic_white"] = "Blanco cl\xE1sico",\n    ["tint_classic_beige"] = "Beige cl\xE1sico",\n    ["tint_classic_green"] = "Verde cl\xE1sico",\n    ["tint_classic_blue"] = "Azul cl\xE1sico",\n    ["tint_classic_earth"] = "Tierra cl\xE1sico",\n    ["tint_classic_brown_black"] = "Marr\xF3n y negro cl\xE1sico",\n    ["tint_contrast_red"] = "Rojo contraste",\n    ["tint_contrast_blue"] = "Azul contraste",\n    ["tint_contrast_yellow"] = "Amarillo contraste",\n    ["tint_contrast_orange"] = "Naranja contraste",\n    ["tint_bold_pink"] = "Rosa intenso",\n    ["tint_bold_purple_yellow"] = "Morado y amarillo intenso",\n    ["tint_bold_orange"] = "Naranja intenso",\n    ["tint_bold_green_purple"] = "Verde y morado intenso",\n    ["tint_bold_red_feat"] = "Rojo intenso especial",\n    ["tint_bold_green_feat"] = "Verde intenso especial",\n    ["tint_bold_cyan_feat"] = "Cian intenso especial",\n    ["tint_bold_yellow_feat"] = "Amarillo intenso especial",\n    ["tint_bold_red_white"] = "Rojo y blanco intenso",\n    ["tint_bold_blue_white"] = "Azul y blanco intenso",\n    ["tint_metallic_gold"] = "Dorado met\xE1lico",\n    ["tint_metallic_platinum"] = "Platino met\xE1lico",\n    ["tint_metallic_gray_lilac"] = "Gris lila met\xE1lico",\n    ["tint_metallic_purple_lime"] = "Morado lima met\xE1lico",\n    ["tint_metallic_red"] = "Rojo met\xE1lico",\n    ["tint_metallic_green"] = "Verde met\xE1lico",\n    ["tint_metallic_blue"] = "Azul met\xE1lico",\n    ["tint_metallic_white_aqua"] = "Blanco aguamarina met\xE1lico",\n    ["tint_metallic_red_yellow"] = "Rojo y amarillo met\xE1lico",\n}\n',
+        "locales/fi.lua": 'return {\n    -- Inventory\n    ["inventory"] = "Reppu %s / %s",\n    ["use"] = "K\xE4yt\xE4",\n    ["give"] = "Anna",\n    ["remove"] = "Poista",\n    ["return"] = "Takaisin",\n    ["give_to"] = "Anna henkil\xF6lle",\n    ["amount"] = "M\xE4\xE4r\xE4",\n    ["giveammo"] = "Anna ammuksia",\n    ["amountammo"] = "Ammusten m\xE4\xE4r\xE4",\n    ["noammo"] = "Sinulla ei ole ammuksia!",\n    ["gave_item"] = "Sin\xE4 annoit %sx %s henkil\xF6lle %s",\n    ["received_item"] = "Sin\xE4 sait %sx %s henkil\xF6lt\xE4 %s",\n    ["gave_weapon"] = "Sin\xE4 annoit 1x %s henkil\xF6lle %s",\n    ["gave_weapon_ammo"] = "Annoit ~o~%sx %s kohteelle %s henkil\xF6lle %s",\n    ["gave_weapon_withammo"] = "Sin\xE4 annoit 1x %s ammuksella ~o~%sx %s henkil\xF6lle %s",\n    ["gave_weapon_hasalready"] = "%s omistaa jo %s",\n    ["gave_weapon_noweapon"] = "%s ei ole kyseist\xE4 asetta",\n    ["received_weapon"] = "Vastaanotit 1x %s henkil\xF6lt\xE4 %s",\n    ["received_weapon_ammo"] = "Sin\xE4 sait ~o~%sx %s sinun %s varten henkil\xF6lt\xE4 %s",\n    ["received_weapon_withammo"] = "Sin\xE4 sait 1x %s ammuksella ~o~%sx %s henkil\xF6lt\xE4 %s",\n    ["received_weapon_hasalready"] = "%s yritti antaa sinulle %s, mutta sinulla on jo sellainen",\n    ["received_weapon_noweapon"] = "%s yritti antaa sinulle ammuksia %s:lle, mutta sinulla ei ole sellaista",\n    ["gave_account_money"] = "Sin\xE4 annoit $%s (%s) henkil\xF6lle %s",\n    ["received_account_money"] = "Sin\xE4 sait $%s (%s) henkil\xF6lt\xE4 %s",\n    ["amount_invalid"] = "Virheellinen m\xE4\xE4r\xE4",\n    ["players_nearby"] = "Ei pelaajia l\xE4hettyvill\xE4",\n    ["ex_inv_lim"] = "Toiminto mahdoton, reppu alkaa olla t\xE4ysi %s",\n    ["imp_invalid_quantity"] = "Toiminto mahdoton, virheellinen m\xE4\xE4r\xE4",\n    ["imp_invalid_amount"] = "Toiminto mahdoton, virhellinen summa",\n    ["threw_standard"] = "Sin\xE4 heitit %sx %s",\n    ["threw_account"] = "Sin\xE4 heitit $%s %s",\n    ["threw_weapon"] = "Sin\xE4 heitit 1x %s",\n    ["threw_weapon_ammo"] = "Heitit 1x %s ammuksella ~o~%sx %s",\n    ["threw_weapon_already"] = "Sinulla on jo sama ase",\n    ["threw_cannot_pickup"] = "Et voi ker\xE4t\xE4 sit\xE4, koska reppusi on t\xE4ynn\xE4",\n    ["threw_pickup_prompt"] = "Paina E ker\xE4t\xE4ksesi",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "Avaa reppu",\n\n    -- Salary related\n    ["received_salary"] = "Vastaanotit palkkaa: $%s",\n    ["received_help"] = "Vastaanotit valtion tukea: $%s",\n    ["company_nomoney"] = "Yrityksell\xE4 jolle teet t\xF6it\xE4 ei ole varaa maksaa palkkaasi",\n    ["received_paycheck"] = "Sait palkan",\n    ["bank"] = "Pankki",\n    ["account_bank"] = "Pankki",\n    ["account_black_money"] = "Likainen raha",\n    ["account_money"] = "K\xE4teinen",\n\n    ["act_imp"] = "Toiminto mahdoton",\n    ["in_vehicle"] = "Et voi antaa ajoneuvossa olevalle mit\xE4\xE4n",\n    ["not_in_vehicle"] = "Toimintoa ei voida suorittaa, pelaaja ei ole ajoneuvossa",\n\n    -- Commands\n    ["command_car"] = "Luo ajoneuvo",\n    ["command_car_car"] = "Ajoneuvon nimi tai hash",\n    ["command_cardel"] = "Poistaa ajoneuvon l\xE4helt\xE4",\n    ["command_cardel_radius"] = "Valinnainen, poista kaikki ajoneuvot m\xE4\xE4ritetyll\xE4 s\xE4teell\xE4",\n    ["command_repair"] = "Repair your vehicle",\n    ["command_repair_success"] = "Successfully repaired vehicle",\n    ["command_repair_success_target"] = "An admin repaired your vehicle",\n    ["command_clear"] = "Tyhjenn\xE4 keskustelu",\n    ["command_clearall"] = "Tyhjenn\xE4 keskustelu kaikilta pelaajilta",\n    ["command_clearinventory"] = "Tyhjenn\xE4 pelaajan reppu",\n    ["command_clearloadout"] = "Tyhjenn\xE4 pelaajan varustus",\n    ["command_giveaccountmoney"] = "Anna tilirahaa",\n    ["command_giveaccountmoney_account"] = "Kelvollinen tilin nimi",\n    ["command_giveaccountmoney_amount"] = "Lis\xE4tt\xE4v\xE4 m\xE4\xE4r\xE4",\n    ["command_giveaccountmoney_invalid"] = "Virheellinen tili nimi",\n    ["command_giveitem"] = "Anna pelaajalle esine",\n    ["command_giveitem_item"] = "Esineen nimi",\n    ["command_giveitem_count"] = "Esineiden m\xE4\xE4r\xE4",\n    ["command_giveweapon"] = "Anna pelaajalle ase",\n    ["command_giveweapon_weapon"] = "Aseen nimi",\n    ["command_giveweapon_ammo"] = "Ammusten m\xE4\xE4r\xE4",\n    ["command_giveweapon_hasalready"] = "Pelaajalla on jo kyseinen ase",\n    ["command_giveweaponcomponent"] = "Anna aseen komponentti",\n    ["command_giveweaponcomponent_component"] = "Komponentin nimi",\n    ["command_giveweaponcomponent_invalid"] = "Virheellinen aseen komponentti",\n    ["command_giveweaponcomponent_hasalready"] = "Pelaajalla on jo kyseinen asekomponentti",\n    ["command_giveweaponcomponent_missingweapon"] = "Pelaajalla ei ole kyseist\xE4 asetta",\n    ["command_save"] = "Talenna pelaaja tietokantaan",\n    ["command_saveall"] = "Tallenna kaikki pelaajat tietokantaan",\n    ["command_setaccountmoney"] = "Aseta tilirahaa pelaajalle",\n    ["command_setaccountmoney_amount"] = "Asetettava raham\xE4\xE4r\xE4",\n    ["command_setcoords"] = "Teleporttaa koordinaatteihin",\n    ["command_setcoords_x"] = "x akseli",\n    ["command_setcoords_y"] = "y akseli",\n    ["command_setcoords_z"] = "z akseli",\n    ["command_setjob"] = "Aseta pelaajalle ammatti",\n    ["command_setjob_job"] = "Ammatti",\n    ["command_setjob_grade"] = "Arvo",\n    ["command_setjob_invalid"] = "Ammatti ja arvo tai molemmat ovat virheellisi\xE4",\n    ["command_setgroup"] = "Aseta pelaajan ryhm\xE4",\n    ["command_setgroup_group"] = "Ryhm\xE4n nimi",\n    ["commanderror_argumentmismatch"] = "Argumenttien m\xE4\xE4r\xE4 ei t\xE4sm\xE4\xE4 (hyv\xE4ksytty %s, haluttu %s)",\n    ["commanderror_argumentmismatch_number"] = "Argumentin #%s tyyppi ei t\xE4sm\xE4\xE4 (sy\xF6tetty merkkijono, haluttu numero)",\n    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",\n    ["commanderror_argumentmismatch_positive_number"] = "Virheellinen argumentti #%s tietotyyppi (annettu negatiivinen/nolla, haluttu positiivinen luku)",\n    ["commanderror_invaliditem"] = "Virheellinen esineen nimi",\n    ["commanderror_invalidweapon"] = "Virheellinen ase",\n    ["commanderror_console"] = "Komentoa ei voi suorittaa konsolissa",\n    ["commanderror_invalidcommand"] = "/%s ei ole kelvollinen komento!",\n    ["commanderror_invalidplayerid"] = "Palvelimella ei ole pelaajaa, joka vastaa annetua ID",\n    ["commandgeneric_playerid"] = "Pelaajan ID",\n    ["command_giveammo_noweapon_found"] = "%s ei ole sit\xE4 asetta",\n    ["command_giveammo_weapon"] = "Aseen nimi",\n    ["command_giveammo_ammo"] = "Ammusten m\xE4\xE4r\xE4",\n\n    -- Locale settings\n    ["locale_digit_grouping_symbol"] = "",\n    ["locale_currency"] = "\u20AC%s",\n\n    -- Drug Wars DLC\n    ["weapon_candycane"] = "Karkkitanko",\n    ["weapon_acidpackage"] = "Happo pakkaus",\n    ["weapon_pistolxm3"] = "WM 29 Pistooli",\n    ["weapon_railgunxm3"] = "Raidetykki",\n\n    -- Weapons\n    ["weapon_knife"] = "Veitsi",\n    ["weapon_nightstick"] = "Pamppu",\n    ["weapon_hammer"] = "Vasara",\n    ["weapon_bat"] = "Pes\xE4pallomaila",\n    ["weapon_golfclub"] = "Golf maila",\n    ["weapon_crowbar"] = "Sorkkarauta",\n    ["weapon_pistol"] = "Pistooli",\n    ["weapon_combatpistol"] = "Taistelu pistooli",\n    ["weapon_appistol"] = "Automaatti pistooli",\n    ["weapon_pistol50"] = "50 kaliiperinen pistooli",\n    ["weapon_microsmg"] = "Mikro konepistooli",\n    ["weapon_smg"] = "Konepistooli",\n    ["weapon_assaultsmg"] = "Rynn\xE4kk\xF6 konepistooli",\n    ["weapon_assaultrifle"] = "Rynn\xE4kk\xF6kiv\xE4\xE4ri",\n    ["weapon_carbinerifle"] = "Karbiini kiv\xE4\xE4ri",\n    ["weapon_advancedrifle"] = "Edistynyt kiv\xE4\xE4ri",\n    ["weapon_mg"] = "Konekiv\xE4\xE4ri",\n    ["weapon_combatmg"] = "Rynn\xE4kk\xF6 konekiv\xE4\xE4ri",\n    ["weapon_pumpshotgun"] = "Pumppu haulikko",\n    ["weapon_sawnoffshotgun"] = "Katkaistuhaulikko",\n    ["weapon_assaultshotgun"] = "Hy\xF6kk\xE4yshaulikko",\n    ["weapon_bullpupshotgun"] = "Bullpup haulikko",\n    ["weapon_stungun"] = "Tainutusase",\n    ["weapon_sniperrifle"] = "Tarkkuuskiv\xE4\xE4ri",\n    ["weapon_heavysniper"] = "Raskas tarkkuuskiv\xE4\xE4ri",\n    ["weapon_grenadelauncher"] = "Kranaatinheitin",\n    ["weapon_rpg"] = "Raketinheitin",\n    ["weapon_minigun"] = "Minigun",\n    ["weapon_grenade"] = "Kranaatti",\n    ["weapon_stickybomb"] = "Tahma pommi",\n    ["weapon_smokegrenade"] = "Savukranaatti",\n    ["weapon_bzgas"] = "Bz-kaasu",\n    ["weapon_molotov"] = "Polttopullo",\n    ["weapon_fireextinguisher"] = "Palosammutin",\n    ["weapon_petrolcan"] = "Jerrykannu",\n    ["weapon_ball"] = "Pallo",\n    ["weapon_snspistol"] = "Pienpistooli",\n    ["weapon_bottle"] = "Pullo",\n    ["weapon_gusenberg"] = "Thompson-konepistooli",\n    ["weapon_specialcarbine"] = "G86C",\n    ["weapon_heavypistol"] = "Raskas pistooli",\n    ["weapon_bullpuprifle"] = "Bullpup kiv\xE4\xE4ri",\n    ["weapon_dagger"] = "Tikari",\n    ["weapon_vintagepistol"] = "Vanha pistooli",\n    ["weapon_firework"] = "Ilotulite",\n    ["weapon_musket"] = "Musketti",\n    ["weapon_heavyshotgun"] = "Raskas haulikko",\n    ["weapon_marksmanrifle"] = "Marksman kiv\xE4\xE4ri",\n    ["weapon_hominglauncher"] = "Ohjautuva raketinheitin",\n    ["weapon_proxmine"] = "L\xE4hell\xE4 r\xE4j\xE4ht\xE4v\xE4 miina",\n    ["weapon_snowball"] = "Lumipallo",\n    ["weapon_flaregun"] = "Valopistooli",\n    ["weapon_combatpdw"] = "Rynn\xE4kk\xF6 pdw",\n    ["weapon_marksmanpistol"] = "Marksman pistooli",\n    ["weapon_knuckle"] = "Nyrkkirauta",\n    ["weapon_hatchet"] = "Kirves",\n    ["weapon_railgun"] = "Raidetykki",\n    ["weapon_machete"] = "Viidakkoveitsi",\n    ["weapon_machinepistol"] = "Konepistooli",\n    ["weapon_switchblade"] = "Stiletti",\n    ["weapon_revolver"] = "Raskas revolveri",\n    ["weapon_dbshotgun"] = "Kaksipiippunen haulikko",\n    ["weapon_compactrifle"] = "Pikku AK",\n    ["weapon_autoshotgun"] = "Automaattinen haulikko",\n    ["weapon_battleaxe"] = "Taistelukirves",\n    ["weapon_compactlauncher"] = "Pien kranaatinheitin",\n    ["weapon_minismg"] = "Mini konepistooli",\n    ["weapon_pipebomb"] = "Putkipommi",\n    ["weapon_poolcue"] = "Biljardimaila",\n    ["weapon_wrench"] = "Putkipihdit",\n    ["weapon_flashlight"] = "Taskulamppu",\n    ["gadget_parachute"] = "Laskuvarjo",\n    ["weapon_flare"] = "H\xE4t\xE4raketti",\n    ["weapon_doubleaction"] = "Double action revolveri",\n    ["weapon_heavyrifle"] = "Raskas kiv\xE4\xE4ri",\n\n    -- Weapon Components\n    ["component_clip_default"] = "Oletus lipas",\n    ["component_clip_extended"] = "Paranneltu lipas",\n    ["component_clip_drum"] = "Rumpulipas",\n    ["component_clip_box"] = "Laatikkolipas",\n    ["component_flashlight"] = "Taskulamppu",\n    ["component_scope"] = "T\xE4ht\xE4in",\n    ["component_scope_advanced"] = "Paranneltu t\xE4ht\xE4in",\n    ["component_suppressor"] = "\xC4\xE4nenvaimennin",\n    ["component_grip"] = "Kahva",\n    ["component_luxary_finish"] = "Luksus ulkokuori",\n\n    -- Weapon Ammo\n    ["ammo_rounds"] = "Ammukset(s)",\n    ["ammo_shells"] = "Hylsy(s)",\n    ["ammo_charge"] = "Lataa",\n    ["ammo_petrol"] = "Gallonaa polttoainetta",\n    ["ammo_firework"] = "Ilotulite(s)",\n    ["ammo_rockets"] = "Raketti(s)",\n    ["ammo_grenadelauncher"] = "Kranaatti(s)",\n    ["ammo_grenade"] = "Kranaatti(s)",\n    ["ammo_stickybomb"] = "Pommi(s)",\n    ["ammo_pipebomb"] = "Pommi(s)",\n    ["ammo_smokebomb"] = "Pommi(s)",\n    ["ammo_molotov"] = "Polttopullo(s)",\n    ["ammo_proxmine"] = "Miina(s)",\n    ["ammo_bzgas"] = "T\xF6lkki(s)",\n    ["ammo_ball"] = "Pallo(s)",\n    ["ammo_snowball"] = "Lumipallo(s)",\n    ["ammo_flare"] = "Valoraketti(s)",\n    ["ammo_flaregun"] = "Valoraketti(s)",\n\n    -- Weapon Tints\n    ["tint_default"] = "Oletus ulkokuori",\n    ["tint_green"] = "Vihre\xE4 ulkokuori",\n    ["tint_gold"] = "Kultainen ulkokuori",\n    ["tint_pink"] = "Vaaleanpunainen ulkokuori",\n    ["tint_army"] = "Armeija ulkokuori",\n    ["tint_lspd"] = "Sininen ulkokuori",\n    ["tint_orange"] = "Oranssi ulkokuori",\n    ["tint_platinum"] = "Platina ulkokuori",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "klassinen musta",\n    ["tint_classic_gray"] = "klassinen harmaa",\n    ["tint_classic_two_tone"] = "klassinen kaksiv\xE4rinen",\n    ["tint_classic_white"] = "klassinen valkoinen",\n    ["tint_classic_beige"] = "klassinen beessi",\n    ["tint_classic_green"] = "klassinen vihre\xE4",\n    ["tint_classic_blue"] = "klassinen sininen",\n    ["tint_classic_earth"] = "klassinen maa",\n    ["tint_classic_brown_black"] = "klassinen ruskea-musta",\n    ["tint_contrast_red"] = "kontrastinen punainen",\n    ["tint_contrast_blue"] = "kontrastinen sininen",\n    ["tint_contrast_yellow"] = "kontrastinen keltainen",\n    ["tint_contrast_orange"] = "kontrastinen oranssi",\n    ["tint_bold_pink"] = "rohkea vaaleanpunainen",\n    ["tint_bold_purple_yellow"] = "rohkea violetti-keltainen",\n    ["tint_bold_orange"] = "rohkea oranssi",\n    ["tint_bold_green_purple"] = "rohkea vihre\xE4-violetti",\n    ["tint_bold_red_feat"] = "rohkea punainen feat",\n    ["tint_bold_green_feat"] = "rohkea vihre\xE4 feat",\n    ["tint_bold_cyan_feat"] = "rohkea syaani feat",\n    ["tint_bold_yellow_feat"] = "rohkea keltainen feat",\n    ["tint_bold_red_white"] = "rohkea punainen valkoinen",\n    ["tint_bold_blue_white"] = "rohkea sininen valkoinen",\n    ["tint_metallic_gold"] = "metallinen kulta",\n    ["tint_metallic_platinum"] = "metallinen platina",\n    ["tint_metallic_gray_lilac"] = "metallinen harmaa lila",\n    ["tint_metallic_purple_lime"] = "metallinen violetti limetti",\n    ["tint_metallic_red"] = "metallinen punainen",\n    ["tint_metallic_green"] = "metallinen vihre\xE4",\n    ["tint_metallic_blue"] = "metallinen sininen",\n    ["tint_metallic_white_aqua"] = "metallinen valkoinen aqua",\n    ["tint_metallic_red_yellow"] = "metallinen punainen keltainen",\n}\n',
+        "locales/fr.lua": `return {
+    -- Inventory
+    ["inventory"] = "Inventaire ( Poids %s / %s )",
+    ["use"] = "Utiliser",
+    ["give"] = "Donner",
+    ["remove"] = "Jeter",
+    ["return"] = "Retour",
+    ["give_to"] = "Donner \xE0",
+    ["amount"] = "Quantit\xE9",
+    ["giveammo"] = "Donner des munitions",
+    ["amountammo"] = "Nombre de munitions",
+    ["noammo"] = "Vous n'avez pas autant de munitions!",
+    ["gave_item"] = "Vous avez donn\xE9 %sx %s \xE0 %s",
+    ["received_item"] = "Vous avez re\xE7u %sx %s de %s",
+    ["gave_weapon"] = "Vous avez donn\xE9 1x %s \xE0 %s",
+    ["gave_weapon_ammo"] = "Vous avez donn\xE9 ~o~%sx %s pour %s \xE0 %s",
+    ["gave_weapon_withammo"] = "Vous avez donn\xE9 1x %s avec ~o~%sx %s \xE0 %s",
+    ["gave_weapon_hasalready"] = "%s a d\xE9j\xE0 1x %s",
+    ["gave_weapon_noweapon"] = "%s n'a pas cette arme",
+    ["received_weapon"] = "Vous avez re\xE7u 1x %s de %s",
+    ["received_weapon_ammo"] = "Vous avez re\xE7u ~o~%sx %s pour votre %s de %s",
+    ["received_weapon_withammo"] = "Vous avez re\xE7u 1x %s avec ~o~%sx %s de %s",
+    ["received_weapon_hasalready"] = "%s a tent\xE9 de vous donner 1x %s, mais vous en aviez d\xE9j\xE0 un exemplaire",
+    ["received_weapon_noweapon"] = "%s a tent\xE9 de vous donner des munitions pour %s, mais vous n'avez pas cette arme",
+    ["gave_account_money"] = "Vous avez donn\xE9 $%s (%s) \xE0 %s",
+    ["received_account_money"] = "Vous avez re\xE7u $%s (%s) de %s",
+    ["amount_invalid"] = "Le montant est invalide",
+    ["players_nearby"] = "Aucun joueur n'est \xE0 proximit\xE9",
+    ["ex_inv_lim"] = "Action impossible, d\xE9passement du poids maximum de %s",
+    ["imp_invalid_quantity"] = "Action impossible, la quantit\xE9 est invalide",
+    ["imp_invalid_amount"] = "Action impossible, le montant est invalide",
+    ["threw_standard"] = "Vous avez jet\xE9 %sx %s",
+    ["threw_account"] = "Vous avez jet\xE9 $%s %s",
+    ["threw_weapon"] = "Vous avez jet\xE9 1x %s",
+    ["threw_weapon_ammo"] = "Vous avez jet\xE9 1x %s avec ~o~%sx %s",
+    ["threw_weapon_already"] = "Vous avez d\xE9j\xE0 cette arme",
+    ["threw_cannot_pickup"] = "Votre inventaire est plein, vous ne pouvez donc pas ramasser cela!",
+    ["threw_pickup_prompt"] = "Appuyez sur E pour ramasser",
+
+    -- Key mapping
+    ["keymap_showinventory"] = "Afficher l'inventaire",
+
+    -- Salary related
+    ["received_salary"] = "Vous avez re\xE7u votre salaire: $%s",
+    ["received_help"] = "Vous avez re\xE7u une aide de l'\xE9tat: $%s",
+    ["company_nomoney"] = "Votre entreprise n'a pas assez d'argent pour vous payer",
+    ["received_paycheck"] = "Paiement re\xE7u",
+    ["bank"] = "Banque",
+    ["account_bank"] = "Banque",
+    ["account_black_money"] = "Argent sale",
+    ["account_money"] = "Esp\xE8ces",
+
+    ["act_imp"] = "Action impossible",
+    ["in_vehicle"] = "Action impossible, le joueur est dans un v\xE9hicule",
+    ["not_in_vehicle"] = "Action impossible, le joueur n'est pas dans un v\xE9hicule",
+
+    -- Commands
+    ["command_bring"] = "T\xE9l\xE9porter un joueur sur vous",
+    ["command_car"] = "Faire appaitre un v\xE9hicule",
+    ["command_car_car"] = "Nom ou hash du v\xE9hicule",
+    ["command_cardel"] = "Supprimer les v\xE9hicules \xE0 proximit\xE9",
+    ["command_cardel_radius"] = "Supprime tous les v\xE9hicules dans un rayon sp\xE9cifi\xE9",
+    ["command_repair"] = "R\xE9parer votre v\xE9hicule",
+    ["command_repair_success"] = "V\xE9hicule r\xE9par\xE9 avec succ\xE8s",
+    ["command_repair_success_target"] = "Votre v\xE9hicule a \xE9t\xE9 r\xE9par\xE9 par un membre du staff",
+    ["command_clear"] = "Effacer le chat",
+    ["command_clearall"] = "Effacer le chat de tous les joueurs",
+    ["command_clearinventory"] = "Retirer tous les objets de l'inventaire du joueur",
+    ["command_clearloadout"] = "Retirer toutes les armes du joueur",
+    ["command_freeze"] = "Geler un joueur sur place",
+    ["command_unfreeze"] = "D\xE9geler un joueur",
+    ["command_giveaccountmoney"] = "Donner de l'argent \xE0 un compte sp\xE9cifique",
+    ["command_giveaccountmoney_account"] = "Compte \xE0 cr\xE9diter",
+    ["command_giveaccountmoney_amount"] = "Quantit\xE9 d'argent \xE0 cr\xE9diter",
+    ["command_giveaccountmoney_invalid"] = "Le nom de compte sp\xE9cifi\xE9 est invalide",
+    ["command_removeaccountmoney"] = "Retirer de l'argent d'un compte sp\xE9cifique",
+    ["command_removeaccountmoney_account"] = "Compte \xE0 d\xE9biter",
+    ["command_removeaccountmoney_amount"] = "Quantit\xE9 d'argent \xE0 d\xE9biter",
+    ["command_removeaccountmoney_invalid"] = "Le nom de compte sp\xE9cifi\xE9 est invalide",
+    ["command_giveitem"] = "Donner un objet \xE0 un joueur",
+    ["command_giveitem_item"] = "Nom de l'objet \xE0 donner",
+    ["command_giveitem_count"] = "Quantit\xE9 \xE0 donner",
+    ["command_giveweapon"] = "Donner une arme \xE0 un joueur",
+    ["command_giveweapon_weapon"] = "Nom de l'arme \xE0 donner",
+    ["command_giveweapon_ammo"] = "Quantit\xE9 de munitions \xE0 donner",
+    ["command_giveweapon_hasalready"] = "Le joueur a d\xE9j\xE0 cette arme",
+    ["command_giveweaponcomponent"] = "Donner un accessoire d'arme \xE0 un joueur",
+    ["command_giveweaponcomponent_component"] = "Nom de l'accessoire \xE0 donner",
+    ["command_giveweaponcomponent_invalid"] = "Le nom de l'accessoire d'arme sp\xE9cifi\xE9 est invalide",
+    ["command_giveweaponcomponent_hasalready"] = "Le joueur a d\xE9j\xE0 cet accessoire",
+    ["command_giveweaponcomponent_missingweapon"] = "Le joueur n'a pas l'arme associ\xE9e \xE0 cet accessoire",
+    ["command_goto"] = "Se t\xE9l\xE9porter vers un joueur",
+    ["command_kill"] = "Tuer un joueur",
+    ["command_save"] = "Forcer la sauvegarde des donn\xE9es d'un joueur",
+    ["command_saveall"] = "Forcer la sauvegarde des donn\xE9es de tous les joueurs",
+    ["command_setaccountmoney"] = "D\xE9finir le montant d'argent d'un compte sp\xE9cifique",
+    ["command_setaccountmoney_amount"] = "Montant d'argent \xE0 d\xE9finir",
+    ["command_setcoords"] = "Se t\xE9l\xE9porter \xE0 des coordonn\xE9es sp\xE9cifiques",
+    ["command_setcoords_x"] = "Valeur de l'axe X",
+    ["command_setcoords_y"] = "Valeur de l'axe Y",
+    ["command_setcoords_z"] = "Valeur de l'axe Z",
+    ["command_setjob"] = "D\xE9finir le m\xE9tier d'un joueur",
+    ["command_setjob_job"] = "Nom du m\xE9tier \xE0 d\xE9finir",
+    ["command_setjob_grade"] = "Grade du m\xE9tier",
+    ["command_setjob_invalid"] = "Le m\xE9tier, le grade, ou les deux sont invalides",
+    ["command_setgroup"] = "D\xE9finir le groupe de permissions d'un joueur",
+    ["command_setgroup_group"] = "Nom du groupe \xE0 d\xE9finir",
+    ["commanderror_argumentmismatch"] = "Le nombre d'arguments est invalide (Argument\xB7s donn\xE9\xB7s: %s, Argument\xB7s demand\xE9\xB7s: %s)",
+    ["commanderror_argumentmismatch_number"] = "Type de donn\xE9es de l'argument #%s invalide (Type donn\xE9: texte, Type demand\xE9: nombre)",
+    ["commanderror_argumentmismatch_string"] = "Type de donn\xE9es de l'argument #%s invalide (Type donn\xE9: nombre, Type demand\xE9: texte)",
+    ["commanderror_argumentmismatch_positive_number"] = "Argument invalide #%s type de donn\xE9es (pass\xE9 n\xE9gatif/z\xE9ro, nombre positif requis)",
+    ["commanderror_invaliditem"] = "Le nom de l'objet est invalide",
+    ["commanderror_invalidweapon"] = "Le nom de l'arme est invalide",
+    ["commanderror_console"] = "Cette commande ne peut pas \xEAtre \xE9x\xE9cut\xE9e depuis la console",
+    ["commanderror_invalidcommand"] = "Commande invalide - /%s",
+    ["commanderror_invalidplayerid"] = "Le joueur sp\xE9cifi\xE9 n'est pas connect\xE9",
+    ["commandgeneric_playerid"] = "Identifiant serveur du joueur",
+    ["commandgeneric_dimension"] = "Dimension de la cible",
+    ["command_giveammo_noweapon_found"] = "%s n'a pas cette arme",
+    ["command_giveammo_weapon"] = "Nom de l'arme",
+    ["command_giveammo_ammo"] = "Quantit\xE9 de munitions",
+    ["command_setdim"] = "D\xE9finir la dimension d'un joueur",
+    ["tpm_nowaypoint"] = "Aucun point n'est d\xE9fini sur la carte",
+    ["tpm_success"] = "Vous avez bien \xE9t\xE9 t\xE9l\xE9port\xE9",
+
+    ["noclip_message"] = "Le mode noclip a \xE9t\xE9 %s",
+    ["enabled"] = "~g~activ\xE9~s~",
+    ["disabled"] = "~r~d\xE9sactiv\xE9~s~",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = " ",
+    ["locale_currency"] = "$%s",
+
+    -- Weapons
+
+    -- Melee
+    ["weapon_dagger"] = "Dague",
+    ["weapon_bat"] = "Batte",
+    ["weapon_battleaxe"] = "Hache de combat",
+    ["weapon_bottle"] = "Bouteille",
+    ["weapon_crowbar"] = "Pied de biche",
+    ["weapon_flashlight"] = "Lampte torche",
+    ["weapon_golfclub"] = "Club de golf",
+    ["weapon_hammer"] = "Marteau",
+    ["weapon_hatchet"] = "Hachette",
+    ["weapon_knife"] = "Couteau",
+    ["weapon_knuckle"] = "Poing am\xE9ricain",
+    ["weapon_machete"] = "Machette",
+    ["weapon_nightstick"] = "Matraque",
+    ["weapon_wrench"] = "Cl\xE9 \xE0 pipe",
+    ["weapon_poolcue"] = "Queue de billard",
+    ["weapon_stone_hatchet"] = "Hachette en pierre",
+    ["weapon_switchblade"] = "Couteau \xE0 cran d'arr\xEAt",
+
+    -- Handguns
+    ["weapon_appistol"] = "Pistolet automatique",
+    ["weapon_ceramicpistol"] = "Pistolet en c\xE9ramique",
+    ["weapon_combatpistol"] = "Pistolet de combat",
+    ["weapon_doubleaction"] = "Revolver \xE0 double action",
+    ["weapon_navyrevolver"] = "Revolver de marine",
+    ["weapon_flaregun"] = "Pistolet de d\xE9tresse",
+    ["weapon_gadgetpistol"] = "Pistolet gadget",
+    ["weapon_heavypistol"] = "Pistolet lourd",
+    ["weapon_revolver"] = "Revolver lourd",
+    ["weapon_revolver_mk2"] = "Revolver lourd MK2",
+    ["weapon_marksmanpistol"] = "Pistolet Marksman",
+    ["weapon_pistol"] = "Pistolet",
+    ["weapon_pistol_mk2"] = "Pistolet MK2",
+    ["weapon_pistol50"] = "Pistolet .50",
+    ["weapon_snspistol"] = "Pistolet SNS",
+    ["weapon_snspistol_mk2"] = "Pistolet SNS MK2",
+    ["weapon_stungun"] = "Taser",
+    ["weapon_raypistol"] = "Atomiseur",
+    ["weapon_vintagepistol"] = "Pistolet vintage",
+
+    -- Shotguns
+    ["weapon_assaultshotgun"] = "Fusil d'assaut",
+    ["weapon_autoshotgun"] = "Fusil \xE0 pompe automatique",
+    ["weapon_bullpupshotgun"] = "Fusil \xE0 pompe Bullpup",
+    ["weapon_combatshotgun"] = "Fusil de combat",
+    ["weapon_dbshotgun"] = "Fusil \xE0 pompe \xE0 double canon",
+    ["weapon_heavyshotgun"] = "Fusil \xE0 pompe lourd",
+    ["weapon_musket"] = "Mousquet",
+    ["weapon_pumpshotgun"] = "Fusil \xE0 pompe",
+    ["weapon_pumpshotgun_mk2"] = "Fusil \xE0 pompe MK2",
+    ["weapon_sawnoffshotgun"] = "Fusil \xE0 canon sci\xE9",
+
+    -- SMG & LMG
+    ["weapon_assaultsmg"] = "SMG s'assaut",
+    ["weapon_combatmg"] = "MG de combat",
+    ["weapon_combatmg_mk2"] = "MG de combat MK2",
+    ["weapon_combatpdw"] = "PDW de combat",
+    ["weapon_gusenberg"] = "Balayeuse Gusenberg",
+    ["weapon_machinepistol"] = "Pistolet-mitrailleur",
+    ["weapon_mg"] = "MG",
+    ["weapon_microsmg"] = "Micro SMG",
+    ["weapon_minismg"] = "Mini SMG",
+    ["weapon_smg"] = "SMG",
+    ["weapon_smg_mk2"] = "SMG MK2",
+    ["weapon_raycarbine"] = "Carabine \xE0 rayons",
+
+    -- Rifles
+    ["weapon_advancedrifle"] = "Fusil avanc\xE9",
+    ["weapon_assaultrifle"] = "Fusil d'assaut",
+    ["weapon_assaultrifle_mk2"] = "Fusil d'assaut MK2",
+    ["weapon_bullpuprifle"] = "Fusil Bullpup",
+    ["weapon_bullpuprifle_mk2"] = "Fusil Bullpup MK2",
+    ["weapon_carbinerifle"] = "Fusil carabine",
+    ["weapon_carbinerifle_mk2"] = "Fusil carabine MK2",
+    ["weapon_compactrifle"] = "Fusil compacte",
+    ["weapon_militaryrifle"] = "Fusil militaire",
+    ["weapon_specialcarbine"] = "Carabine sp\xE9ciale",
+    ["weapon_specialcarbine_mk2"] = "Carabine sp\xE9ciale MK2",
+    ["weapon_heavyrifle"] = "Fusil lourd",
+
+    -- Sniper
+    ["weapon_heavysniper"] = "Sniper lourd",
+    ["weapon_heavysniper_mk2"] = "Sniper lourd MK2",
+    ["weapon_marksmanrifle"] = "Fusil Marksman",
+    ["weapon_marksmanrifle_mk2"] = "Fusil Marksman MK2",
+    ["weapon_sniperrifle"] = "Fusil sniper",
+
+    -- Heavy / Launchers
+    ["weapon_compactlauncher"] = "Lanceur compacte",
+    ["weapon_firework"] = "Lanceur de feu d'artifice",
+    ["weapon_grenadelauncher"] = "Lanceur de grenade",
+    ["weapon_hominglauncher"] = "Lanceur de t\xEAte chercheuse",
+    ["weapon_minigun"] = "Minigun",
+    ["weapon_railgun"] = "Fusil \xE0 rail",
+    ["weapon_rpg"] = "Lanceur de rockette",
+    ["weapon_rayminigun"] = "Exterminateur",
+
+    -- Criminal Enterprises DLC
+    ["weapon_metaldetector"] = "D\xE9tecteur de m\xE9taux",
+    ["weapon_precisionrifle"] = "Fusil de pr\xE9cision",
+    ["weapon_tactilerifle"] = "Carabine tactique",
+
+    -- Drug wars dlc
+    ["weapon_candycane"] = "Sucre d'orge",
+    ["weapon_acidpackage"] = "Paquet d'acide",
+    ["weapon_pistolxm3"] = "Pistolet 8 x3m",
+    ["weapon_railgunxm3"] = "Fusil \xE9lectro-magn\xE9tique",
+
+    -- Thrown
+    ["weapon_ball"] = "Base-ball",
+    ["weapon_bzgas"] = "Gaz BZ",
+    ["weapon_flare"] = "Fus\xE9e \xE9clairante",
+    ["weapon_grenade"] = "Grenade",
+    ["weapon_petrolcan"] = "Jerrycan",
+    ["weapon_hazardcan"] = "Jerrycan dangereux",
+    ["weapon_molotov"] = "Cocktail Molotov",
+    ["weapon_proxmine"] = "Mine de proximit\xE9",
+    ["weapon_pipebomb"] = "Bombe tuyau",
+    ["weapon_snowball"] = "Boule de neige",
+    ["weapon_stickybomb"] = "Bombe collante",
+    ["weapon_smokegrenade"] = "Gaz lacrymog\xE8ne",
+
+    -- Special
+    ["weapon_fireextinguisher"] = "Extincteur",
+    ["weapon_digiscanner"] = "Scanner",
+    ["weapon_garbagebag"] = "Sac d'ordures",
+    ["weapon_handcuffs"] = "Menottes",
+    ["gadget_nightvision"] = "Vision nocturne",
+    ["gadget_parachute"] = "Parachute",
+
+    -- Weapon Components
+    ["component_knuckle_base"] = "Mod\xE8le par d\xE9faut",
+    ["component_knuckle_pimp"] = "le Pimp",
+    ["component_knuckle_ballas"] = "le Ballas",
+    ["component_knuckle_dollar"] = "le Hustler",
+    ["component_knuckle_diamond"] = "le Rock",
+    ["component_knuckle_hate"] = "le Hater",
+    ["component_knuckle_love"] = "le Lover",
+    ["component_knuckle_player"] = "le Joueur",
+    ["component_knuckle_king"] = "le Roi",
+    ["component_knuckle_vagos"] = "le Vagos",
+
+    ["component_luxary_finish"] = "Finition d'arme de luxe",
+
+    ["component_handle_default"] = "Poign\xE9e par d\xE9faut",
+    ["component_handle_vip"] = "Poign\xE9e VIP",
+    ["component_handle_bodyguard"] = "Poign\xE9e bodyguard",
+
+    ["component_vip_finish"] = "Finition VIP",
+    ["component_bodyguard_finish"] = "Finition bodyguard",
+
+    ["component_camo_finish"] = "Camouflage num\xE9rique",
+    ["component_camo_finish2"] = "Camouflage pinceau",
+    ["component_camo_finish3"] = "Camouflage des bois",
+    ["component_camo_finish4"] = "Camouflage cr\xE2ne",
+    ["component_camo_finish5"] = "Camouflage sessanta Nove",
+    ["component_camo_finish6"] = "Camouflage perseus",
+    ["component_camo_finish7"] = "Camouflage l\xE9opard",
+    ["component_camo_finish8"] = "Camouflage z\xE8bre",
+    ["component_camo_finish9"] = "Camouflage g\xE9om\xE9trique",
+    ["component_camo_finish10"] = "Camouflage explosif",
+    ["component_camo_finish11"] = "Camouflage patriotique",
+
+    ["component_camo_slide_finish"] = "Finitions slide \xE0 camouflage num\xE9rique",
+    ["component_camo_slide_finish2"] = "Finitions slide \xE0 camouflage pinceau",
+    ["component_camo_slide_finish3"] = "Finitions slide \xE0 camouflage des bois",
+    ["component_camo_slide_finish4"] = "Finitions slide \xE0 camouflage cr\xE2ne",
+    ["component_camo_slide_finish5"] = "Finitions slide \xE0 camouflage sessanta Nove",
+    ["component_camo_slide_finish6"] = "Finitions slide \xE0 camouflage perseus",
+    ["component_camo_slide_finish7"] = "Finitions slide \xE0 camouflage l\xE9opard",
+    ["component_camo_slide_finish8"] = "Finitions slide \xE0 camouflage z\xE8bre",
+    ["component_camo_slide_finish9"] = "Finitions slide \xE0 camouflage g\xE9om\xE9trique",
+    ["component_camo_slide_finish10"] = "Finitions slide \xE0 camouflage explosive",
+    ["component_camo_slide_finish11"] = "Finitions slide \xE0 camouflage patriotique",
+
+    ["component_clip_default"] = "Chargeur par d\xE9faut",
+    ["component_clip_extended"] = "Chargeur \xE0 grande capacit\xE9",
+    ["component_clip_drum"] = "Chargeur \xE0 tambour",
+    ["component_clip_box"] = "Chargeur \xE0 tr\xE8s grande capacit\xE9",
+
+    ["component_scope_holo"] = "Viseur holographique",
+    ["component_scope_small"] = "Viseur de petite taille",
+    ["component_scope_medium"] = "Viseur de taille moyenne",
+    ["component_scope_large"] = "Viseur de grande taille",
+    ["component_scope"] = "Viseur mont\xE9",
+    ["component_scope_advanced"] = "Viseur avanc\xE9",
+    ["component_ironsights"] = "Viseur \xE0 marqueurs align\xE9s",
+
+    ["component_suppressor"] = "silencieux",
+    ["component_compensator"] = "compensateur",
+
+    ["component_muzzle_flat"] = "Frein plat",
+    ["component_muzzle_tactical"] = "Frein tactique",
+    ["component_muzzle_fat"] = "Frein large",
+    ["component_muzzle_precision"] = "Frein de pr\xE9cision",
+    ["component_muzzle_heavy"] = "Frein polyvalent",
+    ["component_muzzle_slanted"] = "Frein inclin\xE9",
+    ["component_muzzle_split"] = "Frein fendu",
+    ["component_muzzle_squared"] = "Frein carr\xE9",
+
+    ["component_flashlight"] = "lampe torche",
+    ["component_grip"] = "poign\xE9e",
+
+    ["component_barrel_default"] = "Canon par d\xE9faut",
+    ["component_barrel_heavy"] = "Canon lourd",
+
+    ["component_ammo_tracer"] = "Munition traceuse",
+    ["component_ammo_incendiary"] = "Munition incendiaire",
+    ["component_ammo_hollowpoint"] = "Munition \xE0 pointe creuse",
+    ["component_ammo_fmj"] = "Munition fMJ",
+    ["component_ammo_armor"] = "Munition perforante",
+    ["component_ammo_explosive"] = "Munition perforante et Munition incendiaire",
+
+    ["component_shells_default"] = "Coque par d\xE9faut",
+    ["component_shells_incendiary"] = "Coque souffle de dragon",
+    ["component_shells_armor"] = "Coque \xE0 chevrotine en acier",
+    ["component_shells_hollowpoint"] = "Coque \xE0 fl\xE9chettes",
+    ["component_shells_explosive"] = "Coque \xE0 limaces explosives",
+
+    -- Weapon Ammo
+    ["ammo_rounds"] = "cartouche(s)",
+    ["ammo_shells"] = "obus",
+    ["ammo_charge"] = "charge\xB7s",
+    ["ammo_petrol"] = "jerrican d'essence",
+    ["ammo_firework"] = "feu\xB7x d'artifice",
+    ["ammo_rockets"] = "roquette\xB7s",
+    ["ammo_grenadelauncher"] = "grenade\xB7s",
+    ["ammo_grenade"] = "grenade\xB7s",
+    ["ammo_stickybomb"] = "bombe\xB7s",
+    ["ammo_pipebomb"] = "bombe\xB7s",
+    ["ammo_smokebomb"] = "bombe\xB7s",
+    ["ammo_molotov"] = "cocktail\xB7s",
+    ["ammo_proxmine"] = "mine\xB7s",
+    ["ammo_bzgas"] = "grenade\xB7s",
+    ["ammo_ball"] = "balle\xB7s",
+    ["ammo_snowball"] = "boule\xB7s de neige",
+    ["ammo_flare"] = "fus\xE9e\xB7s \xE9clairante\xB7s",
+    ["ammo_flaregun"] = "fus\xE9e\xB7s",
+
+    -- Weapon Tints
+    ["tint_default"] = "skin par d\xE9faut",
+    ["tint_green"] = "skin vert",
+    ["tint_gold"] = "skin dor\xE9",
+    ["tint_pink"] = "skin rose",
+    ["tint_army"] = "skin militaire",
+    ["tint_lspd"] = "skin bleu",
+    ["tint_orange"] = "skin orange",
+    ["tint_platinum"] = "skin platine",
+    -- MK2 Weapon Tints
+    ["tint_classic_black"] = "noir classique",
+    ["tint_classic_gray"] = "gris classique",
+    ["tint_classic_two_tone"] = "deux tons classiques",
+    ["tint_classic_white"] = "blanc classique",
+    ["tint_classic_beige"] = "beige classique",
+    ["tint_classic_green"] = "vert classique",
+    ["tint_classic_blue"] = "bleu classique",
+    ["tint_classic_earth"] = "terre classique",
+    ["tint_classic_brown_black"] = "marron noir classique",
+    ["tint_contrast_red"] = "rouge contrast\xE9",
+    ["tint_contrast_blue"] = "bleu contrast\xE9",
+    ["tint_contrast_yellow"] = "jaune contrast\xE9",
+    ["tint_contrast_orange"] = "orange contrast\xE9",
+    ["tint_bold_pink"] = "rose audacieux",
+    ["tint_bold_purple_yellow"] = "violet jaune audacieux",
+    ["tint_bold_orange"] = "orange audacieux",
+    ["tint_bold_green_purple"] = "vert violet audacieux",
+    ["tint_bold_red_feat"] = "rouge audacieux feat",
+    ["tint_bold_green_feat"] = "vert audacieux feat",
+    ["tint_bold_cyan_feat"] = "cyan audacieux feat",
+    ["tint_bold_yellow_feat"] = "jaune audacieux feat",
+    ["tint_bold_red_white"] = "rouge blanc audacieux",
+    ["tint_bold_blue_white"] = "bleu blanc audacieux",
+    ["tint_metallic_gold"] = "or m\xE9tallique",
+    ["tint_metallic_platinum"] = "platine m\xE9tallique",
+    ["tint_metallic_gray_lilac"] = "gris lilas m\xE9tallique",
+    ["tint_metallic_purple_lime"] = "violet lime m\xE9tallique",
+    ["tint_metallic_red"] = "rouge m\xE9tallique",
+    ["tint_metallic_green"] = "vert m\xE9tallique",
+    ["tint_metallic_blue"] = "bleu m\xE9tallique",
+    ["tint_metallic_white_aqua"] = "blanc aqua m\xE9tallique",
+    ["tint_metallic_red_yellow"] = "rouge jaune m\xE9tallique",
+}
+`,
+        "locales/he.lua": `return {
+    -- Inventory
+    ["inventory"] = "\u05DE\u05DC\u05D0\u05D9 ( \u05DE\u05E9\u05E7\u05DC %s / %s )",
+    ["use"] = "\u05D4\u05E9\u05EA\u05DE\u05E9",
+    ["give"] = "\u05EA\u05DF",
+    ["remove"] = "\u05D6\u05E8\u05D5\u05E7",
+    ["return"] = "\u05D7\u05D6\u05D5\u05E8",
+    ["give_to"] = "\u05EA\u05DF \u05DC",
+    ["amount"] = "\u05DB\u05DE\u05D5\u05EA",
+    ["giveammo"] = "\u05EA\u05DF \u05EA\u05D7\u05DE\u05D5\u05E9\u05EA",
+    ["amountammo"] = "\u05DB\u05DE\u05D5\u05EA \u05EA\u05D7\u05DE\u05D5\u05E9\u05EA",
+    ["noammo"] = "\u05DC\u05D0 \u05DE\u05E1\u05E4\u05D9\u05E7!",
+    ["gave_item"] = "\u05E0\u05D9\u05EA\u05DF %sx %s \u05DC %s",
+    ["received_item"] = "\u05E7\u05D9\u05D1\u05DC\u05EA %sx %s \u05DE %s",
+    ["gave_weapon"] = "\u05E0\u05D9\u05EA\u05DF %s \u05DC %s",
+    ["gave_weapon_ammo"] = "\u05E0\u05D9\u05EA\u05DF ~o~%sx %s \u05DC %s \u05DC %s",
+    ["gave_weapon_withammo"] = "\u05E0\u05D9\u05EA\u05DF %s \u05E2\u05DD ~o~%sx %s \u05DC %s",
+    ["gave_weapon_hasalready"] = "%s \u05DB\u05D1\u05E8 \u05D9\u05E9 \u05DC\u05D5 %s",
+    ["gave_weapon_noweapon"] = "%s \u05D0\u05D9\u05DF \u05DC\u05D5 \u05D0\u05EA \u05D4\u05E0\u05E9\u05E7 \u05D4\u05D6\u05D4",
+    ["received_weapon"] = "\u05E7\u05D9\u05D1\u05DC\u05EA %s \u05DE %s",
+    ["received_weapon_ammo"] = "\u05E7\u05D9\u05D1\u05DC\u05EA ~o~%sx %s \u05DC %s \u05E9\u05DC\u05DA \u05DE %s",
+    ["received_weapon_withammo"] = "\u05E7\u05D9\u05D1\u05DC\u05EA %s \u05E2\u05DD ~o~%sx %s \u05DE %s",
+    ["received_weapon_hasalready"] = "%s \u05E0\u05D9\u05E1\u05D4 \u05DC\u05EA\u05EA \u05DC\u05DA %s, \u05D0\u05DA \u05D9\u05E9 \u05DC\u05DA \u05DB\u05D1\u05E8 \u05E0\u05E9\u05E7 \u05D6\u05D4",
+    ["received_weapon_noweapon"] = "%s \u05E0\u05D9\u05E1\u05D4 \u05DC\u05EA\u05EA \u05DC\u05DA \u05EA\u05D7\u05DE\u05D5\u05E9\u05EA \u05DC %s, \u05D0\u05DA \u05D0\u05D9\u05DF \u05DC\u05DA \u05E0\u05E9\u05E7 \u05D6\u05D4",
+    ["gave_account_money"] = "\u05E0\u05D9\u05EA\u05DF $%s (%s) \u05DC %s",
+    ["received_account_money"] = "\u05E7\u05D9\u05D1\u05DC\u05EA $%s (%s) \u05DE %s",
+    ["amount_invalid"] = "\u05DB\u05DE\u05D5\u05EA \u05DC\u05D0 \u05D7\u05D5\u05E7\u05D9\u05EA",
+    ["players_nearby"] = "\u05D0\u05D9\u05DF \u05E9\u05D7\u05E7\u05E0\u05D9\u05DD \u05E7\u05E8\u05D5\u05D1\u05D9\u05DD",
+    ["ex_inv_lim"] = "\u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF \u05DC\u05D1\u05E6\u05E2 \u05E4\u05E2\u05D5\u05DC\u05D4, \u05D7\u05D5\u05E8\u05D2 \u05DE\u05D4\u05DE\u05E9\u05E7\u05DC \u05D4\u05DE\u05E8\u05D1\u05D9 \u05E9\u05DC %s",
+    ["imp_invalid_quantity"] = "\u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF \u05DC\u05D1\u05E6\u05E2 \u05E4\u05E2\u05D5\u05DC\u05D4, \u05D4\u05DB\u05DE\u05D5\u05EA \u05D0\u05D9\u05E0\u05D4 \u05D7\u05D5\u05E7\u05D9\u05EA",
+    ["imp_invalid_amount"] = "\u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF \u05DC\u05D1\u05E6\u05E2 \u05E4\u05E2\u05D5\u05DC\u05D4, \u05D4\u05E1\u05DB\u05D5\u05DD \u05D0\u05D9\u05E0\u05D5 \u05D7\u05D5\u05E7\u05D9",
+    ["threw_standard"] = "\u05D6\u05D5\u05E8\u05E7 %sx %s",
+    ["threw_account"] = "\u05D6\u05D5\u05E8\u05E7 $%s %s",
+    ["threw_weapon"] = "\u05D6\u05D5\u05E8\u05E7 %s",
+    ["threw_weapon_ammo"] = "\u05D6\u05D5\u05E8\u05E7 %s \u05E2\u05DD ~o~%sx %s",
+    ["threw_weapon_already"] = "\u05DB\u05D1\u05E8 \u05D9\u05E9 \u05DC\u05DA \u05E0\u05E9\u05E7 \u05D6\u05D4",
+    ["threw_cannot_pickup"] = "\u05D4\u05DE\u05DC\u05D0\u05D9 \u05DE\u05DC\u05D0, \u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF \u05DC\u05D0\u05E1\u05D5\u05E3!",
+    ["threw_pickup_prompt"] = "\u05DC\u05D7\u05E5 E \u05DB\u05D3\u05D9 \u05DC\u05D0\u05E1\u05D5\u05E3",
+    -- Key mapping
+    ["keymap_showinventory"] = "\u05D4\u05E6\u05D2 \u05DE\u05DC\u05D0\u05D9",
+
+    -- Salary related
+    ["received_salary"] = "\u05E7\u05D9\u05D1\u05DC\u05EA \u05E9\u05DB\u05E8: $%s",
+    ["received_help"] = "\u05E7\u05D9\u05D1\u05DC\u05EA \u05D4\u05D8\u05D1\u05D4: $%s",
+    ["company_nomoney"] = "\u05D4\u05D7\u05D1\u05E8\u05D4 \u05D1\u05D4 \u05D0\u05EA\u05D4 \u05E2\u05D5\u05D1\u05D3 \u05D0\u05D9\u05E0\u05D4 \u05D9\u05DB\u05D5\u05DC\u05D4 \u05DC\u05E9\u05DC\u05DD \u05DC\u05DA \u05D0\u05EA \u05D4\u05E9\u05DB\u05E8",
+    ["received_paycheck"] = "\u05E7\u05D9\u05D1\u05DC\u05EA \u05EA\u05DC\u05D5\u05E9",
+    ["bank"] = "\u05D1\u05E0\u05E7 \u05DE\u05E2\u05E5",
+    ["account_bank"] = "\u05D1\u05E0\u05E7",
+    ["account_black_money"] = "\u05DB\u05E1\u05E3 \u05DE\u05D8\u05D5\u05E0\u05E3",
+    ["account_money"] = "\u05DE\u05D6\u05D5\u05DE\u05DF",
+
+    ["act_imp"] = "\u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF \u05DC\u05D1\u05E6\u05E2 \u05E4\u05E2\u05D5\u05DC\u05D4",
+    ["in_vehicle"] = "\u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF \u05DC\u05D1\u05E6\u05E2 \u05E4\u05E2\u05D5\u05DC\u05D4, \u05D4\u05E9\u05D7\u05E7\u05DF \u05D1\u05E8\u05DB\u05D1",
+    ["not_in_vehicle"] = "\u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF \u05DC\u05D1\u05E6\u05E2 \u05E4\u05E2\u05D5\u05DC\u05D4, \u05D4\u05E9\u05D7\u05E7\u05DF \u05DC\u05D0 \u05D1\u05E8\u05DB\u05D1",
+
+    -- Commands
+    ["command_bring"] = "\u05D4\u05D1\u05D0 \u05E9\u05D7\u05E7\u05DF \u05D0\u05DC\u05D9\u05DA",
+    ["command_car"] = "\u05E6\u05D5\u05E8 \u05E8\u05DB\u05D1",
+    ["command_car_car"] = "\u05D3\u05D2\u05DD \u05D4\u05E8\u05DB\u05D1 \u05D0\u05D5 \u05D4\u05D0\u05E9",
+    ["command_cardel"] = "\u05D4\u05E1\u05E8 \u05E8\u05DB\u05D1\u05D9\u05DD \u05D1\u05E7\u05E8\u05D1\u05EA \u05DE\u05E7\u05D5\u05DD",
+    ["command_cardel_radius"] = "\u05D4\u05E1\u05E8 \u05D0\u05EA \u05DB\u05DC \u05D4\u05E8\u05DB\u05D1\u05D9\u05DD \u05D1\u05E8\u05D3\u05D9\u05D5\u05E1 \u05D4\u05DE\u05E6\u05D5\u05D9\u05DF",
+    ["command_repair"] = "\u05EA\u05E7\u05DF \u05D0\u05EA \u05D4\u05E8\u05DB\u05D1 \u05E9\u05DC\u05DA",
+    ["command_repair_success"] = "\u05E8\u05DB\u05D1 \u05EA\u05D5\u05E7\u05DF \u05D1\u05D4\u05E6\u05DC\u05D7\u05D4",
+    ["command_repair_success_target"] = "\u05D0\u05D3\u05DE\u05D9\u05DF \u05EA\u05D9\u05E7\u05DF \u05DC\u05DA \u05D0\u05EA \u05D4\u05E8\u05DB\u05D1",
+    ["command_clear"] = '\u05E0\u05E7\u05D4 \u05D8\u05E7\u05E1\u05D8 \u05E6"\u05D0\u05D8',
+    ["command_clearall"] = '\u05E0\u05E7\u05D4 \u05D8\u05E7\u05E1\u05D8 \u05E6"\u05D0\u05D8 \u05DC\u05DB\u05DC \u05D4\u05E9\u05D7\u05E7\u05E0\u05D9\u05DD',
+    ["command_clearinventory"] = "\u05D4\u05E1\u05E8 \u05D0\u05EA \u05DB\u05DC \u05D4\u05E4\u05E8\u05D9\u05D8\u05D9\u05DD \u05DE\u05D4\u05DE\u05DC\u05D0\u05D9 \u05E9\u05DC \u05D4\u05E9\u05D7\u05E7\u05DF",
+    ["command_clearloadout"] = "\u05D4\u05E1\u05E8 \u05D0\u05EA \u05DB\u05DC \u05D4\u05E0\u05E9\u05E7\u05D9\u05DD \u05DE\u05D4\u05E9\u05D7\u05E7\u05DF",
+    ["command_freeze"] = "\u05D4\u05E7\u05E4\u05D0 \u05E9\u05D7\u05E7\u05DF",
+    ["command_unfreeze"] = "\u05D1\u05D8\u05DC \u05D4\u05E7\u05E4\u05D0\u05D4 \u05E9\u05DC \u05E9\u05D7\u05E7\u05DF",
+    ["command_giveaccountmoney"] = "\u05EA\u05DF \u05DB\u05E1\u05E3 \u05DC\u05D7\u05E9\u05D1\u05D5\u05DF \u05DE\u05E1\u05D5\u05D9\u05DD",
+    ["command_giveaccountmoney_account"] = "\u05D7\u05E9\u05D1\u05D5\u05DF \u05DC\u05D4\u05D5\u05E1\u05E4\u05D4",
+    ["command_giveaccountmoney_amount"] = "\u05DB\u05DE\u05D5\u05EA \u05DC\u05D4\u05D5\u05E1\u05E4\u05D4",
+    ["command_giveaccountmoney_invalid"] = "\u05E9\u05DD \u05D7\u05E9\u05D1\u05D5\u05DF \u05DC\u05D0 \u05D7\u05D5\u05E7\u05D9",
+    ["command_removeaccountmoney"] = "\u05D4\u05E1\u05E8 \u05DB\u05E1\u05E3 \u05DE\u05D7\u05E9\u05D1\u05D5\u05DF \u05DE\u05E1\u05D5\u05D9\u05DD",
+    ["command_removeaccountmoney_account"] = "\u05D7\u05E9\u05D1\u05D5\u05DF \u05DC\u05D4\u05E1\u05E8\u05D4 \u05DE\u05DE\u05E0\u05D5",
+    ["command_removeaccountmoney_amount"] = "\u05DB\u05DE\u05D5\u05EA \u05DC\u05D4\u05E1\u05E8\u05D4",
+    ["command_removeaccountmoney_invalid"] = "\u05E9\u05DD \u05D7\u05E9\u05D1\u05D5\u05DF \u05DC\u05D0 \u05D7\u05D5\u05E7\u05D9",
+    ["command_giveitem"] = "\u05EA\u05DF \u05DC\u05E9\u05D7\u05E7\u05DF \u05E4\u05E8\u05D9\u05D8",
+    ["command_giveitem_item"] = "\u05E9\u05DD \u05D4\u05E4\u05E8\u05D9\u05D8",
+    ["command_giveitem_count"] = "\u05DB\u05DE\u05D5\u05EA",
+    ["command_giveweapon"] = "\u05EA\u05DF \u05DC\u05E9\u05D7\u05E7\u05DF \u05E0\u05E9\u05E7",
+    ["command_giveweapon_weapon"] = "\u05E9\u05DD \u05D4\u05E0\u05E9\u05E7",
+    ["command_giveweapon_ammo"] = "\u05DB\u05DE\u05D5\u05EA \u05EA\u05D7\u05DE\u05D5\u05E9\u05EA",
+    ["command_giveweapon_hasalready"] = "\u05DC\u05E9\u05D7\u05E7\u05DF \u05DB\u05D1\u05E8 \u05D9\u05E9 \u05E0\u05E9\u05E7 \u05D6\u05D4",
+    ["command_giveweaponcomponent"] = "\u05EA\u05DF \u05E8\u05DB\u05D9\u05D1 \u05E0\u05E9\u05E7 \u05DC\u05E9\u05D7\u05E7\u05DF",
+    ["command_giveweaponcomponent_component"] = "\u05E9\u05DD \u05D4\u05E8\u05DB\u05D9\u05D1",
+    ["command_giveweaponcomponent_invalid"] = "\u05E8\u05DB\u05D9\u05D1 \u05E0\u05E9\u05E7 \u05DC\u05D0 \u05D7\u05D5\u05E7\u05D9",
+    ["command_giveweaponcomponent_hasalready"] = "\u05DC\u05E9\u05D7\u05E7\u05DF \u05DB\u05D1\u05E8 \u05D9\u05E9 \u05E8\u05DB\u05D9\u05D1 \u05E0\u05E9\u05E7 \u05D6\u05D4",
+    ["command_giveweaponcomponent_missingweapon"] = "\u05DC\u05E9\u05D7\u05E7\u05DF \u05D0\u05D9\u05DF \u05E0\u05E9\u05E7 \u05D6\u05D4",
+    ["command_goto"] = "\u05D4\u05EA\u05E2\u05D1\u05E8 \u05D0\u05DC \u05E9\u05D7\u05E7\u05DF",
+    ["command_kill"] = "\u05D4\u05E8\u05D5\u05D2 \u05E9\u05D7\u05E7\u05DF",
+    ["command_save"] = "\u05E9\u05DE\u05D5\u05E8 \u05E0\u05EA\u05D5\u05E0\u05D9\u05DD \u05E9\u05DC \u05E9\u05D7\u05E7\u05DF \u05D1\u05DB\u05E4\u05D9\u05D4",
+    ["command_saveall"] = "\u05E9\u05DE\u05D5\u05E8 \u05E0\u05EA\u05D5\u05E0\u05D9\u05DD \u05E9\u05DC \u05DB\u05DC \u05D4\u05E9\u05D7\u05E7\u05E0\u05D9\u05DD",
+    ["command_setaccountmoney"] = "\u05E7\u05D1\u05E2 \u05DB\u05DE\u05D5\u05EA \u05DB\u05E1\u05E3 \u05D1\u05D7\u05E9\u05D1\u05D5\u05DF \u05DE\u05E1\u05D5\u05D9\u05DD",
+    ["command_setaccountmoney_amount"] = "\u05DB\u05DE\u05D5\u05EA \u05DB\u05E1\u05E3 \u05DC\u05D4\u05D2\u05D3\u05E8\u05D4",
+    ["command_setcoords"] = "\u05D4\u05EA\u05E2\u05D1\u05E8 \u05DC\u05E7\u05D5\u05D0\u05D5\u05E8\u05D3\u05D9\u05E0\u05D8\u05D5\u05EA \u05DE\u05E1\u05D5\u05D9\u05DE\u05D5\u05EA",
+    ["command_setcoords_x"] = "\u05E2\u05E8\u05DA x",
+    ["command_setcoords_y"] = "\u05E2\u05E8\u05DA y",
+    ["command_setcoords_z"] = "\u05E2\u05E8\u05DA z",
+    ["command_setjob"] = "\u05E7\u05D1\u05E2 \u05DE\u05E9\u05E8\u05D4 \u05DC\u05E9\u05D7\u05E7\u05DF",
+    ["command_setjob_job"] = "\u05E9\u05DD \u05D4\u05DE\u05E9\u05E8\u05D4",
+    ["command_setjob_grade"] = "\u05D3\u05E8\u05D2\u05EA \u05D4\u05DE\u05E9\u05E8\u05D4",
+    ["command_setjob_invalid"] = "\u05D4\u05DE\u05E9\u05E8\u05D4, \u05D4\u05D3\u05E8\u05D2\u05D4 \u05D0\u05D5 \u05E9\u05E0\u05D9\u05D4\u05DD \u05D0\u05D9\u05E0\u05DD \u05D7\u05D5\u05E7\u05D9\u05D9\u05DD",
+    ["command_setgroup"] = "\u05E7\u05D1\u05E2 \u05E7\u05D1\u05D5\u05E6\u05EA \u05D4\u05E8\u05E9\u05D0\u05D5\u05EA \u05DC\u05E9\u05D7\u05E7\u05DF",
+    ["command_setgroup_group"] = "\u05E9\u05DD \u05E7\u05D1\u05D5\u05E6\u05EA \u05D4\u05E4\u05E7\u05D5\u05D3\u05D5\u05EA",
+    ["commanderror_argumentmismatch"] = "\u05DB\u05DE\u05D5\u05EA \u05D5\u05E1\u05D5\u05D2\u05D9 \u05D4\u05D0\u05E8\u05D2\u05D5\u05DE\u05E0\u05D8\u05D9\u05DD \u05D0\u05D9\u05E0\u05DD \u05EA\u05D5\u05D0\u05DE\u05D9\u05DD (\u05E0\u05E9\u05DC\u05D7 %s, \u05E0\u05D3\u05E8\u05E9 %s)",
+    ["commanderror_argumentmismatch_number"] = "\u05D8\u05D9\u05E4\u05D5\u05E1 \u05D0\u05E8\u05D2\u05D5\u05DE\u05E0\u05D8 #%s \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF (\u05E0\u05E9\u05DC\u05D7 \u05DE\u05D7\u05E8\u05D5\u05D6\u05EA, \u05E0\u05D3\u05E8\u05E9 \u05DE\u05E1\u05E4\u05E8)",
+    ["commanderror_argumentmismatch_string"] = "\u05D8\u05D9\u05E4\u05D5\u05E1 \u05D0\u05E8\u05D2\u05D5\u05DE\u05E0\u05D8 #%s \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF (\u05E0\u05E9\u05DC\u05D7 \u05DE\u05E1\u05E4\u05E8, \u05E0\u05D3\u05E8\u05E9 \u05DE\u05D7\u05E8\u05D5\u05D6\u05EA)",
+    ["commanderror_argumentmismatch_positive_number"] = "\u05D8\u05D9\u05E4\u05D5\u05E1 \u05D0\u05E8\u05D2\u05D5\u05DE\u05E0\u05D8 #%s \u05DC\u05D0 \u05EA\u05E7\u05D9\u05DF (\u05E0\u05E9\u05DC\u05D7 \u05E9\u05DC\u05D9\u05DC\u05D9/\u05D0\u05E4\u05E1, \u05E0\u05D3\u05E8\u05E9 \u05DE\u05E1\u05E4\u05E8 \u05D7\u05D9\u05D5\u05D1\u05D9)",
+    ["commanderror_invaliditem"] = "\u05E9\u05DD \u05E4\u05E8\u05D9\u05D8 \u05DC\u05D0 \u05D7\u05D5\u05E7\u05D9",
+    ["commanderror_invalidweapon"] = "\u05E0\u05E9\u05E7 \u05DC\u05D0 \u05D7\u05D5\u05E7\u05D9",
+    ["commanderror_console"] = "\u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF \u05DC\u05D4\u05E4\u05E2\u05D9\u05DC \u05E4\u05E7\u05D5\u05D3\u05D4 \u05DE\u05D4\u05E7\u05D5\u05E0\u05E1\u05D5\u05DC",
+    ["commanderror_invalidcommand"] = "\u05E4\u05E7\u05D5\u05D3\u05D4 \u05DC\u05D0 \u05D7\u05D5\u05E7\u05D9\u05EA - /%s",
+    ["commanderror_invalidplayerid"] = "\u05D0\u05D9\u05DF \u05E9\u05D7\u05E7\u05DF \u05E2\u05DD \u05DE\u05D6\u05D4\u05D4 \u05D6\u05D4 \u05DE\u05D7\u05D5\u05D1\u05E8",
+    ["commandgeneric_playerid"] = "\u05DE\u05D6\u05D4\u05D4 \u05D4\u05E9\u05D7\u05E7\u05DF \u05D1\u05E9\u05E8\u05EA",
+    ["command_giveammo_noweapon_found"] = "\u05DC-%s \u05D0\u05D9\u05DF \u05E0\u05E9\u05E7 \u05DB\u05D6\u05D4",
+    ["command_giveammo_weapon"] = "\u05E9\u05DD \u05D4\u05E0\u05E9\u05E7",
+    ["command_giveammo_ammo"] = "\u05DB\u05DE\u05D5\u05EA \u05EA\u05D7\u05DE\u05D5\u05E9\u05EA",
+    ["tpm_nowaypoint"] = "\u05D0\u05D9\u05DF \u05E0\u05E7\u05D5\u05D3\u05EA \u05D3\u05E8\u05DA \u05DE\u05D5\u05D2\u05D3\u05E8\u05EA",
+    ["tpm_success"] = "\u05D4\u05D5\u05E2\u05D1\u05E8\u05EA \u05D1\u05D4\u05E6\u05DC\u05D7\u05D4",
+
+    ["noclip_message"] = "\u05DE\u05E6\u05D1 Noclip %s",
+    ["enabled"] = "~g~\u05DE\u05D0\u05D5\u05E4\u05E9\u05E8~s~",
+    ["disabled"] = "~r~\u05DE\u05E0\u05D5\u05D8\u05E8\u05DC~s~",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = ",",
+    ["locale_currency"] = "\u20AA%s",
+
+    -- Weapons
+
+    -- Melee
+    ["weapon_dagger"] = "\u05E1\u05DB\u05D9\u05DF",
+    ["weapon_bat"] = "\u05DB\u05D5\u05EA\u05E8\u05EA",
+    ["weapon_battleaxe"] = "\u05D2\u05E8\u05D6\u05DF \u05E7\u05E8\u05D1",
+    ["weapon_bottle"] = "\u05D1\u05E7\u05D1\u05D5\u05E7",
+    ["weapon_crowbar"] = "\u05DE\u05E4\u05EA\u05D7 \u05D1\u05E8\u05D6\u05DC",
+    ["weapon_flashlight"] = "\u05E4\u05E0\u05E1 \u05D9\u05D3",
+    ["weapon_golfclub"] = "\u05DE\u05E7\u05DC \u05D2\u05D5\u05DC\u05E3",
+    ["weapon_hammer"] = "\u05E4\u05D8\u05D9\u05E9",
+    ["weapon_hatchet"] = "\u05D2\u05E8\u05D6\u05DF",
+    ["weapon_knife"] = "\u05E1\u05DB\u05D9\u05DF",
+    ["weapon_knuckle"] = "\u05E2\u05E6\u05DE\u05D0\u05D5\u05EA",
+    ["weapon_machete"] = '\u05DE\u05D0\u05E6"\u05D8\u05D4',
+    ["weapon_nightstick"] = "\u05DE\u05E7\u05DC \u05DC\u05D9\u05DC\u05D4",
+    ["weapon_wrench"] = "\u05DE\u05E4\u05EA\u05D7 \u05D0\u05D9\u05E0\u05D2\u05DC\u05D9\u05D6\u05D9",
+    ["weapon_poolcue"] = "\u05DE\u05E7\u05DC \u05D1\u05E8\u05D9\u05DB\u05D4",
+    ["weapon_stone_hatchet"] = "\u05D2\u05E8\u05D6\u05DF \u05D0\u05D1\u05DF",
+    ["weapon_switchblade"] = "\u05E1\u05DB\u05D9\u05DF \u05E7\u05E4\u05D9\u05E6\u05D9\u05EA",
+    -- Handguns
+    ["weapon_appistol"] = "\u05D0\u05E7\u05D3\u05D7 AP",
+    ["weapon_ceramicpistol"] = "\u05D0\u05E7\u05D3\u05D7 \u05E7\u05E8\u05DE\u05D9",
+    ["weapon_combatpistol"] = "\u05D0\u05E7\u05D3\u05D7 \u05E7\u05E8\u05D1",
+    ["weapon_doubleaction"] = "\u05E8\u05D1\u05D5\u05DC\u05D1\u05E8 \u05E4\u05E2\u05D5\u05DC\u05D4 \u05DB\u05E4\u05D5\u05DC\u05D4",
+    ["weapon_navyrevolver"] = "\u05E8\u05D1\u05D5\u05DC\u05D1\u05E8 \u05E6\u05D9",
+    ["weapon_flaregun"] = "\u05D0\u05E7\u05D3\u05D7 \u05D6\u05D9\u05E7\u05D5\u05E7\u05D9\u05DD",
+    ["weapon_gadgetpistol"] = "\u05D0\u05E7\u05D3\u05D7 \u05D7\u05D5\u05DE\u05E8\u05D4",
+    ["weapon_heavypistol"] = "\u05D0\u05E7\u05D3\u05D7 \u05DB\u05D1\u05D3",
+    ["weapon_revolver"] = "\u05E8\u05D1\u05D5\u05DC\u05D1\u05E8 \u05DB\u05D1\u05D3",
+    ["weapon_revolver_mk2"] = "\u05E8\u05D1\u05D5\u05DC\u05D1\u05E8 \u05DB\u05D1\u05D3 MK2",
+    ["weapon_marksmanpistol"] = "\u05D0\u05E7\u05D3\u05D7 \u05E6\u05DC\u05E3",
+    ["weapon_pistol"] = "\u05D0\u05E7\u05D3\u05D7",
+    ["weapon_pistol_mk2"] = "\u05D0\u05E7\u05D3\u05D7 MK2",
+    ["weapon_pistol50"] = "\u05D0\u05E7\u05D3\u05D7 .50",
+    ["weapon_snspistol"] = "\u05D0\u05E7\u05D3\u05D7 SNS",
+    ["weapon_snspistol_mk2"] = "\u05D0\u05E7\u05D3\u05D7 SNS MK2",
+    ["weapon_stungun"] = "\u05D8\u05D9\u05D9\u05D6\u05E8",
+    ["weapon_raypistol"] = "Up-N-Atomizer",
+    ["weapon_vintagepistol"] = "\u05D0\u05E7\u05D3\u05D7 \u05D5\u05D9\u05E0\u05D8\u05D2",
+
+    -- Shotguns
+    ["weapon_assaultshotgun"] = "\u05E8\u05D5\u05D1\u05D4 \u05E1\u05D8\u05D5\u05E8\u05DD",
+    ["weapon_autoshotgun"] = "\u05E8\u05D5\u05D1\u05D4 \u05D0\u05D5\u05D8\u05D5\u05DE\u05D8\u05D9",
+    ["weapon_bullpupshotgun"] = "\u05E8\u05D5\u05D1\u05D4 Bullpup",
+    ["weapon_combatshotgun"] = "\u05E8\u05D5\u05D1\u05D4 \u05E7\u05E8\u05D1",
+    ["weapon_dbshotgun"] = "\u05E8\u05D5\u05D1\u05D4 \u05E7\u05E0\u05D4 \u05DB\u05E4\u05D5\u05DC",
+    ["weapon_heavyshotgun"] = "\u05E8\u05D5\u05D1\u05D4 \u05DB\u05D1\u05D3",
+    ["weapon_musket"] = "\u05E8\u05D5\u05D1\u05D4 \u05D7\u05DC\u05D9\u05DC\u05D9",
+    ["weapon_pumpshotgun"] = "\u05E8\u05D5\u05D1\u05D4 \u05E4\u05D5\u05DE\u05E4\u05D4",
+    ["weapon_pumpshotgun_mk2"] = "\u05E8\u05D5\u05D1\u05D4 \u05E4\u05D5\u05DE\u05E4\u05D4 MK2",
+    ["weapon_sawnoffshotgun"] = "\u05E8\u05D5\u05D1\u05D4 \u05D7\u05EA\u05D5\u05DA",
+
+    -- SMG & LMG
+    ["weapon_assaultsmg"] = "\u05E8\u05D5\u05D1\u05D4 \u05E1\u05D8\u05D5\u05E8\u05DD SMG",
+    ["weapon_combatmg"] = "\u05E8\u05D5\u05D1\u05D4 \u05E1\u05D8\u05D5\u05E8\u05DD MG",
+    ["weapon_combatmg_mk2"] = "\u05E8\u05D5\u05D1\u05D4 \u05E1\u05D8\u05D5\u05E8\u05DD MG MK2",
+    ["weapon_combatpdw"] = "\u05E8\u05D5\u05D1\u05D4 \u05E1\u05D8\u05D5\u05E8\u05DD PDW",
+    ["weapon_gusenberg"] = "\u05E8\u05D5\u05D1\u05D4 \u05D2\u05D5\u05D6\u05E0\u05D1\u05E8\u05D2",
+    ["weapon_machinepistol"] = "\u05D0\u05E7\u05D3\u05D7 \u05DE\u05DB\u05D5\u05E0\u05D4",
+    ["weapon_mg"] = "\u05E8\u05D5\u05D1\u05D4 \u05DE\u05DB\u05D5\u05E0\u05D4",
+    ["weapon_microsmg"] = "\u05E8\u05D5\u05D1\u05D4 \u05DE\u05DB\u05D5\u05E0\u05D4 \u05DE\u05D9\u05E7\u05E8\u05D5",
+    ["weapon_minismg"] = "\u05E8\u05D5\u05D1\u05D4 \u05DE\u05DB\u05D5\u05E0\u05D4 \u05DE\u05D9\u05E0\u05D9",
+    ["weapon_smg"] = "\u05E8\u05D5\u05D1\u05D4 \u05DE\u05DB\u05D5\u05E0\u05D4",
+    ["weapon_smg_mk2"] = "\u05E8\u05D5\u05D1\u05D4 \u05DE\u05DB\u05D5\u05E0\u05D4 MK2",
+    ["weapon_raycarbine"] = "\u05E8\u05D5\u05D1\u05D4 \u05D0\u05D5\u05E8",
+    -- Rifles
+    ["weapon_advancedrifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05DE\u05EA\u05E7\u05D3\u05DD",
+    ["weapon_assaultrifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05E1\u05D8\u05D5\u05E8\u05DD",
+    ["weapon_assaultrifle_mk2"] = "\u05E8\u05D5\u05D1\u05D4 \u05E1\u05D8\u05D5\u05E8\u05DD MK2",
+    ["weapon_bullpuprifle"] = "\u05E8\u05D5\u05D1\u05D4 Bullpup",
+    ["weapon_bullpuprifle_mk2"] = "\u05E8\u05D5\u05D1\u05D4 Bullpup MK2",
+    ["weapon_carbinerifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05E7\u05E8\u05D1\u05D9\u05DF",
+    ["weapon_carbinerifle_mk2"] = "\u05E8\u05D5\u05D1\u05D4 \u05E7\u05E8\u05D1\u05D9\u05DF MK2",
+    ["weapon_compactrifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05E7\u05D5\u05DE\u05E4\u05E7\u05D8\u05D9",
+    ["weapon_militaryrifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05E6\u05D1\u05D0\u05D9",
+    ["weapon_specialcarbine"] = "\u05E8\u05D5\u05D1\u05D4 \u05E7\u05E8\u05D1\u05D9\u05DF \u05DE\u05D9\u05D5\u05D7\u05D3",
+    ["weapon_specialcarbine_mk2"] = "\u05E8\u05D5\u05D1\u05D4 \u05E7\u05E8\u05D1\u05D9\u05DF \u05DE\u05D9\u05D5\u05D7\u05D3 MK2",
+    ["weapon_heavyrifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05DB\u05D1\u05D3",
+
+    -- Sniper
+    ["weapon_heavysniper"] = "\u05E8\u05D5\u05D1\u05D4 \u05E6\u05DC\u05E4\u05D9\u05DD \u05DB\u05D1\u05D3",
+    ["weapon_heavysniper_mk2"] = "\u05E8\u05D5\u05D1\u05D4 \u05E6\u05DC\u05E4\u05D9\u05DD \u05DB\u05D1\u05D3 MK2",
+    ["weapon_marksmanrifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05E6\u05DC\u05E4\u05D9\u05DD",
+    ["weapon_marksmanrifle_mk2"] = "\u05E8\u05D5\u05D1\u05D4 \u05E6\u05DC\u05E4\u05D9\u05DD MK2",
+    ["weapon_sniperrifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05E6\u05DC\u05E4\u05D9\u05DD",
+
+    -- Heavy / Launchers
+    ["weapon_compactlauncher"] = "\u05DE\u05E9\u05D2\u05E8 \u05E7\u05D5\u05DE\u05E4\u05E7\u05D8\u05D9",
+    ["weapon_firework"] = "\u05DE\u05E9\u05D2\u05E8 \u05D6\u05D9\u05E7\u05D5\u05E7\u05D9\u05DD",
+    ["weapon_grenadelauncher"] = "\u05DE\u05E9\u05D2\u05E8 \u05E8\u05D9\u05DE\u05D5\u05E0\u05D9\u05DD",
+    ["weapon_hominglauncher"] = "\u05DE\u05E9\u05D2\u05E8 \u05D7\u05E4\u05E6\u05D9\u05DD",
+    ["weapon_minigun"] = "\u05DE\u05D9\u05E0\u05D9\u05D2\u05DF",
+    ["weapon_railgun"] = "\u05E8\u05D5\u05D1\u05D4 \u05E8\u05DB\u05D1\u05EA",
+    ["weapon_rpg"] = "\u05DE\u05E9\u05D2\u05E8 \u05E8\u05E7\u05D8\u05D5\u05EA",
+    ["weapon_rayminigun"] = "Widowmaker",
+
+    -- Criminal Enterprises DLC
+    ["weapon_metaldetector"] = "\u05D2\u05DC\u05D0\u05D9 \u05DE\u05EA\u05DB\u05D5\u05EA",
+    ["weapon_precisionrifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05D3\u05D9\u05D5\u05E7",
+    ["weapon_tactilerifle"] = "\u05E8\u05D5\u05D1\u05D4 \u05D8\u05E7\u05D8\u05D9\u05DC\u05D9",
+
+    -- Drug wars dlc
+    ["weapon_candycane"] = "\u05DE\u05E7\u05DC \u05E1\u05D5\u05DB\u05E8",
+    ["weapon_acidpackage"] = "\u05D7\u05D5\u05DE\u05E6\u05D4",
+    ["weapon_pistolxm3"] = "\u05D0\u05E7\u05D3\u05D7 xm3",
+    ["weapon_railgunxm3"] = "\u05E8\u05D5\u05D1\u05D4 \u05E8\u05DB\u05D1\u05EA xm3",
+    -- Thrown
+    ["weapon_ball"] = "\u05DB\u05D3\u05D5\u05E8 \u05D1\u05D9\u05D9\u05E1\u05D1\u05D5\u05DC",
+    ["weapon_bzgas"] = "\u05D2\u05D6 BZ",
+    ["weapon_flare"] = "\u05D6\u05D9\u05E7\u05D5\u05E7",
+    ["weapon_grenade"] = "\u05E8\u05D9\u05DE\u05D5\u05DF",
+    ["weapon_petrolcan"] = "\u05D2\u05E8\u05E8\u05D5\u05DF \u05D3\u05DC\u05E7",
+    ["weapon_hazardcan"] = "\u05D2\u05E8\u05E8\u05D5\u05DF \u05DE\u05E1\u05D5\u05DB\u05DF",
+    ["weapon_molotov"] = "\u05E7\u05D5\u05E7\u05D8\u05D9\u05D9\u05DC \u05DE\u05D5\u05DC\u05D5\u05D8\u05D5\u05D1",
+    ["weapon_proxmine"] = "\u05DE\u05D5\u05E7\u05E9 \u05E7\u05E8\u05D1\u05D4",
+    ["weapon_pipebomb"] = "\u05E4\u05E6\u05E6\u05EA \u05E6\u05D9\u05E0\u05D5\u05E8",
+    ["weapon_snowball"] = "\u05DB\u05D3\u05D5\u05E8 \u05E9\u05DC\u05D2",
+    ["weapon_stickybomb"] = "\u05E4\u05E6\u05E6\u05D4 \u05D3\u05D1\u05D9\u05E7\u05D4",
+    ["weapon_smokegrenade"] = "\u05D2\u05D6 \u05D3\u05DE\u05E2\u05D5\u05EA",
+
+    -- Special
+    ["weapon_fireextinguisher"] = "\u05DE\u05D8\u05E3 \u05DB\u05D9\u05D1\u05D5\u05D9",
+    ["weapon_digiscanner"] = "\u05E1\u05D5\u05E8\u05E7 \u05D3\u05D9\u05D2\u05D9\u05D8\u05DC\u05D9",
+    ["weapon_garbagebag"] = "\u05E9\u05E7\u05D9\u05EA \u05D6\u05D1\u05DC",
+    ["weapon_handcuffs"] = "\u05DB\u05E4\u05E4\u05D5\u05EA",
+    ["gadget_nightvision"] = "\u05E8\u05D0\u05D9\u05D4 \u05DC\u05D9\u05DC\u05D9\u05EA",
+    ["gadget_parachute"] = "\u05E6\u05E0\u05D9\u05D7\u05D4",
+
+    -- Weapon Components
+    ["component_knuckle_base"] = "\u05D3\u05D2\u05DD \u05D1\u05E1\u05D9\u05E1\u05D9",
+    ["component_knuckle_pimp"] = "\u05D4\u05E4\u05D9\u05DE\u05E4",
+    ["component_knuckle_ballas"] = "\u05D4\u05D1\u05D0\u05DC\u05E1",
+    ["component_knuckle_dollar"] = "\u05D4\u05D4\u05D0\u05E1\u05D8\u05DC\u05E8",
+    ["component_knuckle_diamond"] = "\u05D4\u05E8\u05D5\u05E7",
+    ["component_knuckle_hate"] = "\u05D4\u05E9\u05D5\u05E0\u05D0",
+    ["component_knuckle_love"] = "\u05D4\u05D0\u05D5\u05D4\u05D1",
+    ["component_knuckle_player"] = "\u05D4\u05E9\u05D7\u05E7\u05DF",
+    ["component_knuckle_king"] = "\u05D4\u05DE\u05DC\u05DA",
+    ["component_knuckle_vagos"] = "\u05D4\u05D5\u05D0\u05D2\u05D5\u05E1",
+    ["component_luxary_finish"] = "\u05D2\u05D9\u05DE\u05D5\u05E8 \u05DE\u05E4\u05D5\u05D0\u05E8",
+
+    ["component_handle_default"] = "\u05D9\u05D3\u05D9\u05EA \u05E8\u05D2\u05D9\u05DC\u05D4",
+    ["component_handle_vip"] = "\u05D9\u05D3\u05D9\u05EA VIP",
+    ["component_handle_bodyguard"] = "\u05D9\u05D3\u05D9\u05EA \u05E9\u05D5\u05DE\u05E8 \u05D2\u05D5\u05E3",
+
+    ["component_vip_finish"] = "\u05D2\u05D9\u05DE\u05D5\u05E8 VIP",
+    ["component_bodyguard_finish"] = "\u05D2\u05D9\u05DE\u05D5\u05E8 \u05E9\u05D5\u05DE\u05E8 \u05D2\u05D5\u05E3",
+
+    ["component_camo_finish"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D3\u05D9\u05D2\u05D9\u05D8\u05DC\u05D9\u05EA",
+    ["component_camo_finish2"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05E6\u05D1\u05E2\u05D9\u05DD \u05DE\u05E2\u05D5\u05E8\u05D1\u05D9\u05DD",
+    ["component_camo_finish3"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D9\u05E2\u05E8\u05D5\u05EA\u05D9\u05EA",
+    ["component_camo_finish4"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D2\u05D5\u05DC\u05D2\u05D5\u05DC\u05EA",
+    ["component_camo_finish5"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 Sessanta Nove",
+    ["component_camo_finish6"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 Perseus",
+    ["component_camo_finish7"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05E0\u05DE\u05E8\u05D9\u05DD",
+    ["component_camo_finish8"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D6\u05D1\u05E8\u05D4",
+    ["component_camo_finish9"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D2\u05D9\u05D0\u05D5\u05DE\u05D8\u05E8\u05D9\u05EA",
+    ["component_camo_finish10"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 Boom",
+    ["component_camo_finish11"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05E4\u05D8\u05E8\u05D9\u05D5\u05D8\u05D9\u05EA",
+
+    ["component_camo_slide_finish"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D3\u05D9\u05D2\u05D9\u05D8\u05DC\u05D9\u05EA \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish2"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05E6\u05D1\u05E2\u05D9\u05DD \u05DE\u05E2\u05D5\u05E8\u05D1\u05D9\u05DD \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish3"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D9\u05E2\u05E8\u05D5\u05EA\u05D9\u05EA \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish4"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D2\u05D5\u05DC\u05D2\u05D5\u05DC\u05EA \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish5"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 Sessanta Nove \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish6"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 Perseus \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish7"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05E0\u05DE\u05E8\u05D9\u05DD \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish8"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D6\u05D1\u05E8\u05D4 \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish9"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05D2\u05D9\u05D0\u05D5\u05DE\u05D8\u05E8\u05D9\u05EA \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish10"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 Boom \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_camo_slide_finish11"] = "\u05E6\u05E4\u05D9\u05E2\u05D4 \u05E4\u05D8\u05E8\u05D9\u05D5\u05D8\u05D9\u05EA \u05DC\u05DE\u05D7\u05E6\u05DC\u05D4",
+    ["component_clip_default"] = "\u05DE\u05D7\u05E6\u05D9\u05E8\u05D4 \u05E8\u05D2\u05D9\u05DC\u05D4",
+    ["component_clip_extended"] = "\u05DE\u05D7\u05E6\u05D9\u05E8\u05D4 \u05DE\u05D5\u05E8\u05D7\u05D1\u05EA",
+    ["component_clip_drum"] = "\u05DE\u05D7\u05E6\u05D9\u05E8\u05D4 \u05EA\u05D5\u05E3",
+    ["component_clip_box"] = "\u05DE\u05D7\u05E6\u05D9\u05E8\u05D4 \u05E7\u05D5\u05E4\u05E1\u05D4",
+
+    ["component_scope_holo"] = "\u05DB\u05D5\u05D5\u05E0\u05EA \u05D4\u05D5\u05DC\u05D5\u05D2\u05E8\u05E4\u05D9\u05EA",
+    ["component_scope_small"] = "\u05DB\u05D5\u05D5\u05E0\u05EA \u05E7\u05D8\u05E0\u05D4",
+    ["component_scope_medium"] = "\u05DB\u05D5\u05D5\u05E0\u05EA \u05D1\u05D9\u05E0\u05D5\u05E0\u05D9\u05EA",
+    ["component_scope_large"] = "\u05DB\u05D5\u05D5\u05E0\u05EA \u05D2\u05D3\u05D5\u05DC\u05D4",
+    ["component_scope"] = "\u05DB\u05D5\u05D5\u05E0\u05EA \u05DE\u05D5\u05EA\u05E7\u05E0\u05EA",
+    ["component_scope_advanced"] = "\u05DB\u05D5\u05D5\u05E0\u05EA \u05DE\u05EA\u05E7\u05D3\u05DE\u05EA",
+    ["component_ironsights"] = "\u05DB\u05D5\u05D5\u05E0\u05EA \u05D1\u05E8\u05D6\u05DC",
+
+    ["component_suppressor"] = "\u05DE\u05E8\u05D2\u05D9\u05E2",
+    ["component_compensator"] = "\u05E4\u05D9\u05E6\u05D5\u05D9",
+
+    ["component_muzzle_flat"] = "\u05DE\u05E8\u05E1\u05D5\u05E8 \u05E9\u05D8\u05D5\u05D7",
+    ["component_muzzle_tactical"] = "\u05DE\u05E8\u05E1\u05D5\u05E8 \u05D8\u05E7\u05D8\u05D9",
+    ["component_muzzle_fat"] = "\u05DE\u05E8\u05E1\u05D5\u05E8 \u05E2\u05D2\u05DC\u05D2\u05DC",
+    ["component_muzzle_precision"] = "\u05DE\u05E8\u05E1\u05D5\u05E8 \u05DE\u05D3\u05D5\u05D9\u05E7",
+    ["component_muzzle_heavy"] = "\u05DE\u05E8\u05E1\u05D5\u05E8 \u05DB\u05D1\u05D3",
+    ["component_muzzle_slanted"] = "\u05DE\u05E8\u05E1\u05D5\u05E8 \u05DE\u05D5\u05D8\u05D4",
+    ["component_muzzle_split"] = "\u05DE\u05E8\u05E1\u05D5\u05E8 \u05E4\u05E6\u05D5\u05DC",
+    ["component_muzzle_squared"] = "\u05DE\u05E8\u05E1\u05D5\u05E8 \u05DE\u05E8\u05D5\u05D1\u05E2",
+
+    ["component_flashlight"] = "\u05E4\u05E0\u05E1",
+    ["component_grip"] = "\u05D0\u05D7\u05D9\u05D6\u05D4",
+
+    ["component_barrel_default"] = "\u05E2\u05E6\u05DD \u05E8\u05D2\u05D9\u05DC",
+    ["component_barrel_heavy"] = "\u05E2\u05E6\u05DD \u05DB\u05D1\u05D3",
+
+    ["component_ammo_tracer"] = "\u05DB\u05D3\u05D5\u05E8\u05D9\u05DD \u05E2\u05E7\u05D5\u05D1\u05D9\u05DD",
+    ["component_ammo_incendiary"] = "\u05DB\u05D3\u05D5\u05E8\u05D9\u05DD \u05DE\u05D3\u05DC\u05D9\u05E7\u05D9\u05DD",
+    ["component_ammo_hollowpoint"] = "\u05DB\u05D3\u05D5\u05E8\u05D9\u05DD \u05D7\u05D3\u05D9\u05DD",
+    ["component_ammo_fmj"] = "\u05DB\u05D3\u05D5\u05E8\u05D9\u05DD FMJ",
+    ["component_ammo_armor"] = "\u05DB\u05D3\u05D5\u05E8\u05D9\u05DD \u05D7\u05D5\u05D3\u05E8\u05D9 \u05DE\u05E9\u05E8\u05D5\u05E2",
+    ["component_ammo_explosive"] = "\u05DB\u05D3\u05D5\u05E8\u05D9\u05DD \u05D7\u05D5\u05D3\u05E8\u05D9 \u05DE\u05E9\u05E8\u05D5\u05E2 \u05DE\u05D3\u05DC\u05D9\u05E7\u05D9\u05DD",
+
+    ["component_shells_default"] = "\u05D2\u05DC\u05E2\u05D9\u05E0\u05D9\u05DD \u05E8\u05D2\u05D9\u05DC\u05D9\u05DD",
+    ["component_shells_incendiary"] = "\u05D2\u05DC\u05E2\u05D9\u05E0\u05D9\u05DD \u05DE\u05D3\u05DC\u05D9\u05E7\u05D9\u05DD",
+    ["component_shells_armor"] = "\u05D2\u05DC\u05E2\u05D9\u05E0\u05D9\u05DD \u05E4\u05DC\u05D3\u05DC\u05D9\u05DD",
+    ["component_shells_hollowpoint"] = "\u05D2\u05DC\u05E2\u05D9\u05E0\u05D9\u05DD \u05D7\u05D3\u05D9\u05DD",
+    ["component_shells_explosive"] = "\u05D2\u05DC\u05E2\u05D9\u05E0\u05D9\u05DD \u05DE\u05EA\u05E4\u05D5\u05E6\u05E6\u05D9\u05DD",
+
+    -- Weapon Ammo
+    ["ammo_rounds"] = "\u05DB\u05D3\u05D5\u05E8(\u05D9\u05DD)",
+    ["ammo_shells"] = "\u05D2\u05DC\u05E2\u05D9\u05DF(\u05D9\u05DD)",
+    ["ammo_charge"] = "\u05D8\u05E2\u05D9\u05E0\u05D4",
+    ["ammo_petrol"] = "\u05D2\u05DC\u05D5\u05E0\u05D9\u05DD \u05E9\u05DC \u05D3\u05DC\u05E7",
+    ["ammo_firework"] = "\u05D6\u05D9\u05E7\u05D5\u05E7(\u05D9\u05DD)",
+    ["ammo_rockets"] = "\u05D8\u05D9\u05DC(\u05D9\u05DD)",
+    ["ammo_grenadelauncher"] = "\u05E8\u05D9\u05DE\u05D5\u05DF(\u05D9\u05DD)",
+    ["ammo_grenade"] = "\u05E8\u05D9\u05DE\u05D5\u05DF(\u05D9\u05DD)",
+    ["ammo_stickybomb"] = "\u05E4\u05E6\u05E6\u05D4/\u05D5\u05EA",
+    ["ammo_pipebomb"] = "\u05E4\u05E6\u05E6\u05D4/\u05D5\u05EA",
+    ["ammo_smokebomb"] = "\u05E4\u05E6\u05E6\u05D4/\u05D5\u05EA",
+    ["ammo_molotov"] = "\u05E7\u05D5\u05E7\u05D8\u05D9\u05D9\u05DC(\u05D9\u05DD)",
+    ["ammo_proxmine"] = "\u05DE\u05D5\u05E7\u05E9/\u05D9\u05DD",
+    ["ammo_bzgas"] = "\u05E4\u05D7/\u05D9\u05EA",
+    ["ammo_ball"] = "\u05DB\u05D3\u05D5\u05E8/\u05D9\u05DD",
+    ["ammo_snowball"] = "\u05DB\u05D3\u05D5\u05E8/\u05D9\u05DD \u05E9\u05DC\u05D2",
+    ["ammo_flare"] = "\u05D6\u05D9\u05E7\u05D5\u05E7/\u05D9\u05DD",
+    ["ammo_flaregun"] = "\u05D6\u05D9\u05E7\u05D5\u05E7/\u05D9\u05DD",
+
+    -- Weapon Tints
+    ["tint_default"] = "\u05E6\u05D1\u05E2 \u05E8\u05D2\u05D9\u05DC",
+    ["tint_green"] = "\u05E6\u05D1\u05E2 \u05D9\u05E8\u05D5\u05E7",
+    ["tint_gold"] = "\u05E6\u05D1\u05E2 \u05D6\u05D4\u05D1",
+    ["tint_pink"] = "\u05E6\u05D1\u05E2 \u05D5\u05E8\u05D5\u05D3",
+    ["tint_army"] = "\u05E6\u05D1\u05E2 \u05E6\u05D1\u05D0\u05D9",
+    ["tint_lspd"] = "\u05E6\u05D1\u05E2 \u05DB\u05D7\u05D5\u05DC",
+    ["tint_orange"] = "\u05E6\u05D1\u05E2 \u05DB\u05EA\u05D5\u05DD",
+    ["tint_platinum"] = "\u05E6\u05D1\u05E2 \u05E4\u05DC\u05D8\u05D9\u05E0\u05D4",
+    -- MK2 Weapon Tints
+    ["tint_classic_black"] = "\u05E9\u05D7\u05D5\u05E8 \u05E7\u05DC\u05D0\u05E1\u05D9",
+    ["tint_classic_gray"] = "\u05D0\u05E4\u05D5\u05E8 \u05E7\u05DC\u05D0\u05E1\u05D9",
+    ["tint_classic_two_tone"] = "\u05E7\u05DC\u05D0\u05E1\u05D9 \u05D3\u05D5-\u05D2\u05D5\u05E0\u05D9",
+    ["tint_classic_white"] = "\u05DC\u05D1\u05DF \u05E7\u05DC\u05D0\u05E1\u05D9",
+    ["tint_classic_beige"] = "\u05D1\u05D6' \u05E7\u05DC\u05D0\u05E1\u05D9",
+    ["tint_classic_green"] = "\u05D9\u05E8\u05D5\u05E7 \u05E7\u05DC\u05D0\u05E1\u05D9",
+    ["tint_classic_blue"] = "\u05DB\u05D7\u05D5\u05DC \u05E7\u05DC\u05D0\u05E1\u05D9",
+    ["tint_classic_earth"] = "\u05D0\u05D3\u05DE\u05D4 \u05E7\u05DC\u05D0\u05E1\u05D9\u05EA",
+    ["tint_classic_brown_black"] = "\u05D7\u05D5\u05DD \u05E9\u05D7\u05D5\u05E8 \u05E7\u05DC\u05D0\u05E1\u05D9",
+    ["tint_contrast_red"] = "\u05D0\u05D3\u05D5\u05DD \u05E7\u05D5\u05E0\u05D8\u05E8\u05E1\u05D8",
+    ["tint_contrast_blue"] = "\u05DB\u05D7\u05D5\u05DC \u05E7\u05D5\u05E0\u05D8\u05E8\u05E1\u05D8",
+    ["tint_contrast_yellow"] = "\u05E6\u05D4\u05D5\u05D1 \u05E7\u05D5\u05E0\u05D8\u05E8\u05E1\u05D8",
+    ["tint_contrast_orange"] = "\u05DB\u05EA\u05D5\u05DD \u05E7\u05D5\u05E0\u05D8\u05E8\u05E1\u05D8",
+    ["tint_bold_pink"] = "\u05D5\u05E8\u05D5\u05D3 \u05E0\u05D5\u05E2\u05D6",
+    ["tint_bold_purple_yellow"] = "\u05E1\u05D2\u05D5\u05DC \u05E6\u05D4\u05D5\u05D1 \u05E0\u05D5\u05E2\u05D6",
+    ["tint_bold_orange"] = "\u05DB\u05EA\u05D5\u05DD \u05E0\u05D5\u05E2\u05D6",
+    ["tint_bold_green_purple"] = "\u05D9\u05E8\u05D5\u05E7 \u05E1\u05D2\u05D5\u05DC \u05E0\u05D5\u05E2\u05D6",
+    ["tint_bold_red_feat"] = "\u05D0\u05D3\u05D5\u05DD \u05E0\u05D5\u05E2\u05D6 feat",
+    ["tint_bold_green_feat"] = "\u05D9\u05E8\u05D5\u05E7 \u05E0\u05D5\u05E2\u05D6 feat",
+    ["tint_bold_cyan_feat"] = "\u05E1\u05D9\u05D0\u05DF \u05E0\u05D5\u05E2\u05D6 feat",
+    ["tint_bold_yellow_feat"] = "\u05E6\u05D4\u05D5\u05D1 \u05E0\u05D5\u05E2\u05D6 feat",
+    ["tint_bold_red_white"] = "\u05D0\u05D3\u05D5\u05DD \u05DC\u05D1\u05DF \u05E0\u05D5\u05E2\u05D6",
+    ["tint_bold_blue_white"] = "\u05DB\u05D7\u05D5\u05DC \u05DC\u05D1\u05DF \u05E0\u05D5\u05E2\u05D6",
+    ["tint_metallic_gold"] = "\u05D6\u05D4\u05D1 \u05DE\u05EA\u05DB\u05EA\u05D9",
+    ["tint_metallic_platinum"] = "\u05E4\u05DC\u05D8\u05D9\u05E0\u05D4 \u05DE\u05EA\u05DB\u05EA\u05D9\u05EA",
+    ["tint_metallic_gray_lilac"] = "\u05D0\u05E4\u05D5\u05E8 \u05DC\u05D9\u05DC\u05DA \u05DE\u05EA\u05DB\u05EA\u05D9",
+    ["tint_metallic_purple_lime"] = "\u05E1\u05D2\u05D5\u05DC \u05DC\u05D9\u05D9\u05DD \u05DE\u05EA\u05DB\u05EA\u05D9",
+    ["tint_metallic_red"] = "\u05D0\u05D3\u05D5\u05DD \u05DE\u05EA\u05DB\u05EA\u05D9",
+    ["tint_metallic_green"] = "\u05D9\u05E8\u05D5\u05E7 \u05DE\u05EA\u05DB\u05EA\u05D9",
+    ["tint_metallic_blue"] = "\u05DB\u05D7\u05D5\u05DC \u05DE\u05EA\u05DB\u05EA\u05D9",
+    ["tint_metallic_white_aqua"] = "\u05DC\u05D1\u05DF aqua \u05DE\u05EA\u05DB\u05EA\u05D9",
+    ["tint_metallic_red_yellow"] = "\u05D0\u05D3\u05D5\u05DD \u05E6\u05D4\u05D5\u05D1 \u05DE\u05EA\u05DB\u05EA\u05D9",
+}
+`,
+        "locales/hu.lua": `return {
+    -- Inventory
+    ["inventory"] = "Inventory ( S\xFAly %s / %s )",
+    ["use"] = "Haszn\xE1l",
+    ["give"] = "\xC1tad",
+    ["remove"] = "Eldob",
+    ["return"] = "Visszat\xE9r\xE9s",
+    ["give_to"] = "Adni valakinek",
+    ["amount"] = "Mennyis\xE9g",
+    ["giveammo"] = "L\u0151szer ad\xE1s",
+    ["amountammo"] = "L\u0151szer mennyis\xE9g",
+    ["noammo"] = "Nincsen t\xF6bb l\xF6ved\xE9ked!",
+    ["gave_item"] = "\xC1tadt\xE1l: %sx %s neki: %s",
+    ["received_item"] = "Kapt\xE1l: %sx %s t\xF6le: %s",
+    ["gave_weapon"] = "\xC1tadt\xE1l: %s neki: %s",
+    ["gave_weapon_ammo"] = "\xC1tadt\xE1l ~o~%sx %s %s neki: %s",
+    ["gave_weapon_withammo"] = "\xC1tadt\xE1l %s ~o~%sx %s neki: %s",
+    ["gave_weapon_hasalready"] = "%s m\xE1r rendelkezik %s",
+    ["gave_weapon_noweapon"] = "%s nincsen ilyen fegyere",
+    ["received_weapon"] = "Kapt\xE1l: %s t\xF6le: %s",
+    ["received_weapon_ammo"] = "Kapt\xE1l ~o~%sx %s %s t\xF6le: %s",
+    ["received_weapon_withammo"] = "Kapt\xE1l %s ~o~%sx %s t\xF6le: %s",
+    ["received_weapon_hasalready"] = "%s megpr\xF3b\xE1lta \xE1tadni a k\xF6vetkez\xF6t: %s, nem m\xE1r van rendelkezel egy ilyennel",
+    ["received_weapon_noweapon"] = "%s \xE1takart adni %s, de nincsen ilyen fegyvered",
+    ["gave_account_money"] = "\xC1tadt\xE1l: $%s (%s) neki: %s",
+    ["received_account_money"] = "Kapt\xE1l: $%s (%s) t\xF6le: %s",
+    ["amount_invalid"] = "\xC9rv\xE9nytelen mennyis\xE9g",
+    ["players_nearby"] = "Nincsen j\xE1t\xE9kos a k\xF6zeledben",
+    ["ex_inv_lim"] = "Nincsen el\xE9g szabad helyed %s",
+    ["imp_invalid_quantity"] = "\xC9rv\xE9nytelen mennyis\xE9g",
+    ["imp_invalid_amount"] = "\xC9rv\xE9nytelen \xF6sszeg",
+    ["threw_standard"] = "Kidobt\xE1l: %sx %s",
+    ["threw_account"] = "Kidobt\xE1l: $%s %s",
+    ["threw_weapon"] = "Kidobt\xE1l: %s",
+    ["threw_weapon_ammo"] = "Kidobt\xE1l: %s ~o~%sx %s",
+    ["threw_weapon_already"] = "Van m\xE1r ilyen fegyvered",
+    ["threw_cannot_pickup"] = "Nincsen el\xE9g szabad helyed",
+    ["threw_pickup_prompt"] = "E hogy felvedd",
+
+    -- Key mapping
+    ["keymap_showinventory"] = "Lelt\xE1r mutat\xE1sa",
+
+    -- Salary related
+    ["received_salary"] = "Megkaptad a fizet\xE9sed: $%s",
+    ["received_help"] = "Megkaptad a seg\xE9lyt: $%s",
+    ["company_nomoney"] = "Nem kapt\xE1l fizet\xE9st, mert a frakci\xF3nak nincs el\xE9g p\xE9nze!",
+    ["received_paycheck"] = "Fizet\xE9sed \xE9rkezett!",
+    ["bank"] = "maze Bank",
+    ["account_bank"] = "bank",
+    ["account_black_money"] = "Piszkos p\xE9nz",
+    ["account_money"] = "K\xE9szp\xE9nz",
+
+    ["act_imp"] = "\xC9rv\xE9nytelen mennyis\xE9g",
+    ["in_vehicle"] = "Nem tudod \xE1tadni, mivel benne \xFCl a j\xE1rm\xFCben",
+    ["not_in_vehicle"] = "Cannot Perform Action, Player isn't in a vehicle",
+
+    -- Commands
+    ["command_bring"] = "J\xE1t\xE9kos magadhoz teleport\xE1l\xE1sa",
+    ["command_car"] = "J\xE1rm\u0171 leh\xEDv\xE1sa",
+    ["command_car_car"] = "J\xE1rm\u0171 n\xE9v vagy hash",
+    ["command_cardel"] = "K\xF6zeli j\xE1rm\u0171vek t\xF6rl\xE9se",
+    ["command_cardel_radius"] = "Megadott radiusban l\xE9v\u0151 j\xE1rm\u0171vek t\xF6rl\xE9se",
+    ["command_repair"] = "Repair your vehicle",
+    ["command_repair_success"] = "Successfully repaired vehicle",
+    ["command_repair_success_target"] = "An admin repaired your vehicle",
+    ["command_clear"] = "Chat \xFCr\xEDt\xE9se",
+    ["command_clearall"] = "Chat \xFCr\xEDt\xE9se minden j\xE1t\xE9kosn\xE1l",
+    ["command_clearinventory"] = "Minden t\xE1rgy t\xF6rl\xE9se a j\xE1t\xE9kos inventoryb\xF3l",
+    ["command_clearloadout"] = "Minden fegyver elv\xE9tele a j\xE1t\xE9kost\xF3l",
+    ["command_freeze"] = "J\xE1t\xE9kos fagyaszt\xE1sa",
+    ["command_unfreeze"] = "J\xE1t\xE9kos kiolvaszt\xE1sa",
+    ["command_giveaccountmoney"] = "P\xE9nz ad\xE1s a megadott t\xEDpusban",
+    ["command_giveaccountmoney_account"] = "T\xEDpus",
+    ["command_giveaccountmoney_amount"] = "Mennyis\xE9g",
+    ["command_giveaccountmoney_invalid"] = "Megadott t\xEDpus hib\xE1s",
+    ["command_giveitem"] = "T\xE1rgy ad\xE1s a j\xE1t\xE9kosnak",
+    ["command_giveitem_item"] = "T\xE1rgy neve",
+    ["command_giveitem_count"] = "Mennyis\xE9g",
+    ["command_giveweapon"] = "Fegyver ad\xE1s j\xE1t\xE9kosnak",
+    ["command_giveweapon_weapon"] = "Fegyver neve",
+    ["command_giveweapon_ammo"] = "L\u0151szer mennyis\xE9g",
+    ["command_giveweapon_hasalready"] = "J\xE1t\xE9kosnak m\xE1r van ilyen fegyvere",
+    ["command_giveweaponcomponent"] = "Fegyver kieg\xE9sz\xEDt\u0151 ad\xE1s a j\xE1t\xE9kosnak",
+    ["command_giveweaponcomponent_component"] = "Kieg\xE9sz\xEDt\u0151 neve",
+    ["command_giveweaponcomponent_invalid"] = "\xC9rv\xE9nytelen fegyver kieg\xE9sz\xEDt\u0151",
+    ["command_giveweaponcomponent_hasalready"] = "J\xE1t\xE9kosnak m\xE1r van ilyen fegyver kieg\xE9sz\xEDt\u0151je",
+    ["command_giveweaponcomponent_missingweapon"] = "J\xE1t\xE9kosnak nincs ilyen fegyvere",
+    ["command_goto"] = "Teleport\xE1l\xE1s j\xE1t\xE9koshoz",
+    ["command_kill"] = "J\xE1t\xE9kos meg\xF6l\xE9se",
+    ["command_save"] = "J\xE1t\xE9kos adatainak ment\xE9se",
+    ["command_saveall"] = "\xD6sszes j\xE1t\xE9kos adatainak ment\xE9se",
+    ["command_setaccountmoney"] = "J\xE1t\xE9kos p\xE9nz\xE9nek be\xE1ll\xEDt\xE1sa megadott t\xEDpusban",
+    ["command_setaccountmoney_amount"] = "Mennyis\xE9g",
+    ["command_setcoords"] = "Teleport\xE1l\xE1s megadott kordin\xE1t\xE1ra",
+    ["command_setcoords_x"] = "X \xE9rt\xE9k",
+    ["command_setcoords_y"] = "Y \xE9rt\xE9k",
+    ["command_setcoords_z"] = "Z \xE9rt\xE9k",
+    ["command_setjob"] = "J\xE1t\xE9kos munk\xE1j\xE1nak be\xE1ll\xEDt\xE1sa",
+    ["command_setjob_job"] = "Munka neve",
+    ["command_setjob_grade"] = "Rang",
+    ["command_setjob_invalid"] = "Munka n\xE9v vagy rang \xE9rv\xE9nytelen",
+    ["command_setgroup"] = "J\xE1t\xE9kos jogosults\xE1gi csoportj\xE1nak be\xE1ll\xEDt\xE1sa",
+    ["command_setgroup_group"] = "Csoport neve",
+    ["commanderror_argumentmismatch"] = "\xC9rv\xE9nytelen argumentumsz\xE1m (%s megadva, %s sz\xFCks\xE9ges)",
+    ["commanderror_argumentmismatch_number"] = "\xC9rv\xE9nytelen argumentum #%s adat t\xEDpus (sz\xF6veg megadva, sz\xE1m sz\xFCks\xE9ges)",
+    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "\xC9rv\xE9nytelen argumentum #%s adatt\xEDpus (negat\xEDv/nulla \xE1tadva, pozit\xEDv sz\xE1m sz\xFCks\xE9ges)",
+    ["commanderror_invaliditem"] = "\xC9rv\xE9nytelen t\xE1rgy",
+    ["commanderror_invalidweapon"] = "\xC9rv\xE9nytelen fegyver",
+    ["commanderror_console"] = "Parancs nem haszn\xE1lhat\xF3 konzolb\xF3l",
+    ["commanderror_invalidcommand"] = "\xC9rv\xE9nytelen parancs - /%s",
+    ["commanderror_invalidplayerid"] = "Megadott j\xE1t\xE9kos nem online.",
+    ["commandgeneric_playerid"] = "J\xE1t\xE9kos Szerver Id",
+    ["command_giveammo_noweapon_found"] = "Nincs ilyen fegyvered: %s",
+    ["command_giveammo_weapon"] = "Fegyver n\xE9v",
+    ["command_giveammo_ammo"] = "L\u0151szer mennyis\xE9g",
+    ["tpm_nowaypoint"] = "Nincs kijel\xF6lve poz\xEDci\xF3!",
+    ["tpm_success"] = "Sikeres teleport\xE1l\xE1s",
+
+    ["noclip_message"] = "Noclip %s",
+    ["enabled"] = "~g~enged\xE9lyezve~s~",
+    ["disabled"] = "~r~letiltva~s~",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = ",",
+    ["locale_currency"] = "$%s",
+
+    -- Weapons
+
+    -- Melee
+    ["weapon_dagger"] = "Dagger",
+    ["weapon_bat"] = "Bat",
+    ["weapon_battleaxe"] = "Battle Axe",
+    ["weapon_bottle"] = "Bottle",
+    ["weapon_crowbar"] = "Crowbar",
+    ["weapon_flashlight"] = "Flashlight",
+    ["weapon_golfclub"] = "Golf Club",
+    ["weapon_hammer"] = "Hammer",
+    ["weapon_hatchet"] = "Hatchet",
+    ["weapon_knife"] = "Knife",
+    ["weapon_knuckle"] = "Knuckledusters",
+    ["weapon_machete"] = "Machete",
+    ["weapon_nightstick"] = "Nightstick",
+    ["weapon_wrench"] = "Pipe Wrench",
+    ["weapon_poolcue"] = "Pool Cue",
+    ["weapon_stone_hatchet"] = "Stone Hatchet",
+    ["weapon_switchblade"] = "Switchblade",
+
+    -- Handguns
+    ["weapon_appistol"] = "AP Pistol",
+    ["weapon_ceramicpistol"] = "Ceramic Pistol",
+    ["weapon_combatpistol"] = "Combat Pistol",
+    ["weapon_doubleaction"] = "Double-Action Revolver",
+    ["weapon_navyrevolver"] = "Navy Revolver",
+    ["weapon_flaregun"] = "Flaregun",
+    ["weapon_gadgetpistol"] = "Gadget Pistol",
+    ["weapon_heavypistol"] = "Heavy Pistol",
+    ["weapon_revolver"] = "Heavy Revolver",
+    ["weapon_revolver_mk2"] = "Heavy Revolver MK2",
+    ["weapon_marksmanpistol"] = "Marksman Pistol",
+    ["weapon_pistol"] = "Pistol",
+    ["weapon_pistol_mk2"] = "Pistol MK2",
+    ["weapon_pistol50"] = "Pistol .50",
+    ["weapon_snspistol"] = "SNS Pistol",
+    ["weapon_snspistol_mk2"] = "SNS Pistol MK2",
+    ["weapon_stungun"] = "Taser",
+    ["weapon_raypistol"] = "Up-N-Atomizer",
+    ["weapon_vintagepistol"] = "Vintage Pistol",
+
+    -- Shotguns
+    ["weapon_assaultshotgun"] = "Assault Shotgun",
+    ["weapon_autoshotgun"] = "Auto Shotgun",
+    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",
+    ["weapon_combatshotgun"] = "Combat Shotgun",
+    ["weapon_dbshotgun"] = "Double Barrel Shotgun",
+    ["weapon_heavyshotgun"] = "Heavy Shotgun",
+    ["weapon_musket"] = "Musket",
+    ["weapon_pumpshotgun"] = "Pump Shotgun",
+    ["weapon_pumpshotgun_mk2"] = "Pump Shotgun MK2",
+    ["weapon_sawnoffshotgun"] = "Sawed Off Shotgun",
+
+    -- SMG & LMG
+    ["weapon_assaultsmg"] = "Assault SMG",
+    ["weapon_combatmg"] = "Combat MG",
+    ["weapon_combatmg_mk2"] = "Combat MG MK2",
+    ["weapon_combatpdw"] = "Combat PDW",
+    ["weapon_gusenberg"] = "Gusenberg Sweeper",
+    ["weapon_machinepistol"] = "Machine Pistol",
+    ["weapon_mg"] = "MG",
+    ["weapon_microsmg"] = "Micro SMG",
+    ["weapon_minismg"] = "Mini SMG",
+    ["weapon_smg"] = "SMG",
+    ["weapon_smg_mk2"] = "SMG MK2",
+    ["weapon_raycarbine"] = "Unholy Hellbringer",
+
+    -- Rifles
+    ["weapon_advancedrifle"] = "Advanced Rifle",
+    ["weapon_assaultrifle"] = "Assault Rifle",
+    ["weapon_assaultrifle_mk2"] = "Assault Rifle MK2",
+    ["weapon_bullpuprifle"] = "Bullpup Rifle",
+    ["weapon_bullpuprifle_mk2"] = "Bullpup Rifle MK2",
+    ["weapon_carbinerifle"] = "Carbine Rifle",
+    ["weapon_carbinerifle_mk2"] = "Carbine Rifle MK2",
+    ["weapon_compactrifle"] = "Compact Rifle",
+    ["weapon_militaryrifle"] = "Military Rifle",
+    ["weapon_specialcarbine"] = "Special Carbine",
+    ["weapon_specialcarbine_mk2"] = "Special Carbine MK2",
+    ["weapon_heavyrifle"] = "Heavy Rifle", -- Not Translated
+
+    -- Sniper
+    ["weapon_heavysniper"] = "Heavy Sniper",
+    ["weapon_heavysniper_mk2"] = "Heavy Sniper MK2",
+    ["weapon_marksmanrifle"] = "Marksman Rifle",
+    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle MK2",
+    ["weapon_sniperrifle"] = "Sniper Rifle",
+
+    -- Heavy / Launchers
+    ["weapon_compactlauncher"] = "Compact Launcher",
+    ["weapon_firework"] = "Firework Launcher",
+    ["weapon_grenadelauncher"] = "Grenade Launcher",
+    ["weapon_hominglauncher"] = "Homing Launcher",
+    ["weapon_minigun"] = "Minigun",
+    ["weapon_railgun"] = "Railgun",
+    ["weapon_rpg"] = "Rocket Launcher",
+    ["weapon_rayminigun"] = "Widowmaker",
+
+    -- Criminal Enterprises DLC
+    ["weapon_metaldetector"] = "F\xE9mkeres\u0151",
+    ["weapon_precisionrifle"] = "Precision Rifle",
+    ["weapon_tactilerifle"] = "Service Carbine",
+
+    -- Drug Wars DLC
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
+    ["weapon_acidpackage"] = "Acid Package", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
+
+    -- Thrown
+    ["weapon_ball"] = "Baseball",
+    ["weapon_bzgas"] = "BZ Gas",
+    ["weapon_flare"] = "Flare",
+    ["weapon_grenade"] = "Grenade",
+    ["weapon_petrolcan"] = "Jerrycan",
+    ["weapon_hazardcan"] = "Hazardous Jerrycan",
+    ["weapon_molotov"] = "Molotov Cocktail",
+    ["weapon_proxmine"] = "Proximity Mine",
+    ["weapon_pipebomb"] = "Pipe Bomb",
+    ["weapon_snowball"] = "Snowball",
+    ["weapon_stickybomb"] = "Sticky Bomb",
+    ["weapon_smokegrenade"] = "Tear Gas",
+
+    -- Special
+    ["weapon_fireextinguisher"] = "Fire Extinguisher",
+    ["weapon_digiscanner"] = "Digital Scanner",
+    ["weapon_garbagebag"] = "Garbage Bag",
+    ["weapon_handcuffs"] = "Handcuffs",
+    ["gadget_nightvision"] = "Night Vision",
+    ["gadget_parachute"] = "parachute",
+
+    -- Weapon Components
+    ["component_knuckle_base"] = "base Model",
+    ["component_knuckle_pimp"] = "the Pimp",
+    ["component_knuckle_ballas"] = "the Ballas",
+    ["component_knuckle_dollar"] = "the Hustler",
+    ["component_knuckle_diamond"] = "the Rock",
+    ["component_knuckle_hate"] = "the Hater",
+    ["component_knuckle_love"] = "the Lover",
+    ["component_knuckle_player"] = "the Player",
+    ["component_knuckle_king"] = "the King",
+    ["component_knuckle_vagos"] = "the Vagos",
+
+    ["component_luxary_finish"] = "luxary Weapon Finish",
+
+    ["component_handle_default"] = "default Handle",
+    ["component_handle_vip"] = "vIP Handle",
+    ["component_handle_bodyguard"] = "bodyguard Handle",
+
+    ["component_vip_finish"] = "vIP Finish",
+    ["component_bodyguard_finish"] = "bodyguard Finish",
+
+    ["component_camo_finish"] = "digital Camo",
+    ["component_camo_finish2"] = "brushstroke Camo",
+    ["component_camo_finish3"] = "woodland Camo",
+    ["component_camo_finish4"] = "skull Camo",
+    ["component_camo_finish5"] = "sessanta Nove Camo",
+    ["component_camo_finish6"] = "perseus Camo",
+    ["component_camo_finish7"] = "leopard Camo",
+    ["component_camo_finish8"] = "zebra Camo",
+    ["component_camo_finish9"] = "geometric Camo",
+    ["component_camo_finish10"] = "boom Camo",
+    ["component_camo_finish11"] = "patriotic Camo",
+
+    ["component_camo_slide_finish"] = "digital Slide Camo",
+    ["component_camo_slide_finish2"] = "brushstroke Slide Camo",
+    ["component_camo_slide_finish3"] = "woodland Slide Camo",
+    ["component_camo_slide_finish4"] = "skull Slide Camo",
+    ["component_camo_slide_finish5"] = "sessanta Nove Slide Camo",
+    ["component_camo_slide_finish6"] = "perseus Slide Camo",
+    ["component_camo_slide_finish7"] = "leopard Slide Camo",
+    ["component_camo_slide_finish8"] = "zebra Slide Camo",
+    ["component_camo_slide_finish9"] = "geometric Slide Camo",
+    ["component_camo_slide_finish10"] = "boom Slide Camo",
+    ["component_camo_slide_finish11"] = "patriotic Slide Camo",
+
+    ["component_clip_default"] = "default Magazine",
+    ["component_clip_extended"] = "extended Magazine",
+    ["component_clip_drum"] = "drum Magazine",
+    ["component_clip_box"] = "box Magazine",
+
+    ["component_scope_holo"] = "holographic Scope",
+    ["component_scope_small"] = "small Scope",
+    ["component_scope_medium"] = "medium Scope",
+    ["component_scope_large"] = "large Scope",
+    ["component_scope"] = "mounted Scope",
+    ["component_scope_advanced"] = "advanced Scope",
+    ["component_ironsights"] = "ironsights",
+
+    ["component_suppressor"] = "suppressor",
+    ["component_compensator"] = "compensator",
+
+    ["component_muzzle_flat"] = "flat Muzzle Brake",
+    ["component_muzzle_tactical"] = "tactical Muzzle Brake",
+    ["component_muzzle_fat"] = "fat-End Muzzle Brake",
+    ["component_muzzle_precision"] = "precision Muzzle Brake",
+    ["component_muzzle_heavy"] = "heavy Duty Muzzle Brake",
+    ["component_muzzle_slanted"] = "slanted Muzzle Brake",
+    ["component_muzzle_split"] = "split-End Muzzle Brake",
+    ["component_muzzle_squared"] = "squared Muzzle Brake",
+
+    ["component_flashlight"] = "flashlight",
+    ["component_grip"] = "grip",
+
+    ["component_barrel_default"] = "default Barrel",
+    ["component_barrel_heavy"] = "heavy Barrel",
+
+    ["component_ammo_tracer"] = "tracer Ammo",
+    ["component_ammo_incendiary"] = "incendiary Ammo",
+    ["component_ammo_hollowpoint"] = "hollowpoint Ammo",
+    ["component_ammo_fmj"] = "fMJ Ammo",
+    ["component_ammo_armor"] = "armor Piercing Ammo",
+    ["component_ammo_explosive"] = "armor Piercing Incendiary Ammo",
+
+    ["component_shells_default"] = "default Shells",
+    ["component_shells_incendiary"] = "dragons Breath Shells",
+    ["component_shells_armor"] = "steel Buckshot Shells",
+    ["component_shells_hollowpoint"] = "flechette Shells",
+    ["component_shells_explosive"] = "explosive Slug Shells",
+
+    -- Weapon Ammo
+    ["ammo_rounds"] = "round(s)",
+    ["ammo_shells"] = "shell(s)",
+    ["ammo_charge"] = "charge",
+    ["ammo_petrol"] = "gallons of fuel",
+    ["ammo_firework"] = "firework(s)",
+    ["ammo_rockets"] = "rocket(s)",
+    ["ammo_grenadelauncher"] = "grenade(s)",
+    ["ammo_grenade"] = "grenade(s)",
+    ["ammo_stickybomb"] = "bomb(s)",
+    ["ammo_pipebomb"] = "bomb(s)",
+    ["ammo_smokebomb"] = "bomb(s)",
+    ["ammo_molotov"] = "cocktail(s)",
+    ["ammo_proxmine"] = "mine(s)",
+    ["ammo_bzgas"] = "can(s)",
+    ["ammo_ball"] = "ball(s)",
+    ["ammo_snowball"] = "snowball(s)",
+    ["ammo_flare"] = "flare(s)",
+    ["ammo_flaregun"] = "flare(s)",
+
+    -- Weapon Tints
+    ["tint_default"] = "default skin",
+    ["tint_green"] = "green skin",
+    ["tint_gold"] = "gold skin",
+    ["tint_pink"] = "pink skin",
+    ["tint_army"] = "army skin",
+    ["tint_lspd"] = "blue skin",
+    ["tint_orange"] = "orange skin",
+    ["tint_platinum"] = "platinum skin",
+    -- MK2 Weapon Tints
+    ["tint_classic_black"] = "klasszikus fekete",
+    ["tint_classic_gray"] = "klasszikus sz\xFCrke",
+    ["tint_classic_two_tone"] = "klasszikus k\xE9t sz\xEDn",
+    ["tint_classic_white"] = "klasszikus feh\xE9r",
+    ["tint_classic_beige"] = "klasszikus b\xE9zs",
+    ["tint_classic_green"] = "klasszikus z\xF6ld",
+    ["tint_classic_blue"] = "klasszikus k\xE9k",
+    ["tint_classic_earth"] = "klasszikus f\xF6ld",
+    ["tint_classic_brown_black"] = "klasszikus barna-fekete",
+    ["tint_contrast_red"] = "kontraszt piros",
+    ["tint_contrast_blue"] = "kontraszt k\xE9k",
+    ["tint_contrast_yellow"] = "kontraszt s\xE1rga",
+    ["tint_contrast_orange"] = "kontraszt narancs",
+    ["tint_bold_pink"] = "mer\xE9sz r\xF3zsasz\xEDn",
+    ["tint_bold_purple_yellow"] = "mer\xE9sz lila-s\xE1rga",
+    ["tint_bold_orange"] = "mer\xE9sz narancs",
+    ["tint_bold_green_purple"] = "mer\xE9sz z\xF6ld-lila",
+    ["tint_bold_red_feat"] = "mer\xE9sz piros feat",
+    ["tint_bold_green_feat"] = "mer\xE9sz z\xF6ld feat",
+    ["tint_bold_cyan_feat"] = "mer\xE9sz ci\xE1n feat",
+    ["tint_bold_yellow_feat"] = "mer\xE9sz s\xE1rga feat",
+    ["tint_bold_red_white"] = "mer\xE9sz piros feh\xE9r",
+    ["tint_bold_blue_white"] = "mer\xE9sz k\xE9k feh\xE9r",
+    ["tint_metallic_gold"] = "met\xE1l arany",
+    ["tint_metallic_platinum"] = "met\xE1l platina",
+    ["tint_metallic_gray_lilac"] = "met\xE1l sz\xFCrke lila",
+    ["tint_metallic_purple_lime"] = "met\xE1l lila lime",
+    ["tint_metallic_red"] = "met\xE1l piros",
+    ["tint_metallic_green"] = "met\xE1l z\xF6ld",
+    ["tint_metallic_blue"] = "met\xE1l k\xE9k",
+    ["tint_metallic_white_aqua"] = "met\xE1l feh\xE9r aqua",
+    ["tint_metallic_red_yellow"] = "met\xE1l piros s\xE1rga",
+}
+`,
+        "locales/id.lua": 'return {\n    -- Inventory\n    ["inventory"] = "Inventaris ( Berat %s / %s )",\n    ["use"] = "Gunakan",\n    ["give"] = "Beri",\n    ["remove"] = "Buang",\n    ["return"] = "Kembali",\n    ["give_to"] = "Beri ke",\n    ["amount"] = "Jumlah",\n    ["giveammo"] = "Beri amunisi",\n    ["amountammo"] = "Jumlah Amunisi",\n    ["noammo"] = "Tidak cukup!",\n    ["gave_item"] = "Memberi %sx %s ke %s",\n    ["received_item"] = "Menerima %sx %s dari %s",\n    ["gave_weapon"] = "Memberi %s ke %s",\n    ["gave_weapon_ammo"] = "Memberi ~o~%sx %s untuk %s ke %s",\n    ["gave_weapon_withammo"] = "Memberi %s dengan ~o~%sx %s ke %s",\n    ["gave_weapon_hasalready"] = "%s sudah memiliki %s",\n    ["gave_weapon_noweapon"] = "%s tidak memiliki senjata tersebut",\n    ["received_weapon"] = "Menerima %s dari %s",\n    ["received_weapon_ammo"] = "Menerima ~o~%sx %s untuk %s Anda dari %s",\n    ["received_weapon_withammo"] = "Menerima %s dengan ~o~%sx %s dari %s",\n    ["received_weapon_hasalready"] = "%s mencoba memberimu %s, tapi kamu sudah memiliki senjata ini",\n    ["received_weapon_noweapon"] = "%s mencoba memberimu amunisi untuk %s, tapi kamu tidak memiliki senjata ini",\n    ["gave_account_money"] = "Memberi $%s (%s) ke %s",\n    ["received_account_money"] = "Menerima $%s (%s) dari %s",\n    ["amount_invalid"] = "Jumlah salah",\n    ["players_nearby"] = "Tidak ada Player di sekitar",\n    ["ex_inv_lim"] = "Tidak dapat melakukan aksi, melebihi batas berat dari %s",\n    ["imp_invalid_quantity"] = "Tidak dapat melakukan aksi, jumlah salah",\n    ["imp_invalid_amount"] = "Tidak dapat melakukan aksi, jumlah salah",\n    ["threw_standard"] = "Membuang %sx %s",\n    ["threw_account"] = "Membuang $%s %s",\n    ["threw_weapon"] = "Membuang %s",\n    ["threw_weapon_ammo"] = "Membuang %s dengan ~o~%sx %s",\n    ["threw_weapon_already"] = "Kamu sudah memiliki senjata ini",\n    ["threw_cannot_pickup"] = "Inventaris penuh, Tidak dapat mengambil!",\n    ["threw_pickup_prompt"] = "Tekan E untuk Mengambil",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "Buka Inventaris",\n\n    -- Salary related\n    ["received_salary"] = "Anda telah dibayar: $%s",\n    ["received_help"] = "Anda telah menerima dana kesejahteraan: $%s",\n    ["company_nomoney"] = "perusahaan tempat Anda bekerja terlalu miskin untuk membayar gaji Anda",\n    ["received_paycheck"] = "menerima gaji",\n    ["bank"] = "Maze Bank",\n    ["account_bank"] = "Bank",\n    ["account_black_money"] = "Dirty Money",\n    ["account_money"] = "Cash",\n\n    ["act_imp"] = "Tidak dapat melakukan aksi",\n    ["in_vehicle"] = "Tidak dapat melakukan aksi, Player di dalam kendaraan",\n    ["not_in_vehicle"] = "Tidak dapat melakukan aksi, Player tidak di dalam kendaraan",\n\n    -- Commands\n    ["command_bring"] = "Bawa player kepadamu",\n    ["command_car"] = "Munculkan kendaraan",\n    ["command_car_car"] = "Model atau hash kendaraan",\n    ["command_cardel"] = "Menghilangkan kendaraan di sekitar",\n    ["command_cardel_radius"] = "Menghilangkan semua kendaraan dalam radius yang ditentukan",\n    ["command_repair"] = "Perbaiki kendaraanmu",\n    ["command_repair_success"] = "Berhasil memperbaiki kendaraan",\n    ["command_repair_success_target"] = "Admin memperbaiki kendaraanmu",\n    ["command_clear"] = "Bersihkan teks chat",\n    ["command_clearall"] = "Bersihkan teks chat untuk semua player",\n    ["command_clearinventory"] = "Hilangkan semua barang dari Inventaris Player",\n    ["command_clearloadout"] = "Hilangkan semua senjata dari Loadout Player",\n    ["command_freeze"] = "Bekukan player",\n    ["command_unfreeze"] = "Kembalikan player",\n    ["command_giveaccountmoney"] = "Beri uang ke rekening tertentu",\n    ["command_giveaccountmoney_account"] = "Rekening untuk ditambahkan",\n    ["command_giveaccountmoney_amount"] = "Jumlah untuk ditambahkan",\n    ["command_giveaccountmoney_invalid"] = "Nama Rekening Salah",\n    ["command_removeaccountmoney"] = "Hilangkan uang dari rekening tertentu",\n    ["command_removeaccountmoney_account"] = "Rekening yang akan dihapus",\n    ["command_removeaccountmoney_amount"] = "Jumlah yang dihapus",\n    ["command_removeaccountmoney_invalid"] = "Nama Rekening Salah",\n    ["command_giveitem"] = "Beri Player barang",\n    ["command_giveitem_item"] = "Nama Barang",\n    ["command_giveitem_count"] = "Jumlah",\n    ["command_giveweapon"] = "Beri player senjata",\n    ["command_giveweapon_weapon"] = "Nama Senjata",\n    ["command_giveweapon_ammo"] = "Jumlah Amunisi",\n    ["command_giveweapon_hasalready"] = "Player telah memiliki senjata ini",\n    ["command_giveweaponcomponent"] = "Beri komponen senjata ke player",\n    ["command_giveweaponcomponent_component"] = "Nama Komponen",\n    ["command_giveweaponcomponent_invalid"] = "Komponen Senjata Salah",\n    ["command_giveweaponcomponent_hasalready"] = "Player telah memiliki komponen senjata ini",\n    ["command_giveweaponcomponent_missingweapon"] = "Player tidak memiliki senjata ini",\n    ["command_goto"] = "Teleportasi dirimu ke player",\n    ["command_kill"] = "Bunuh player",\n    ["command_save"] = "Paksa Simpan Data player",\n    ["command_saveall"] = "Paksa Simpan Data semua player",\n    ["command_setaccountmoney"] = "Atur uang dalam rekening tertentu",\n    ["command_setaccountmoney_amount"] = "Jumlah",\n    ["command_setcoords"] = "Teleportasi ke koordinat tertentu",\n    ["command_setcoords_x"] = "Posisi X",\n    ["command_setcoords_y"] = "Posisi Y",\n    ["command_setcoords_z"] = "Posisi Z",\n    ["command_setjob"] = "Beri player pekerjaan",\n    ["command_setjob_job"] = "Nama",\n    ["command_setjob_grade"] = "Jabatan pekerjaan",\n    ["command_setjob_invalid"] = "pekerjaan, jabatan atau keduanya salah",\n    ["command_setgroup"] = "Atur izn grup player",\n    ["command_setgroup_group"] = "Nama Grup",\n    ["commanderror_argumentmismatch"] = "Jumlah Argument Salah (passed %s, wanted %s)",\n    ["commanderror_argumentmismatch_number"] = "Argument #%s salah tipe data (passed string, wanted number)",\n    ["commanderror_argumentmismatch_string"] = "Argument #%s salah tipe data (passed number, wanted string)",\n    ["commanderror_argumentmismatch_positive_number"] = "Argument #%s salah tipe data (diberikan negatif/nol, diinginkan angka positif)",\n    ["commanderror_invaliditem"] = "Barang salah",\n    ["commanderror_invalidweapon"] = "Senjata salah",\n    ["commanderror_console"] = "Perintah tidak dapat dieksekusi dari console",\n    ["commanderror_invalidcommand"] = "Perintah Salah - /%s",\n    ["commanderror_invalidplayerid"] = "Player tersebut tidak online",\n    ["commandgeneric_playerid"] = "Id Server Player",\n    ["command_giveammo_noweapon_found"] = "%s tidak memiliki senjata tersebut",\n    ["command_giveammo_weapon"] = "Nama Senjata",\n    ["command_giveammo_ammo"] = "Jumlah Amunisi",\n    ["tpm_nowaypoint"] = "Titik Lokasi Tidak Diatur.",\n    ["tpm_success"] = "Berhasil Teleportasi",\n\n    ["noclip_message"] = "Noclip telah %s",\n    ["enabled"] = "~g~diaktifkan~s~",\n    ["disabled"] = "~r~dimatikan~s~",\n\n    -- Locale settings\n    ["locale_digit_grouping_symbol"] = ",",\n    ["locale_currency"] = "\xA3%s",\n\n    -- Weapons\n\n    -- Melee\n    ["weapon_dagger"] = "Dagger",\n    ["weapon_bat"] = "Bat",\n    ["weapon_battleaxe"] = "Battle Axe",\n    ["weapon_bottle"] = "Bottle",\n    ["weapon_crowbar"] = "Crowbar",\n    ["weapon_flashlight"] = "Flashlight",\n    ["weapon_golfclub"] = "Golf Club",\n    ["weapon_hammer"] = "Hammer",\n    ["weapon_hatchet"] = "Hatchet",\n    ["weapon_knife"] = "Knife",\n    ["weapon_knuckle"] = "Knuckledusters",\n    ["weapon_machete"] = "Machete",\n    ["weapon_nightstick"] = "Nightstick",\n    ["weapon_wrench"] = "Pipe Wrench",\n    ["weapon_poolcue"] = "Pool Cue",\n    ["weapon_stone_hatchet"] = "Stone Hatchet",\n    ["weapon_switchblade"] = "Switchblade",\n\n    -- Handguns\n    ["weapon_appistol"] = "AP Pistol",\n    ["weapon_ceramicpistol"] = "Ceramic Pistol",\n    ["weapon_combatpistol"] = "Combat Pistol",\n    ["weapon_doubleaction"] = "Double-Action Revolver",\n    ["weapon_navyrevolver"] = "Navy Revolver",\n    ["weapon_flaregun"] = "Flaregun",\n    ["weapon_gadgetpistol"] = "Gadget Pistol",\n    ["weapon_heavypistol"] = "Heavy Pistol",\n    ["weapon_revolver"] = "Heavy Revolver",\n    ["weapon_revolver_mk2"] = "Heavy Revolver MK2",\n    ["weapon_marksmanpistol"] = "Marksman Pistol",\n    ["weapon_pistol"] = "Pistol",\n    ["weapon_pistol_mk2"] = "Pistol MK2",\n    ["weapon_pistol50"] = "Pistol .50",\n    ["weapon_snspistol"] = "SNS Pistol",\n    ["weapon_snspistol_mk2"] = "SNS Pistol MK2",\n    ["weapon_stungun"] = "Taser",\n    ["weapon_raypistol"] = "Up-N-Atomizer",\n    ["weapon_vintagepistol"] = "Vintage Pistol",\n\n    -- Shotguns\n    ["weapon_assaultshotgun"] = "Assault Shotgun",\n    ["weapon_autoshotgun"] = "Auto Shotgun",\n    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",\n    ["weapon_combatshotgun"] = "Combat Shotgun",\n    ["weapon_dbshotgun"] = "Double Barrel Shotgun",\n    ["weapon_heavyshotgun"] = "Heavy Shotgun",\n    ["weapon_musket"] = "Musket",\n    ["weapon_pumpshotgun"] = "Pump Shotgun",\n    ["weapon_pumpshotgun_mk2"] = "Pump Shotgun MK2",\n    ["weapon_sawnoffshotgun"] = "Sawed Off Shotgun",\n\n    -- SMG & LMG\n    ["weapon_assaultsmg"] = "Assault SMG",\n    ["weapon_combatmg"] = "Combat MG",\n    ["weapon_combatmg_mk2"] = "Combat MG MK2",\n    ["weapon_combatpdw"] = "Combat PDW",\n    ["weapon_gusenberg"] = "Gusenberg Sweeper",\n    ["weapon_machinepistol"] = "Machine Pistol",\n    ["weapon_mg"] = "MG",\n    ["weapon_microsmg"] = "Micro SMG",\n    ["weapon_minismg"] = "Mini SMG",\n    ["weapon_smg"] = "SMG",\n    ["weapon_smg_mk2"] = "SMG MK2",\n    ["weapon_raycarbine"] = "Unholy Hellbringer",\n\n    -- Rifles\n    ["weapon_advancedrifle"] = "Advanced Rifle",\n    ["weapon_assaultrifle"] = "Assault Rifle",\n    ["weapon_assaultrifle_mk2"] = "Assault Rifle MK2",\n    ["weapon_bullpuprifle"] = "Bullpup Rifle",\n    ["weapon_bullpuprifle_mk2"] = "Bullpup Rifle MK2",\n    ["weapon_carbinerifle"] = "Carbine Rifle",\n    ["weapon_carbinerifle_mk2"] = "Carbine Rifle MK2",\n    ["weapon_compactrifle"] = "Compact Rifle",\n    ["weapon_militaryrifle"] = "Military Rifle",\n    ["weapon_specialcarbine"] = "Special Carbine",\n    ["weapon_specialcarbine_mk2"] = "Special Carbine MK2",\n    ["weapon_heavyrifle"] = "Heavy Rifle",\n\n    -- Sniper\n    ["weapon_heavysniper"] = "Heavy Sniper",\n    ["weapon_heavysniper_mk2"] = "Heavy Sniper MK2",\n    ["weapon_marksmanrifle"] = "Marksman Rifle",\n    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle MK2",\n    ["weapon_sniperrifle"] = "Sniper Rifle",\n\n    -- Heavy / Launchers\n    ["weapon_compactlauncher"] = "Compact Launcher",\n    ["weapon_firework"] = "Firework Launcher",\n    ["weapon_grenadelauncher"] = "Grenade Launcher",\n    ["weapon_hominglauncher"] = "Homing Launcher",\n    ["weapon_minigun"] = "Minigun",\n    ["weapon_railgun"] = "Railgun",\n    ["weapon_rpg"] = "Rocket Launcher",\n    ["weapon_rayminigun"] = "Widowmaker",\n\n    -- Criminal Enterprises DLC\n    ["weapon_metaldetector"] = "Metal Detector",\n    ["weapon_precisionrifle"] = "Precision Rifle",\n    ["weapon_tactilerifle"] = "Service Carbine",\n\n    -- Drug wars dlc\n    ["weapon_candycane"] = "Candycane",\n    ["weapon_acidpackage"] = "Acid Package",\n    ["weapon_pistolxm3"] = "Pistol8 x3m",\n    ["weapon_railgunxm3"] = "Railgun",\n\n    -- Thrown\n    ["weapon_ball"] = "Baseball",\n    ["weapon_bzgas"] = "BZ Gas",\n    ["weapon_flare"] = "Flare",\n    ["weapon_grenade"] = "Grenade",\n    ["weapon_petrolcan"] = "Jerrycan",\n    ["weapon_hazardcan"] = "Hazardous Jerrycan",\n    ["weapon_molotov"] = "Molotov Cocktail",\n    ["weapon_proxmine"] = "Proximity Mine",\n    ["weapon_pipebomb"] = "Pipe Bomb",\n    ["weapon_snowball"] = "Snowball",\n    ["weapon_stickybomb"] = "Sticky Bomb",\n    ["weapon_smokegrenade"] = "Tear Gas",\n\n    -- Special\n    ["weapon_fireextinguisher"] = "Pemadam Api",\n    ["weapon_digiscanner"] = "Digital Scanner",\n    ["weapon_garbagebag"] = "Kantong Sampah",\n    ["weapon_handcuffs"] = "Borgol",\n    ["gadget_nightvision"] = "Night Vision",\n    ["gadget_parachute"] = "Parasut",\n\n    -- Weapon Components\n    ["component_knuckle_base"] = "base Model",\n    ["component_knuckle_pimp"] = "the Pimp",\n    ["component_knuckle_ballas"] = "the Ballas",\n    ["component_knuckle_dollar"] = "the Hustler",\n    ["component_knuckle_diamond"] = "the Rock",\n    ["component_knuckle_hate"] = "the Hater",\n    ["component_knuckle_love"] = "the Lover",\n    ["component_knuckle_player"] = "the Player",\n    ["component_knuckle_king"] = "the King",\n    ["component_knuckle_vagos"] = "the Vagos",\n\n    ["component_luxary_finish"] = "luxary Weapon Finish",\n\n    ["component_handle_default"] = "default Handle",\n    ["component_handle_vip"] = "vIP Handle",\n    ["component_handle_bodyguard"] = "bodyguard Handle",\n\n    ["component_vip_finish"] = "vIP Finish",\n    ["component_bodyguard_finish"] = "bodyguard Finish",\n\n    ["component_camo_finish"] = "digital Camo",\n    ["component_camo_finish2"] = "brushstroke Camo",\n    ["component_camo_finish3"] = "woodland Camo",\n    ["component_camo_finish4"] = "skull Camo",\n    ["component_camo_finish5"] = "sessanta Nove Camo",\n    ["component_camo_finish6"] = "perseus Camo",\n    ["component_camo_finish7"] = "leopard Camo",\n    ["component_camo_finish8"] = "zebra Camo",\n    ["component_camo_finish9"] = "geometric Camo",\n    ["component_camo_finish10"] = "boom Camo",\n    ["component_camo_finish11"] = "patriotic Camo",\n\n    ["component_camo_slide_finish"] = "digital Slide Camo",\n    ["component_camo_slide_finish2"] = "brushstroke Slide Camo",\n    ["component_camo_slide_finish3"] = "woodland Slide Camo",\n    ["component_camo_slide_finish4"] = "skull Slide Camo",\n    ["component_camo_slide_finish5"] = "sessanta Nove Slide Camo",\n    ["component_camo_slide_finish6"] = "perseus Slide Camo",\n    ["component_camo_slide_finish7"] = "leopard Slide Camo",\n    ["component_camo_slide_finish8"] = "zebra Slide Camo",\n    ["component_camo_slide_finish9"] = "geometric Slide Camo",\n    ["component_camo_slide_finish10"] = "boom Slide Camo",\n    ["component_camo_slide_finish11"] = "patriotic Slide Camo",\n\n    ["component_clip_default"] = "default Magazine",\n    ["component_clip_extended"] = "extended Magazine",\n    ["component_clip_drum"] = "drum Magazine",\n    ["component_clip_box"] = "box Magazine",\n\n    ["component_scope_holo"] = "holographic Scope",\n    ["component_scope_small"] = "small Scope",\n    ["component_scope_medium"] = "medium Scope",\n    ["component_scope_large"] = "large Scope",\n    ["component_scope"] = "mounted Scope",\n    ["component_scope_advanced"] = "advanced Scope",\n    ["component_ironsights"] = "ironsights",\n\n    ["component_suppressor"] = "suppressor",\n    ["component_compensator"] = "compensator",\n\n    ["component_muzzle_flat"] = "flat Muzzle Brake",\n    ["component_muzzle_tactical"] = "tactical Muzzle Brake",\n    ["component_muzzle_fat"] = "fat-End Muzzle Brake",\n    ["component_muzzle_precision"] = "precision Muzzle Brake",\n    ["component_muzzle_heavy"] = "heavy Duty Muzzle Brake",\n    ["component_muzzle_slanted"] = "slanted Muzzle Brake",\n    ["component_muzzle_split"] = "split-End Muzzle Brake",\n    ["component_muzzle_squared"] = "squared Muzzle Brake",\n\n    ["component_flashlight"] = "flashlight",\n    ["component_grip"] = "grip",\n\n    ["component_barrel_default"] = "default Barrel",\n    ["component_barrel_heavy"] = "heavy Barrel",\n\n    ["component_ammo_tracer"] = "tracer Ammo",\n    ["component_ammo_incendiary"] = "incendiary Ammo",\n    ["component_ammo_hollowpoint"] = "hollowpoint Ammo",\n    ["component_ammo_fmj"] = "fMJ Ammo",\n    ["component_ammo_armor"] = "armor Piercing Ammo",\n    ["component_ammo_explosive"] = "armor Piercing Incendiary Ammo",\n\n    ["component_shells_default"] = "default Shells",\n    ["component_shells_incendiary"] = "dragons Breath Shells",\n    ["component_shells_armor"] = "steel Buckshot Shells",\n    ["component_shells_hollowpoint"] = "flechette Shells",\n    ["component_shells_explosive"] = "explosive Slug Shells",\n\n    -- Weapon Ammo\n    ["ammo_rounds"] = "peluru",\n    ["ammo_shells"] = "peluru",\n    ["ammo_charge"] = "peluru",\n    ["ammo_petrol"] = "gallon bahan bakar",\n    ["ammo_firework"] = "kembang api",\n    ["ammo_rockets"] = "roket",\n    ["ammo_grenadelauncher"] = "granat",\n    ["ammo_grenade"] = "granat",\n    ["ammo_stickybomb"] = "bom",\n    ["ammo_pipebomb"] = "bom pipa",\n    ["ammo_smokebomb"] = "bom asap",\n    ["ammo_molotov"] = "molotov",\n    ["ammo_proxmine"] = "peledak",\n    ["ammo_bzgas"] = "kaleng",\n    ["ammo_ball"] = "bola",\n    ["ammo_snowball"] = "bola salju",\n    ["ammo_flare"] = "flare",\n    ["ammo_flaregun"] = "flare",\n\n    -- Weapon Tints\n    ["tint_default"] = "default skin",\n    ["tint_green"] = "green skin",\n    ["tint_gold"] = "gold skin",\n    ["tint_pink"] = "pink skin",\n    ["tint_army"] = "army skin",\n    ["tint_lspd"] = "blue skin",\n    ["tint_orange"] = "orange skin",\n    ["tint_platinum"] = "platinum skin",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "hitam klasik",\n    ["tint_classic_gray"] = "abu-abu klasik",\n    ["tint_classic_two_tone"] = "dua warna klasik",\n    ["tint_classic_white"] = "putih klasik",\n    ["tint_classic_beige"] = "beige klasik",\n    ["tint_classic_green"] = "hijau klasik",\n    ["tint_classic_blue"] = "biru klasik",\n    ["tint_classic_earth"] = "tanah klasik",\n    ["tint_classic_brown_black"] = "coklat hitam klasik",\n    ["tint_contrast_red"] = "merah kontras",\n    ["tint_contrast_blue"] = "biru kontras",\n    ["tint_contrast_yellow"] = "kuning kontras",\n    ["tint_contrast_orange"] = "oren kontras",\n    ["tint_bold_pink"] = "pink berani",\n    ["tint_bold_purple_yellow"] = "ungu kuning berani",\n    ["tint_bold_orange"] = "oren berani",\n    ["tint_bold_green_purple"] = "hijau ungu berani",\n    ["tint_bold_red_feat"] = "merah berani feat",\n    ["tint_bold_green_feat"] = "hijau berani feat",\n    ["tint_bold_cyan_feat"] = "sian berani feat",\n    ["tint_bold_yellow_feat"] = "kuning berani feat",\n    ["tint_bold_red_white"] = "merah putih berani",\n    ["tint_bold_blue_white"] = "biru putih berani",\n    ["tint_metallic_gold"] = "emas metalik",\n    ["tint_metallic_platinum"] = "platina metalik",\n    ["tint_metallic_gray_lilac"] = "abu-abu lilac metalik",\n    ["tint_metallic_purple_lime"] = "ungu jeruk nipis metalik",\n    ["tint_metallic_red"] = "merah metalik",\n    ["tint_metallic_green"] = "hijau metalik",\n    ["tint_metallic_blue"] = "biru metalik",\n    ["tint_metallic_white_aqua"] = "putih aqua metalik",\n    ["tint_metallic_red_yellow"] = "merah kuning metalik",\n}\n',
+        "locales/it.lua": `return {
+    -- Inventory
+    ["inventory"] = "Inventario ( Peso %s / %s )",
+    ["use"] = "Usa",
+    ["give"] = "Dai",
+    ["remove"] = "Butta",
+    ["return"] = "Ritorna",
+    ["give_to"] = "Dai a",
+    ["amount"] = "Quantit\xE0",
+    ["giveammo"] = "Dai munizioni",
+    ["amountammo"] = "Quantit\xE0 munizioni",
+    ["noammo"] = "Non abbastanza!",
+    ["gave_item"] = "Dando %sx %s a %s",
+    ["received_item"] = "Ricevuto %sx %s da %s",
+    ["gave_weapon"] = "Dando %s a %s",
+    ["gave_weapon_ammo"] = "Dando ~o~%sx %s for %s to %s",
+    ["gave_weapon_withammo"] = "Dando %s con ~o~%sx %s a %s",
+    ["gave_weapon_hasalready"] = "%s possiede gi\xE0 %s",
+    ["gave_weapon_noweapon"] = "%s non ha quell' arma",
+    ["received_weapon"] = "Ricevuto %s da %s",
+    ["received_weapon_ammo"] = "Ricevuto ~o~%sx %s per il tuo %s da %s",
+    ["received_weapon_withammo"] = "Ricevuto %s con ~o~%sx %s per %s",
+    ["received_weapon_hasalready"] = "%s ha tentato di darti %s, ma hai gi\xE0 l'arma",
+    ["received_weapon_noweapon"] = "%s ha tentato di darti munizioni per %s, ma non hai l'arma",
+    ["gave_account_money"] = "Dando $%s (%s) a %s",
+    ["received_account_money"] = "Ricevuto $%s (%s) da %s",
+    ["amount_invalid"] = "Quantit\xE0 non valida",
+    ["players_nearby"] = "Nessun giocatore vicino",
+    ["ex_inv_lim"] = "Non puoi farlo, eccedi il peso di %s",
+    ["imp_invalid_quantity"] = "Non puoi farlo, quantit\xE0 non valida",
+    ["imp_invalid_amount"] = "Non puoi farlo, importo non valido",
+    ["threw_standard"] = "Gettando %sx %s",
+    ["threw_account"] = "Gettando $%s %s",
+    ["threw_weapon"] = "Gettando %s",
+    ["threw_weapon_ammo"] = "Gettando %s con ~o~%sx %s",
+    ["threw_weapon_already"] = "Hai gia quest' arma",
+    ["threw_cannot_pickup"] = "Inventario pieno, non puoi raccogliere!",
+    ["threw_pickup_prompt"] = "Premi E per raccogliere",
+
+    -- Key mapping
+    ["keymap_showinventory"] = "Apri inventario",
+
+    -- Salary related
+    ["received_salary"] = "Sei stato pagato: $%s",
+    ["received_help"] = "Hai ricevuto il reddito di cittadinanza: $%s",
+    ["company_nomoney"] = "La tua compagnia \xE8 troppo povera per pagarti",
+    ["received_paycheck"] = "Ricveuto stipendio",
+    ["bank"] = "Banca",
+    ["account_bank"] = "Conto",
+    ["account_black_money"] = "Soldi sporchi",
+    ["account_money"] = "Contanti",
+
+    ["act_imp"] = "Non puoi farlo",
+    ["in_vehicle"] = "Non puoi farlo, il giocatore \xE8 in un veicolo",
+    ["not_in_vehicle"] = "Non puoi farlo, il player non \xE8 in un veicolo",
+
+    -- Commands
+    ["command_bring"] = "Porta il giocatore da te",
+    ["command_car"] = "Spawna un veicolo",
+    ["command_car_car"] = "Modello o hash veicolo",
+    ["command_cardel"] = "Rimuovi i veicoli nelle prossimit\xE0",
+    ["command_cardel_radius"] = "Rimuovi i veicoli nel raggio specificato",
+    ["command_repair"] = "Ripara il tuo veicolo",
+    ["command_repair_success"] = "Hai riparato il veicolo con successo",
+    ["command_repair_success_target"] = "Un admin ha riparato la tua macchina",
+    ["command_clear"] = "Pulisci la chat testuale",
+    ["command_clearall"] = "Pulisci la chat testuale per tutti i giocatori",
+    ["command_clearinventory"] = "Rimuovi tutti gli oggetti dall' inventario del giocatore",
+    ["command_clearloadout"] = "Rimuovi tutte le armi dal loadout del giocatore",
+    ["command_freeze"] = "Blocca un giocatore",
+    ["command_unfreeze"] = "Sblocca un giocatore",
+    ["command_giveaccountmoney"] = "Dai soldi a un' account specifico",
+    ["command_giveaccountmoney_account"] = "Account a cui aggiungere",
+    ["command_giveaccountmoney_amount"] = "Quantit\xE0 da aggiungere",
+    ["command_giveaccountmoney_invalid"] = "Nome account non valido",
+    ["command_removeaccountmoney"] = "Rimuovi soldi da un account specifico",
+    ["command_removeaccountmoney_account"] = "Account a cui togliere",
+    ["command_removeaccountmoney_amount"] = "Quantit\xE0 da rimuovere",
+    ["command_removeaccountmoney_invalid"] = "Nome account non valido",
+    ["command_giveitem"] = "Dai un oggetto ad un giocatore",
+    ["command_giveitem_item"] = "Nome oggetto",
+    ["command_giveitem_count"] = "Quantit\xE0",
+    ["command_giveweapon"] = "Dai un' arma ad un giocatore",
+    ["command_giveweapon_weapon"] = "Nome arma",
+    ["command_giveweapon_ammo"] = "Quantit\xE0 munizioni",
+    ["command_giveweapon_hasalready"] = "Il giocatore ha gi\xE0 l'arma",
+    ["command_giveweaponcomponent"] = "Dai un componente arma ad un giocatore",
+    ["command_giveweaponcomponent_component"] = "Nome componente",
+    ["command_giveweaponcomponent_invalid"] = "Componente arma non valido",
+    ["command_giveweaponcomponent_hasalready"] = "Il giocatore ha gi\xE0 questo componente arma",
+    ["command_giveweaponcomponent_missingweapon"] = "Il giocatore non ha l'arma",
+    ["command_goto"] = "Teletrasportati da un giocatore",
+    ["command_kill"] = "Uccidi un giocatore",
+    ["command_save"] = "Salva forzatamente i dati di un giocatore",
+    ["command_saveall"] = "Salva forzatamente i dati di tutti  igiocatoria",
+    ["command_setaccountmoney"] = "Aggiorna i soldi dentro un account specifico",
+    ["command_setaccountmoney_amount"] = "Quantit\xE0",
+    ["command_setcoords"] = "Teletrasportati a delle coordinate specifiche",
+    ["command_setcoords_x"] = "Valore X",
+    ["command_setcoords_y"] = "Valore Y",
+    ["command_setcoords_z"] = "Valore Z",
+    ["command_setjob"] = "Setta lavoro ad un giocatore",
+    ["command_setjob_job"] = "Nome",
+    ["command_setjob_grade"] = "Grado lavoro",
+    ["command_setjob_invalid"] = "Il lavoro, grado o entrambi sono errati",
+    ["command_setgroup"] = "Setta un gruppo di permessi ad un giocatore",
+    ["command_setgroup_group"] = "Nome del gruppo",
+    ["commanderror_argumentmismatch"] = "Conta argomenti non valida (passati %s, richiesti %s)",
+    ["commanderror_argumentmismatch_number"] = "Argomento #%s di tipologia errata (passato testo, richiesto numero)",
+    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Argomento #%s tipo di dato non valido (passato negativo/zero, richiesto numero positivo)",
+    ["commanderror_invaliditem"] = "Oggetto non valido",
+    ["commanderror_invalidweapon"] = "Arma non valida",
+    ["commanderror_console"] = "Comando non eseguibile dalla console",
+    ["commanderror_invalidcommand"] = "Comando non valido - /%s",
+    ["commanderror_invalidplayerid"] = "Il giocatore specificato non \xE8 online",
+    ["commandgeneric_playerid"] = "Id server del giocatore",
+    ["command_giveammo_noweapon_found"] = "%s non ha quell' arma",
+    ["command_giveammo_weapon"] = "Nome arma",
+    ["command_giveammo_ammo"] = "Quantit\xE0 munizioni",
+    ["tpm_nowaypoint"] = "Nessuna meta impostata",
+    ["tpm_success"] = "Teletrasportato con successo",
+
+    ["noclip_message"] = "Noclip %s",
+    ["enabled"] = "~g~abilitato~s~",
+    ["disabled"] = "~r~disabilitato~s~",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = ",",
+    ["locale_currency"] = "$%s",
+
+    -- Weapons
+
+    -- Melee
+    ["weapon_dagger"] = "Pugnale Antico",
+    ["weapon_bat"] = "Mazza",
+    ["weapon_battleaxe"] = "Ascia",
+    ["weapon_bottle"] = "Bottiglia",
+    ["weapon_crowbar"] = "Piede di porco",
+    ["weapon_flashlight"] = "Torcia",
+    ["weapon_golfclub"] = "Mazza da golf",
+    ["weapon_hammer"] = "Martello",
+    ["weapon_hatchet"] = "Accetta",
+    ["weapon_knife"] = "Coltello",
+    ["weapon_knuckle"] = "Tirapugni",
+    ["weapon_machete"] = "Machete",
+    ["weapon_nightstick"] = "Manganello",
+    ["weapon_wrench"] = "Tubo",
+    ["weapon_poolcue"] = "Stecca",
+    ["weapon_stone_hatchet"] = "Accetta di pietra",
+    ["weapon_switchblade"] = "Coltello a serramanico",
+
+    -- Handguns
+    ["weapon_appistol"] = "Pistola AP",
+    ["weapon_ceramicpistol"] = "Pistola di ceramica",
+    ["weapon_combatpistol"] = "Pistola da combattimento",
+    ["weapon_doubleaction"] = "Revolver doppia azione",
+    ["weapon_navyrevolver"] = "Revolver Marina",
+    ["weapon_flaregun"] = "Pistola lanciarazzi",
+    ["weapon_gadgetpistol"] = "Pistola Gadget",
+    ["weapon_heavypistol"] = "Pistola pesante",
+    ["weapon_revolver"] = "Revolver pesante",
+    ["weapon_revolver_mk2"] = "Revolver pesante MK2",
+    ["weapon_marksmanpistol"] = "Pistola da tiratore",
+    ["weapon_pistol"] = "Pistola",
+    ["weapon_pistol_mk2"] = "Pistola MK2",
+    ["weapon_pistol50"] = "Pistola .50",
+    ["weapon_snspistol"] = "Pistola SNS",
+    ["weapon_snspistol_mk2"] = "Pistola SNS MK2",
+    ["weapon_stungun"] = "Taser",
+    ["weapon_raypistol"] = "Up-N-Atomizzatore",
+    ["weapon_vintagepistol"] = "Pistola Vintage",
+
+    -- Shotguns
+    ["weapon_assaultshotgun"] = "Fucile a pompa d'assalto",
+    ["weapon_autoshotgun"] = "Fucile a pompa automatico",
+    ["weapon_bullpupshotgun"] = "Fucile a pompa Bullup",
+    ["weapon_combatshotgun"] = "Fucile a pompa da combattimento",
+    ["weapon_dbshotgun"] = "Fucile a pompa doppia canna",
+    ["weapon_heavyshotgun"] = "Fucile a pompa pesante",
+    ["weapon_musket"] = "Moschetto",
+    ["weapon_pumpshotgun"] = "Fucile a pompa",
+    ["weapon_pumpshotgun_mk2"] = "Fucile a pompa MK2",
+    ["weapon_sawnoffshotgun"] = "Fucile a canne mozza",
+
+    -- SMG & LMG
+    ["weapon_assaultsmg"] = "SMG d'assalto",
+    ["weapon_combatmg"] = "MG da combattimento",
+    ["weapon_combatmg_mk2"] = "MG da combattimento MK2",
+    ["weapon_combatpdw"] = "PDW da combattimento",
+    ["weapon_gusenberg"] = "Mitragliatrice Gusenberg",
+    ["weapon_machinepistol"] = "Pistola mitragliatrice",
+    ["weapon_mg"] = "MG",
+    ["weapon_microsmg"] = "Micro SMG",
+    ["weapon_minismg"] = "Mini SMG",
+    ["weapon_smg"] = "SMG",
+    ["weapon_smg_mk2"] = "SMG MK2",
+    ["weapon_raycarbine"] = "Hellbringer infernale",
+
+    -- Rifles
+    ["weapon_advancedrifle"] = "Fucile avanzato",
+    ["weapon_assaultrifle"] = "Fucile d'assalto",
+    ["weapon_assaultrifle_mk2"] = "Fucile d' assalto MK2",
+    ["weapon_bullpuprifle"] = "Fucile Bullpup",
+    ["weapon_bullpuprifle_mk2"] = "Fucile Bullpup MK2",
+    ["weapon_carbinerifle"] = "Carabina",
+    ["weapon_carbinerifle_mk2"] = "Carbine MK2",
+    ["weapon_compactrifle"] = "Fucile compatto",
+    ["weapon_militaryrifle"] = "Fucile militare",
+    ["weapon_specialcarbine"] = "Carabina speciale",
+    ["weapon_specialcarbine_mk2"] = "Carabina speciale MK2",
+    ["weapon_heavyrifle"] = "Fucile pesante",
+
+    -- Sniper
+    ["weapon_heavysniper"] = "Cecchino pesante",
+    ["weapon_heavysniper_mk2"] = "Cecchino pesante MK2",
+    ["weapon_marksmanrifle"] = "Fucile da tiratore",
+    ["weapon_marksmanrifle_mk2"] = "Fucile da tiratore MK2",
+    ["weapon_sniperrifle"] = "Cecchino",
+
+    -- Heavy / Launchers
+    ["weapon_compactlauncher"] = "Lanciagranate compatto",
+    ["weapon_firework"] = "Cannone pirotecnico",
+    ["weapon_grenadelauncher"] = "Lanciagranate",
+    ["weapon_hominglauncher"] = "Lanciarazzi a tracciamento",
+    ["weapon_minigun"] = "Minigun",
+    ["weapon_railgun"] = "Railgun",
+    ["weapon_rpg"] = "Lanciarazzi",
+    ["weapon_rayminigun"] = "Widowmaker",
+
+    -- Criminal Enterprises DLC
+    ["weapon_metaldetector"] = "Metal Detector",
+    ["weapon_precisionrifle"] = "Fucile di precisione",
+    ["weapon_tactilerifle"] = "Carabina di servizio",
+
+    -- Drug Wars DLC
+    ["weapon_candycane"] = "Bastoncino di zucchero",
+    ["weapon_acidpackage"] = "Pacco di acidi",
+    ["weapon_pistolxm3"] = "Pistola WM 29",
+    ["weapon_railgunxm3"] = "Railgun",
+
+    -- Thrown
+    ["weapon_ball"] = "Palla",
+    ["weapon_bzgas"] = "BZ Gas",
+    ["weapon_flare"] = "Flare",
+    ["weapon_grenade"] = "Granata",
+    ["weapon_petrolcan"] = "Tanica",
+    ["weapon_hazardcan"] = "Tanica pericolosa",
+    ["weapon_molotov"] = "Molotov",
+    ["weapon_proxmine"] = "Mina di prossimit\xE0",
+    ["weapon_pipebomb"] = "Esplosivo plastico",
+    ["weapon_snowball"] = "Palla di neve",
+    ["weapon_stickybomb"] = "Bomba adesiva",
+    ["weapon_smokegrenade"] = "Gas lacrimogeno",
+
+    -- Special
+    ["weapon_fireextinguisher"] = "Estintore",
+    ["weapon_digiscanner"] = "Scanner digitale",
+    ["weapon_garbagebag"] = "Sacco della spazzatura",
+    ["weapon_handcuffs"] = "Manette",
+    ["gadget_nightvision"] = "Visore termico",
+    ["gadget_parachute"] = "Paracadute",
+
+    -- Weapon Components
+    ["component_knuckle_base"] = "Modello basa",
+    ["component_knuckle_pimp"] = "il Pappone",
+    ["component_knuckle_ballas"] = "i Ballas",
+    ["component_knuckle_dollar"] = "il Riccone",
+    ["component_knuckle_diamond"] = "la Roccia",
+    ["component_knuckle_hate"] = "l' Hater",
+    ["component_knuckle_love"] = "l' Amante",
+    ["component_knuckle_player"] = "il Giocatore",
+    ["component_knuckle_king"] = "il Re",
+    ["component_knuckle_vagos"] = "i Vagos",
+
+    ["component_luxary_finish"] = "rifinitura di lusso",
+
+    ["component_handle_default"] = "impugnatura base",
+    ["component_handle_vip"] = "impugnatura VIP",
+    ["component_handle_bodyguard"] = "impugnatura guardia del corpo",
+
+    ["component_vip_finish"] = "rifinitura VIP",
+    ["component_bodyguard_finish"] = "rifinitura Guardia del corpo",
+
+    ["component_camo_finish"] = "mimetica Digitale",
+    ["component_camo_finish2"] = "mimetica Cespuglio",
+    ["component_camo_finish3"] = "mimetica Legnosa",
+    ["component_camo_finish4"] = "mimetica Teschio",
+    ["component_camo_finish5"] = "mimetica Sessanta Nove",
+    ["component_camo_finish6"] = "mimetica Perseo",
+    ["component_camo_finish7"] = "mimetica Leopardata",
+    ["component_camo_finish8"] = "mimetica Zebra",
+    ["component_camo_finish9"] = "mimetica Geometrica",
+    ["component_camo_finish10"] = "mimetica Boom",
+    ["component_camo_finish11"] = "mimetica Patriottica",
+
+    ["component_camo_slide_finish"] = "mimetica Digitale Slide",
+    ["component_camo_slide_finish2"] = "mimetica Cespuglio Slide",
+    ["component_camo_slide_finish3"] = "mimetica Legnosa Slide",
+    ["component_camo_slide_finish4"] = "mimetica Teschio Slide",
+    ["component_camo_slide_finish5"] = "mimetica Sessanta Nove Slide",
+    ["component_camo_slide_finish6"] = "mimetica Perseo Slide",
+    ["component_camo_slide_finish7"] = "mimetica Leopardata Slide",
+    ["component_camo_slide_finish8"] = "mimetica Zebra Slide",
+    ["component_camo_slide_finish9"] = "mimetica Geometrica Slide",
+    ["component_camo_slide_finish10"] = "mimetica Boom Slide",
+    ["component_camo_slide_finish11"] = "mimetica Patriottica Slide",
+
+    ["component_clip_default"] = "caricatore Standard",
+    ["component_clip_extended"] = "caricatore Esteso",
+    ["component_clip_drum"] = "caricatore A Batteria",
+    ["component_clip_box"] = "caricatore A Scatola",
+
+    ["component_scope_holo"] = "mirino Olografico",
+    ["component_scope_small"] = "mirino Piccolo",
+    ["component_scope_medium"] = "mirino Medio",
+    ["component_scope_large"] = "mirino Largo",
+    ["component_scope"] = "mirino Montato",
+    ["component_scope_advanced"] = "mirino Avanzato",
+    ["component_ironsights"] = "integrato",
+
+    ["component_suppressor"] = "silenziatore",
+    ["component_compensator"] = "compensatore",
+
+    ["component_muzzle_flat"] = "freno Di Bocca Piatto",
+    ["component_muzzle_tactical"] = "freno Di Bocca Tattico",
+    ["component_muzzle_fat"] = "freno Di Bocca Grosso",
+    ["component_muzzle_precision"] = "freno Di Bocca Di Precisione",
+    ["component_muzzle_heavy"] = "freno Di Bocca Pesante",
+    ["component_muzzle_slanted"] = "freno Di Bocca Inclinato",
+    ["component_muzzle_split"] = "freno Di Bocca Diviso",
+    ["component_muzzle_squared"] = "freno Di Bocca Quadrato",
+
+    ["component_flashlight"] = "torcia",
+    ["component_grip"] = "impugnatura",
+
+    ["component_barrel_default"] = "canna Standard",
+    ["component_barrel_heavy"] = "canna Pesante",
+
+    ["component_ammo_tracer"] = "munizioni Traccianti",
+    ["component_ammo_incendiary"] = "munizioni Incendiarie",
+    ["component_ammo_hollowpoint"] = "munizioni a Punta Cava",
+    ["component_ammo_fmj"] = "munizioni fMj",
+    ["component_ammo_armor"] = "munizioni penetranti",
+    ["component_ammo_explosive"] = "munizioni penetranti incendiarie",
+
+    ["component_shells_default"] = "cartucce Standard",
+    ["component_shells_incendiary"] = "cartucce alito di Drago",
+    ["component_shells_armor"] = "cartucce a pallettoni",
+    ["component_shells_hollowpoint"] = "cartucce a freccette",
+    ["component_shells_explosive"] = "cartucce esplosive",
+
+    -- Weapon Ammo
+    ["ammo_rounds"] = "colpo(i)",
+    ["ammo_shells"] = "cartuccia(e)",
+    ["ammo_charge"] = "carica",
+    ["ammo_petrol"] = "Litri di carburante",
+    ["ammo_firework"] = "fuochi d'artificio",
+    ["ammo_rockets"] = "razzo(i)",
+    ["ammo_grenadelauncher"] = "granata(e)",
+    ["ammo_grenade"] = "granata(e)",
+    ["ammo_stickybomb"] = "bomba(e)",
+    ["ammo_pipebomb"] = "bomba(e)",
+    ["ammo_smokebomb"] = "bomba(e)",
+    ["ammo_molotov"] = "bottiglia(e)",
+    ["ammo_proxmine"] = "mina(e)",
+    ["ammo_bzgas"] = "latta(e)",
+    ["ammo_ball"] = "palla(e)",
+    ["ammo_snowball"] = "palle di neve",
+    ["ammo_flare"] = "razzo(i)",
+    ["ammo_flaregun"] = "razzo(i)",
+
+    -- Weapon Tints
+    ["tint_default"] = "Colore standard",
+    ["tint_green"] = "color verde",
+    ["tint_gold"] = "color oro",
+    ["tint_pink"] = "color rosa",
+    ["tint_army"] = "color army",
+    ["tint_lspd"] = "color blu",
+    ["tint_orange"] = "color arancio",
+    ["tint_platinum"] = "color platino",
+    -- MK2 Weapon Tints
+    ["tint_classic_black"] = "nero classico",
+    ["tint_classic_gray"] = "grigio classico",
+    ["tint_classic_two_tone"] = "due toni classico",
+    ["tint_classic_white"] = "bianco classico",
+    ["tint_classic_beige"] = "beige classico",
+    ["tint_classic_green"] = "verde classico",
+    ["tint_classic_blue"] = "blu classico",
+    ["tint_classic_earth"] = "terra classica",
+    ["tint_classic_brown_black"] = "marrone nero classico",
+    ["tint_contrast_red"] = "rosso contrastante",
+    ["tint_contrast_blue"] = "blu contrastante",
+    ["tint_contrast_yellow"] = "giallo contrastante",
+    ["tint_contrast_orange"] = "arancione contrastante",
+    ["tint_bold_pink"] = "rosa audace",
+    ["tint_bold_purple_yellow"] = "viola giallo audace",
+    ["tint_bold_orange"] = "arancione audace",
+    ["tint_bold_green_purple"] = "verde viola audace",
+    ["tint_bold_red_feat"] = "rosso audace feat",
+    ["tint_bold_green_feat"] = "verde audace feat",
+    ["tint_bold_cyan_feat"] = "cyan audace feat",
+    ["tint_bold_yellow_feat"] = "giallo audace feat",
+    ["tint_bold_red_white"] = "rosso bianco audace",
+    ["tint_bold_blue_white"] = "blu bianco audace",
+    ["tint_metallic_gold"] = "oro metallico",
+    ["tint_metallic_platinum"] = "platino metallico",
+    ["tint_metallic_gray_lilac"] = "grigio lilla metallico",
+    ["tint_metallic_purple_lime"] = "viola lime metallico",
+    ["tint_metallic_red"] = "rosso metallico",
+    ["tint_metallic_green"] = "verde metallico",
+    ["tint_metallic_blue"] = "blu metallico",
+    ["tint_metallic_white_aqua"] = "bianco aqua metallico",
+    ["tint_metallic_red_yellow"] = "rosso giallo metallico",
+}
+`,
+        "locales/nl.lua": 'return {\n    -- Inventory\n    ["inventory"] = "Inventaris ( Gewicht %s / %s )",\n    ["use"] = "Gebruik",\n    ["give"] = "Geef",\n    ["remove"] = "Gooi",\n    ["return"] = "Terug",\n    ["give_to"] = "Geef aan",\n    ["amount"] = "Aantal",\n    ["giveammo"] = "Geef munitie",\n    ["amountammo"] = "Hoeveelheid munitie",\n    ["noammo"] = "Niet genoeg munitie!",\n    ["gave_item"] = "%sx %s gegeven aan %s",\n    ["received_item"] = "%sx %s ontvangen van %s",\n    ["gave_weapon"] = "%s gegeven aan %s",\n    ["gave_weapon_ammo"] = "~o~%sx %s gegeven voor een %s aan %s",\n    ["gave_weapon_withammo"] = "%s gegeven met ~o~%sx %s aan %s",\n    ["gave_weapon_hasalready"] = "%s heeft al een %s",\n    ["gave_weapon_noweapon"] = "%s heeft dat wapen niet",\n    ["received_weapon"] = "%s ontvangen van %s",\n    ["received_weapon_ammo"] = "~o~%sx %s ontvangen voor je %s van %s",\n    ["received_weapon_withammo"] = "%s ontvangen met ~o~%sx %s van %s",\n    ["received_weapon_hasalready"] = "%s heeft geprobeerd je een %s te geven, maar je hebt dat wapen al.",\n    ["received_weapon_noweapon"] = "%s heeft geprobeerd je ammo te geven voor een %s, maar je hebt dit wapen niet",\n    ["gave_account_money"] = "\u20AC%s (%s) gegeven aan %s",\n    ["received_account_money"] = "\u20AC%s (%s) ontvangen van %s",\n    ["amount_invalid"] = "Ongeldige hoeveelheid",\n    ["players_nearby"] = "Geen spelers in de buurt",\n    ["ex_inv_lim"] = "Kan actie niet uitvoeren, overschrijdt max. gewicht van %s",\n    ["imp_invalid_quantity"] = "Kan actie niet uitvoeren, de hoeveelheid is ongeldig",\n    ["imp_invalid_amount"] = "Kan actie niet uitvoeren, het aantal is ongeldig",\n    ["threw_standard"] = "%sx %s weggegooid",\n    ["threw_account"] = "\u20AC%s %s weggegooid",\n    ["threw_weapon"] = "%s weggegooid",\n    ["threw_weapon_ammo"] = "%s met ~o~%sx %s weggegooid",\n    ["threw_weapon_already"] = "Je hebt dit wapen al !",\n    ["threw_cannot_pickup"] = "Inventaris is vol, je kan dit niet oppakken!",\n    ["threw_pickup_prompt"] = "Druk op E om op te pakken",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "Laat inventaris zien",\n\n    -- Salary related\n    ["received_salary"] = "Je bent betaald: \u20AC%s",\n    ["received_help"] = "Je hebt je uitkering gekregen: \u20AC%s",\n    ["company_nomoney"] = "Het bedrijf waar je bij werkt heeft te weinig geld om je uit te betalen.",\n    ["received_paycheck"] = "salaris ontvangen",\n    ["bank"] = "Maze Bank",\n    ["account_bank"] = "Bank",\n    ["account_black_money"] = "Zwart geld",\n    ["account_money"] = "Contant",\n\n    ["act_imp"] = "Kan actie niet uitvoeren",\n    ["in_vehicle"] = "Kan actie niet uitvoeren, de speler zit in een voertuig.",\n\n    -- Commands\n    ["command_bring"] = "Breng speler naar jou",\n    ["command_car"] = "Spawn een voertuig",\n    ["command_car_car"] = "Voertuig model of hash",\n    ["command_cardel"] = "Verwijder voertuigen in straal",\n    ["command_cardel_radius"] = "Verwijderd alle voertuigen in gewenste straal",\n    ["command_clear"] = "Verwijder chat berichten",\n    ["command_clearall"] = "Verwijder chat berichten voor alle spelers",\n    ["command_clearinventory"] = "Verwijder alle items van een speler zijn inventory",\n    ["command_clearloadout"] = "Verwijder alle wapens die een speler heeft",\n    ["command_freeze"] = "Freeze een speler",\n    ["command_unfreeze"] = "Unfreeze een speler",\n    ["command_giveaccountmoney"] = "Geef geld aan een rekening",\n    ["command_giveaccountmoney_account"] = "Account om aan toe te voegen",\n    ["command_giveaccountmoney_amount"] = "Bedrag om toe te voegen",\n    ["command_giveaccountmoney_invalid"] = "Account Naam ongeldig",\n    ["command_giveitem"] = "Geef speler een item",\n    ["command_giveitem_item"] = "Item naam",\n    ["command_giveitem_count"] = "Hoeveelheid",\n    ["command_giveweapon"] = "Geef de speler een wapen",\n    ["command_giveweapon_weapon"] = "Wapen naam",\n    ["command_giveweapon_ammo"] = "Munitie Hoeveelheid",\n    ["command_giveweapon_hasalready"] = "Speler heeft dit wapen al",\n    ["command_giveweaponcomponent"] = "Geef wapen component aan speler",\n    ["command_giveweaponcomponent_component"] = "Component naam",\n    ["command_giveweaponcomponent_invalid"] = "Ongeldig wapen component",\n    ["command_giveweaponcomponent_hasalready"] = "De speler heeft dit wapen component al",\n    ["command_giveweaponcomponent_missingweapon"] = "De speler heeft dit wapen niet",\n    ["command_goto"] = "Teleporteer jezelf naar een speler",\n    ["command_kill"] = "Vermoord een speler",\n    ["command_save"] = "Slaag een speler zijn spelerdata geforceerd op",\n    ["command_saveall"] = "Slaag iedereen zijn spelerdata geforceerd op",\n    ["command_setaccountmoney"] = "Stel geld in op een account",\n    ["command_setaccountmoney_amount"] = "Hoeveelheid",\n    ["command_setcoords"] = "Telepeer naar coordinaten",\n    ["command_setcoords_x"] = "X waarde",\n    ["command_setcoords_y"] = "Y waarde",\n    ["command_setcoords_z"] = "Z waarde",\n    ["command_setjob"] = "Zet een speler zijn / haar job",\n    ["command_setjob_job"] = "Naam",\n    ["command_setjob_grade"] = "Job grade",\n    ["command_setjob_invalid"] = "De job, grade of beide zijn ongeldig",\n    ["command_setgroup"] = "Stel een toestemmingsgroep voor spelers in",\n    ["command_setgroup_group"] = "Naam van groep",\n    ["commanderror_argumentmismatch"] = "Ongeldig aantal argumenten (geslaagd %s, gezocht %s)",\n    ["commanderror_argumentmismatch_number"] = "Ongeldig argument #%s gegevenstype (doorgegeven string, gewenst nummer)",\n    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (doorgegeven string, gewenst nummer)",\n    ["commanderror_argumentmismatch_positive_number"] = "Ongeldig Argument #%s gegevenstype (doorgegeven negatief/nul, gewenst positief getal)",\n    ["commanderror_invaliditem"] = "Ongeldig item",\n    ["commanderror_invalidweapon"] = "Ongeldig wapen",\n    ["commanderror_console"] = "Command kan niet worden uitgevoerd vanaf console.",\n    ["commanderror_invalidcommand"] = "Ongeldig commando - /%s",\n    ["commanderror_invalidplayerid"] = "Opgegeven speler is niet online",\n    ["commandgeneric_playerid"] = "Speler server id",\n    ["command_giveammo_noweapon_found"] = "%s heeft dat wapen niet",\n    ["command_giveammo_weapon"] = "Wapen naam",\n    ["command_giveammo_ammo"] = "Munitie Hoeveelheid",\n    ["tpm_nowaypoint"] = "Geen navigatie ingesteld.",\n    ["tpm_success"] = "Successvol geteleporteerd",\n\n    ["noclip_message"] = "Noclip is %s",\n    ["enabled"] = "~g~aangezet~s~",\n    ["disabled"] = "~r~uitgezet~s~",\n\n    -- Locale settings\n    ["locale_digit_grouping_symbol"] = ",",\n    ["locale_currency"] = "\u20AC%s",\n\n    -- Weapons\n\n    -- Melee\n    ["weapon_dagger"] = "Dolk",\n    ["weapon_bat"] = "Knuppel",\n    ["weapon_battleaxe"] = "Gevechtsbijl",\n    ["weapon_bottle"] = "Fles",\n    ["weapon_crowbar"] = "Koevoet",\n    ["weapon_flashlight"] = "Zaklamp",\n    ["weapon_golfclub"] = "Golfclub",\n    ["weapon_hammer"] = "Hamer",\n    ["weapon_hatchet"] = "Bijl",\n    ["weapon_knife"] = "Mes",\n    ["weapon_knuckle"] = "Boksbeugel",\n    ["weapon_machete"] = "Machete",\n    ["weapon_nightstick"] = "Wapenstok",\n    ["weapon_wrench"] = "Pijpsleutel",\n    ["weapon_poolcue"] = "Biljart Keu",\n    ["weapon_stone_hatchet"] = "Steenbijl",\n    ["weapon_switchblade"] = "Stiletto",\n\n    -- Handguns\n    ["weapon_appistol"] = "AP-pistool",\n    ["weapon_ceramicpistol"] = "Keramische pistool",\n    ["weapon_combatpistol"] = "Gevechtspistool",\n    ["weapon_doubleaction"] = "Revolver met dubbele actie",\n    ["weapon_navyrevolver"] = "Marine Revolver",\n    ["weapon_flaregun"] = "Noodsignaalpistool",\n    ["weapon_gadgetpistol"] = "Gadgetpistool",\n    ["weapon_heavypistol"] = "Zwaar pistool",\n    ["weapon_revolver"] = "Zware revolver",\n    ["weapon_revolver_mk2"] = "Zware revolver MK2",\n    ["weapon_marksmanpistol"] = "Marksman-pistool",\n    ["weapon_pistol"] = "Pistool",\n    ["weapon_pistol_mk2"] = "Pistool MK2",\n    ["weapon_pistol50"] = "Pistool .50",\n    ["weapon_snspistol"] = "SNS-pistool",\n    ["weapon_snspistol_mk2"] = "SNS-pistool MK2",\n    ["weapon_stungun"] = "Taser",\n    ["weapon_raypistol"] = "Up-N-Atomizer",\n    ["weapon_vintagepistol"] = "Vintage Pistool",\n\n    -- Shotguns\n    ["weapon_assaultshotgun"] = "Aanvalsgeweer",\n    ["weapon_autoshotgun"] = "Automatisch jachtgeweer",\n    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",\n    ["weapon_combatshotgun"] = "Gevechtsgeweer",\n    ["weapon_dbshotgun"] = "Dubbelloops jachtgeweer",\n    ["weapon_heavyshotgun"] = "Zwaar jachtgeweer",\n    ["weapon_musket"] = "Musket",\n    ["weapon_pumpshotgun"] = "Pompgeweer",\n    ["weapon_pumpshotgun_mk2"] = "Pump Shotgun MK2",\n    ["weapon_sawnoffshotgun"] = "Afgezaagd jachtgeweer",\n\n    -- SMG & LMG\n    ["weapon_assaultsmg"] = "Aanval SMG",\n    ["weapon_combatmg"] = "Gevecht MG",\n    ["weapon_combatmg_mk2"] = "Combat MG MK2",\n    ["weapon_combatpdw"] = "Combat PDW",\n    ["weapon_gusenberg"] = "Gusenberg-veger",\n    ["weapon_machinepistol"] = "Machinepistool",\n    ["weapon_mg"] = "MG",\n    ["weapon_microsmg"] = "Micro-SMG",\n    ["weapon_minismg"] = "Mini-SMG",\n    ["weapon_smg"] = "SMG",\n    ["weapon_smg_mk2"] = "SMG MK2",\n    ["weapon_raycarbine"] = "Onheilige Hellbringer",\n\n    -- Rifles\n    ["weapon_advancedrifle"] = "Geavanceerd geweer",\n    ["weapon_assaultrifle"] = "Aanvalsgeweer",\n    ["weapon_assaultrifle_mk2"] = "Aanvalsgeweer MK2",\n    ["weapon_bullpuprifle"] = "Bullpup-geweer",\n    ["weapon_bullpuprifle_mk2"] = "Bullpup-geweer MK2",\n    ["weapon_carbinerifle"] = "Kabinet geweer",\n    ["weapon_carbinerifle_mk2"] = "Kabinet geweer MK2",\n    ["weapon_compactrifle"] = "Compact geweer",\n    ["weapon_militaryrifle"] = "Militair geweer",\n    ["weapon_specialcarbine"] = "Speciale karabijn",\n    ["weapon_specialcarbine_mk2"] = "Speciale karabijn MK2",\n\n    -- Sniper\n    ["weapon_heavysniper"] = "Zware sluipschutter",\n    ["weapon_heavysniper_mk2"] = "Zware Sniper MK2",\n    ["weapon_marksmanrifle"] = "Schuttersgeweer",\n    ["weapon_marksmanrifle_mk2"] = "Schuttersgeweer MK2",\n    ["weapon_sniperrifle"] = "Sniper Rifle",\n\n    -- Heavy / Launchers\n    ["weapon_compactlauncher"] = "Compacte Launcher",\n    ["weapon_firework"] = "Vuurwerkstarter",\n    ["weapon_grenadelauncher"] = "Granaatwerper",\n    ["weapon_hominglauncher"] = "Homing Launcher",\n    ["weapon_minigun"] = "Minigun",\n    ["weapon_railgun"] = "Spoorgeweer",\n    ["weapon_rpg"] = "Raketwerper",\n    ["weapon_rayminigun"] = "Weduwemaker",\n\n    -- Criminal Enterprises DLC\n    ["weapon_metaldetector"] = "Metaal Detector",\n    ["weapon_precisionrifle"] = "Precisiegeweer",\n    ["weapon_tactilerifle"] = "Service Carbine",\n\n    -- Drug Wars DLC\n    ["weapon_candycane"] = "Snoep stok",\n    ["weapon_acidpackage"] = "LSD pakket",\n    ["weapon_pistolxm3"] = "WM 29 Pistool",\n    ["weapon_railgunxm3"] = "Railgun",\n\n    -- Thrown\n    ["weapon_ball"] = "Honkbal",\n    ["weapon_bzgas"] = "BZ-gas",\n    ["weapon_flare"] = "Flare",\n    ["weapon_grenade"] = "Granaat",\n    ["weapon_petrolcan"] = "Jerrycan",\n    ["weapon_hazardcan"] = "Gevaarlijke jerrycan",\n    ["weapon_molotov"] = "Molotovcocktail",\n    ["weapon_proxmine"] = "Nabijheidsmijn",\n    ["weapon_pipebomb"] = "Pijpbom",\n    ["weapon_snowball"] = "Sneeuwbal",\n    ["weapon_stickybomb"] = "Kleefbom",\n    ["weapon_smokegrenade"] = "Traangas",\n\n    -- Special\n    ["weapon_firebluser"] = "Brandblusser",\n    ["weapon_digiscanner"] = "Digitale scanner",\n    ["weapon_garbagebag"] = "Vuilniszak",\n    ["weapon_handcuffs"] = "Handboeien",\n    ["gadget_nightvision"] = "Nachtzicht",\n    ["gadget_parachute"] = "parachute",\n\n    -- Weapon Components\n    ["component_knuckle_base"] = "basismodel",\n    ["component_knuckle_pimp"] = "de pooier",\n    ["component_knuckle_ballas"] = "de ballen",\n    ["component_knuckle_dollar"] = "de Hustler",\n    ["component_knuckle_diamond"] = "de rots",\n    ["component_knuckle_hate"] = "de Hater",\n    ["component_knuckle_love"] = "de minnaar",\n    ["component_knuckle_player"] = "de speler",\n    ["component_knuckle_king"] = "de koning",\n    ["component_knuckle_vagos"] = "de Vagos",\n\n    ["component_luxary_finish"] = "luxe wapenafwerking",\n\n    ["component_handle_default"] = "standaard handvat",\n    ["component_handle_vip"] = "VIP-handvat",\n    ["component_handle_bodyguard"] = "bodyguard-handvat",\n\n    ["component_vip_finish"] = "VIP Finish",\n    ["component_bodyguard_finish"] = "bodyguard Finish",\n\n    ["component_camo_finish"] = "digitale camouflage",\n    ["component_camo_finish2"] = "penseelstreek camouflage",\n    ["component_camo_finish3"] = "bos camouflage",\n    ["component_camo_finish4"] = "schedel camouflage",\n    ["component_camo_finish5"] = "sessanta Nove camouflage",\n    ["component_camo_finish6"] = "perseus camouflage",\n    ["component_camo_finish7"] = "luipaard camouflage",\n    ["component_camo_finish8"] = "zebracamouflage",\n    ["component_camo_finish9"] = "geometrische camouflage",\n    ["component_camo_finish10"] = "boom camouflage",\n    ["component_camo_finish11"] = "patriottische camouflage",\n\n    ["component_camo_slide_finish"] = "digitale diacamouflage",\n    ["component_camo_slide_finish2"] = "penseelstreek Dia Camo",\n    ["component_camo_slide_finish3"] = "bos Slide camouflage",\n    ["component_camo_slide_finish4"] = "schedelschuifcamouflage",\n    ["component_camo_slide_finish5"] = "sessanta Nove Dia camouflage",\n    ["component_camo_slide_finish6"] = "perseus diacamouflage",\n    ["component_camo_slide_finish7"] = "luipaard Slide camouflage",\n    ["component_camo_slide_finish8"] = "zebra Slide camouflage",\n    ["component_camo_slide_finish9"] = "geometrische diacamouflage",\n    ["component_camo_slide_finish10"] = "boom Slide camouflage",\n    ["component_camo_slide_finish11"] = "patriottische diacamouflage",\n\n    ["component_clip_default"] = "standaard magazijn",\n    ["component_clip_extended"] = "uitgebreid magazijn",\n    ["component_clip_drum"] = "drum magazijn",\n    ["component_clip_box"] = "box magazijn",\n\n    ["component_scope_holo"] = "holografisch bereik",\n    ["component_scope_small"] = "klein bereik",\n    ["component_scope_medium"] = "gemiddeld bereik",\n    ["component_scope_large"] = "groot bereik",\n    ["component_scope"] = "gemonteerde scope",\n    ["component_scope_advanced"] = "geavanceerd bereik",\n    ["component_ironsights"] = "ironsights",\n\n    ["component_suppressor"] = "suppressor",\n    ["component_compensator"] = "compensator",\n\n    ["component_muzzle_flat"] = "platte mondingsrem",\n    ["component_muzzle_tactical"] = "tactische mondingsrem",\n    ["component_muzzle_fat"] = "fat-end mondingsrem",\n    ["component_muzzle_precision"] = "precisie mondingsrem",\n    ["component_muzzle_heavy"] = "zware mondingsrem",\n    ["component_muzzle_slanted"] = "schuine mondingsrem",\n    ["component_muzzle_split"] = "gespleten mondingsrem",\n    ["component_muzzle_squared"] = "kwadraat mondingsrem",\n\n    ["component_flashlight"] = "zaklamp",\n    ["component_grip"] = "grip",\n\n    ["component_barrel_default"] = "standaard handvat",\n    ["component_barrel_heavy"] = "zware handvat",\n\n    ["component_ammo_tracer"] = "tracermunitie",\n    ["component_ammo_incendiary"] = "brandgevaarlijke munitie",\n    ["component_ammo_hollowpoint"] = "hollowpoint munitie",\n    ["component_ammo_fmj"] = "fMJ-munitie",\n    ["component_ammo_armor"] = "pantser piercing munitie",\n    ["component_ammo_explosive"] = "pantserpiercing brandgevaarlijke munitie",\n\n    ["component_shells_default"] = "standaard shells",\n    ["component_shells_incendiary"] = "draken ademschelpen",\n    ["component_shells_armor"] = "stalen Buckshot Shells",\n    ["component_shells_hollowpoint"] = "flechette schelpen",\n    ["component_shells_explosive"] = "explosieve slakkenhuizen",\n\n    -- Weapon Ammo\n    ["ammo_rounds"] = "ronde(n)",\n    ["ammo_shells"] = "huls/(zen)",\n    ["ammo_charge"] = "charge",\n    ["ammo_petrol"] = "liters brandstof",\n    ["ammo_firework"] = "vuurwerkpijl(en)",\n    ["ammo_rockets"] = "raket(ten)",\n    ["ammo_grenadelauncher"] = "granaat(en)",\n    ["ammo_grenade"] = "granaat(en)",\n    ["ammo_stickybomb"] = "bom(men)",\n    ["ammo_pipebomb"] = "bom(men)",\n    ["ammo_smokebomb"] = "bom(men)",\n    ["ammo_molotov"] = "cocktail(s)",\n    ["ammo_proxmine"] = "mijn(en)",\n    ["ammo_bzgas"] = "blik(ken)",\n    ["ammo_ball"] = "bal(len)",\n    ["ammo_snowball"] = "sneeuwbal(len)",\n    ["ammo_flare"] = "flare(s)",\n    ["ammo_flaregun"] = "flare(s)",\n\n    -- Weapon Tints\n    ["tint_default"] = "standaard skin",\n    ["tint_green"] = "groene skin",\n    ["tint_gold"] = "goude skin",\n    ["tint_pink"] = "roze skin",\n    ["tint_army"] = "legerprint",\n    ["tint_lspd"] = "blauwe skin",\n    ["tint_orange"] = "oranje skin",\n    ["tint_platinum"] = "platina skin",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "klassiek zwart",\n    ["tint_classic_gray"] = "klassiek grijs",\n    ["tint_classic_two_tone"] = "klassiek twee-tonig",\n    ["tint_classic_white"] = "klassiek wit",\n    ["tint_classic_beige"] = "klassiek beige",\n    ["tint_classic_green"] = "klassiek groen",\n    ["tint_classic_blue"] = "klassiek blauw",\n    ["tint_classic_earth"] = "klassieke aarde",\n    ["tint_classic_brown_black"] = "klassiek bruin zwart",\n    ["tint_contrast_red"] = "contrast rood",\n    ["tint_contrast_blue"] = "contrast blauw",\n    ["tint_contrast_yellow"] = "contrast geel",\n    ["tint_contrast_orange"] = "contrast oranje",\n    ["tint_bold_pink"] = "gedurfde roze",\n    ["tint_bold_purple_yellow"] = "gedurfde paarse geel",\n    ["tint_bold_orange"] = "gedurfde oranje",\n    ["tint_bold_green_purple"] = "gedurfde groene paarse",\n    ["tint_bold_red_feat"] = "gedurfde rode feat",\n    ["tint_bold_green_feat"] = "gedurfde groene feat",\n    ["tint_bold_cyan_feat"] = "gedurfde cyaan feat",\n    ["tint_bold_yellow_feat"] = "gedurfde gele feat",\n    ["tint_bold_red_white"] = "gedurfde rode witte",\n    ["tint_bold_blue_white"] = "gedurfde blauwe witte",\n    ["tint_metallic_gold"] = "metallisch goud",\n    ["tint_metallic_platinum"] = "metallisch platina",\n    ["tint_metallic_gray_lilac"] = "metallisch grijs lila",\n    ["tint_metallic_purple_lime"] = "metallisch paarse limo",\n    ["tint_metallic_red"] = "metallisch rood",\n    ["tint_metallic_green"] = "metallisch groen",\n    ["tint_metallic_blue"] = "metallisch blauw",\n    ["tint_metallic_white_aqua"] = "metallisch wit aqua",\n    ["tint_metallic_red_yellow"] = "metallisch rood geel",\n}\n',
+        "locales/pl.lua": `return {
+    -- Inventory
+    ["inventory"] = "ekwipunek %s / %s",
+    ["use"] = "u\u017Cyj",
+    ["give"] = "daj",
+    ["remove"] = "usu\u0144",
+    ["return"] = "wr\xF3\u0107",
+    ["give_to"] = "daj dla",
+    ["amount"] = "ilo\u015B\u0107",
+    ["giveammo"] = "daj amunicje",
+    ["amountammo"] = "ilo\u015B\u0107 amunicji",
+    ["noammo"] = "nie posiadasz wystarczaj\u0105cej ilo\u015Bci amunicji!",
+    ["gave_item"] = "da\u0142e\u015B/a\u015B %sx %s dla %s",
+    ["received_item"] = "otrzyma\u0142e\u015B/a\u015B %sx %s od %s",
+    ["gave_weapon"] = "da\u0142e\u015B/a\u015B %s dla %s",
+    ["gave_weapon_ammo"] = "da\u0142e\u015B/a\u015B ~o~%sx %s do %s dla %s",
+    ["gave_weapon_withammo"] = "da\u0142e\u015B/a\u015B %s z ~o~%sx %s dla %s",
+    ["gave_weapon_hasalready"] = "%s ju\u017C posiada %s",
+    ["gave_weapon_noweapon"] = "%s nie posiada tej broni",
+    ["received_weapon"] = "otrzyma\u0142e\u015B/a\u015B %s od %s",
+    ["received_weapon_ammo"] = "otrzyma\u0142e\u015B/a\u015B ~o~%sx %s do twojego %s od %s",
+    ["received_weapon_withammo"] = "otrzyma\u0142e\u015B/a\u015B %s z ~o~%sx %s od %s",
+    ["received_weapon_hasalready"] = "%s pr\xF3bowa\u0142/a przekaza\u0107 ci %s, lecz ju\u017C posiadasz jedno",
+    ["received_weapon_noweapon"] = "%s pr\xF3bowa\u0142/a przekaza\u0107 ci amunicje do %s, lecz nie posiadasz tej broni",
+    ["gave_account_money"] = "da\u0142e\u015B/a\u015B %s$ (%s) dla %s",
+    ["received_account_money"] = "otrzyma\u0142e\u015B/a\u015B %s$ (%s) od %s",
+    ["amount_invalid"] = "nieprawid\u0142owa ilo\u015B\u0107",
+    ["players_nearby"] = "brak graczy w pobli\u017Cu",
+    ["ex_inv_lim"] = "akcja nie jest mo\u017Cliwa, nie mo\u017Cesz mie\u0107 wi\u0119cej %s",
+    ["imp_invalid_quantity"] = "akcja jest niemo\u017Cliwa, nieprawid\u0142owa ilo\u015B\u0107",
+    ["imp_invalid_amount"] = "akcja jest niemo\u017Cliwa, nieprawid\u0142owa kwota",
+    ["threw_standard"] = "wyrzuci\u0142e\u015B/a\u015B %sx %s",
+    ["threw_account"] = "wyrzuci\u0142e\u015B/a\u015B $%s %s",
+    ["threw_weapon"] = "wyrzuci\u0142e\u015B/a\u015B %s",
+    ["threw_weapon_ammo"] = "wyrzuci\u0142e\u015B/a\u015B %s z ~o~%sx %s",
+    ["threw_weapon_already"] = "ju\u017C posiadasz tak\u0105 sam\u0105 bro\u0144",
+    ["threw_cannot_pickup"] = "nie mo\u017Cesz tego podnie\u015B\u0107, gdy\u017C masz pe\u0142ny ekwipunek!",
+    ["threw_pickup_prompt"] = "naci\u015Bnij E aby podnie\u015B\u0107",
+
+    -- Key mapping
+    ["keymap_showinventory"] = "poka\u017C ekwipunek",
+
+    -- Salary related
+    ["received_salary"] = "otrzyma\u0142e\u015B/a\u015B wynagrodzenie: %s$",
+    ["received_help"] = "otrzyma\u0142e\u015B/a\u015B zapomog\u0119: $%s",
+    ["company_nomoney"] = "firma, w kt\xF3rej pracujesz, jest zbyt biedna, by wyp\u0142aci\u0107 twoj\u0105 pensj\u0119",
+    ["received_paycheck"] = "otrzymano wyp\u0142ate",
+    ["bank"] = "bank",
+    ["account_bank"] = "bank",
+    ["account_black_money"] = "brudne pieni\u0105dze",
+    ["account_money"] = "pieni\u0105dze",
+    ["act_imp"] = "dzia\u0142anie niemo\u017Cliwe",
+    ["in_vehicle"] = "nie mo\u017Cesz przekazywa\u0107 przedmiot\xF3w w poje\u017Adzie",
+    ["not_in_vehicle"] = "Cannot Perform Action, Player isn't in a vehicle",
+
+    -- Commands
+    ["command_car"] = "przywo\u0142aj pojazd",
+    ["command_car_car"] = "nazwa lub hash przywo\u0142anego pojazdu",
+    ["command_cardel"] = "usu\u0144 pojazd w pobli\u017Cu",
+    ["command_cardel_radius"] = "opcjonalnie usu\u0144 ka\u017Cdy pojazd w obszarze",
+    ["command_repair"] = "Repair your vehicle",
+    ["command_repair_success"] = "Successfully repaired vehicle",
+    ["command_repair_success_target"] = "An admin repaired your vehicle",
+    ["command_clear"] = "wyczy\u015B\u0107 czat",
+    ["command_clearall"] = "wyczy\u015B\u0107 czat dla wszystkich graczy",
+    ["command_clearinventory"] = "wyczy\u015B\u0107 ekwipunek gracza",
+    ["command_clearloadout"] = "wyczy\u015B\u0107 wyposarzenie gracza",
+    ["command_giveaccountmoney"] = "daj pieni\u0105dze na podany typ konta",
+    ["command_giveaccountmoney_account"] = "prawid\u0142owy typ konta",
+    ["command_giveaccountmoney_amount"] = "ilo\u015B\u0107 do dodania",
+    ["command_giveaccountmoney_invalid"] = "nieprawid\u0142owy typ konta",
+    ["command_giveitem"] = "daj przedmiot graczowi",
+    ["command_giveitem_item"] = "nazwa przedmiotu",
+    ["command_giveitem_count"] = "ilo\u015B\u0107 przedimotu",
+    ["command_giveweapon"] = "daj bro\u0144 graczowi",
+    ["command_giveweapon_weapon"] = "nazwa broni",
+    ["command_giveweapon_ammo"] = "ilo\u015B\u0107 amunicji",
+    ["command_giveweapon_hasalready"] = "gracz ju\u017C posiada t\u0105 bro\u0144",
+    ["command_giveweaponcomponent"] = "daj komponent do broni graczowi",
+    ["command_giveweaponcomponent_component"] = "nazwa komponentu",
+    ["command_giveweaponcomponent_invalid"] = "nieprawid\u0142owy komponent do broni",
+    ["command_giveweaponcomponent_hasalready"] = "gracz ju\u017C posiada ten komponent do tej broni",
+    ["command_giveweaponcomponent_missingweapon"] = "gracz nie posiada tej broni",
+    ["command_save"] = "zapisz gracza w bazie danych",
+    ["command_saveall"] = "zapisz wszystkich graczy w bazie danych",
+    ["command_setaccountmoney"] = "ustaw ilo\u015B\u0107 pieni\u0119dzy danego konta dla gracza",
+    ["command_setaccountmoney_amount"] = "ilo\u015B\u0107 pieni\u0119dzy do ustawienia",
+    ["command_setcoords"] = "teleportuj na koordynaty",
+    ["command_setcoords_x"] = "x axis",
+    ["command_setcoords_y"] = "y axis",
+    ["command_setcoords_z"] = "z axis",
+    ["command_setjob"] = "ustaw prace dla gracza",
+    ["command_setjob_job"] = "nazwa pracy",
+    ["command_setjob_grade"] = "stanowisko w pracy",
+    ["command_setjob_invalid"] = "praca, stanowisko lub obydwa s\u0105 nieprawid\u0142owe",
+    ["command_setgroup"] = "ustaw grupe gracza",
+    ["command_setgroup_group"] = "nazwa grupy",
+    ["commanderror_argumentmismatch"] = "nieprawi\u0142owa ilo\u015B\u0107 argument\xF3w (przesz\u0142o %s, wymagane %s)",
+    ["commanderror_argumentmismatch_number"] = "nieprawid\u0142owy typ argumentu #%s (przeszed\u0142 tekst, wymagany numer)",
+    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Nieprawid\u0142owy argument #%s typ danych (przekazano ujemny/zero, oczekiwano liczby dodatniej)",
+    ["commanderror_invaliditem"] = "nieprawid\u0142owa nazwa przedmiotu",
+    ["commanderror_invalidweapon"] = "nieprawid\u0142owa bro\u0144",
+    ["commanderror_console"] = "podana komenda nie mo\u017Ce zosta\u0107 uruchomiona przez konsole",
+    ["commanderror_invalidcommand"] = "/%s nie jest poprawn\u0105 komend\u0105!",
+    ["commanderror_invalidplayerid"] = "brak dostepnego gracza pasuj\u0105cego do podanego id serwerowego",
+    ["commandgeneric_playerid"] = "id gracza",
+    ["command_giveammo_noweapon_found"] = "%s does not have that weapon",
+    ["command_giveammo_weapon"] = "Weapon name",
+    ["command_giveammo_ammo"] = "Ammo Quantity",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = ",",
+    ["locale_currency"] = "$%s",
+
+    -- Weapons
+    ["weapon_knife"] = "n\xF3\u017C",
+    ["weapon_nightstick"] = "pa\u0142ka",
+    ["weapon_hammer"] = "m\u0142otek",
+    ["weapon_bat"] = "kij",
+    ["weapon_golfclub"] = "kij golfowy",
+    ["weapon_crowbar"] = "\u0142om",
+    ["weapon_pistol"] = "pistolet",
+    ["weapon_combatpistol"] = "pistolet bojowy",
+    ["weapon_appistol"] = "ap pistol",
+    ["weapon_pistol50"] = "pistol .50",
+    ["weapon_microsmg"] = "micro smg",
+    ["weapon_smg"] = "smg",
+    ["weapon_assaultsmg"] = "assault smg",
+    ["weapon_assaultrifle"] = "assault rifle",
+    ["weapon_carbinerifle"] = "carbine rifle",
+    ["weapon_advancedrifle"] = "advanced rifle",
+    ["weapon_mg"] = "mg",
+    ["weapon_combatmg"] = "combat mg",
+    ["weapon_pumpshotgun"] = "pump shotgun",
+    ["weapon_sawnoffshotgun"] = "sawed off shotgun",
+    ["weapon_assaultshotgun"] = "assault shotgun",
+    ["weapon_bullpupshotgun"] = "bullpup shotgun",
+    ["weapon_stungun"] = "tazer",
+    ["weapon_sniperrifle"] = "karabin snajperski",
+    ["weapon_heavysniper"] = "ci\u0119\u017Cki karabin snajperski",
+    ["weapon_grenadelauncher"] = "granatnik",
+    ["weapon_rpg"] = "wyrzutnia rakiet",
+    ["weapon_minigun"] = "minigun",
+    ["weapon_grenade"] = "granat",
+    ["weapon_stickybomb"] = "\u0142adunek przylepny",
+    ["weapon_smokegrenade"] = "granat dymny",
+    ["weapon_bzgas"] = "bz gas",
+    ["weapon_molotov"] = "koktajl Mo\u0142otowa",
+    ["weapon_fireextinguisher"] = "ga\u015Bnica",
+    ["weapon_petrolcan"] = "kanister",
+    ["weapon_ball"] = "pi\u0142ka",
+    ["weapon_snspistol"] = "sns pistolet",
+    ["weapon_bottle"] = "butelka",
+    ["weapon_gusenberg"] = "gusenberg sweeper",
+    ["weapon_specialcarbine"] = "special carbine",
+    ["weapon_heavypistol"] = "heavy pistol",
+    ["weapon_bullpuprifle"] = "karabin wyborowy",
+    ["weapon_dagger"] = "sztylet",
+    ["weapon_vintagepistol"] = "vintage pistol",
+    ["weapon_firework"] = "fajerwerki",
+    ["weapon_musket"] = "muszkiet",
+    ["weapon_heavyshotgun"] = "ci\u0119\u017Cki shotgun",
+    ["weapon_marksmanrifle"] = "marksman rifle",
+    ["weapon_hominglauncher"] = "program uruchamiaj\u0105cy",
+    ["weapon_proxmine"] = "mina zbli\u017Ceniowa",
+    ["weapon_snowball"] = "\u015Bnie\u017Cka",
+    ["weapon_flaregun"] = "flara",
+    ["weapon_combatpdw"] = "combat pdw",
+    ["weapon_marksmanpistol"] = "marksman pistol",
+    ["weapon_knuckle"] = "kastety",
+    ["weapon_hatchet"] = "toporek",
+    ["weapon_railgun"] = "karabin",
+    ["weapon_machete"] = "meczeta",
+    ["weapon_machinepistol"] = "pistolet maszynowy",
+    ["weapon_switchblade"] = "scyzoryk",
+    ["weapon_revolver"] = "ci\u0119\u017Cki rewolwer",
+    ["weapon_dbshotgun"] = "dwururka",
+    ["weapon_compactrifle"] = "compact rifle",
+    ["weapon_autoshotgun"] = "auto shotgun",
+    ["weapon_battleaxe"] = "top\xF3r bitewny",
+    ["weapon_compactlauncher"] = "compact launcher",
+    ["weapon_minismg"] = "mini smg",
+    ["weapon_pipebomb"] = "bomba rurowa",
+    ["weapon_poolcue"] = "kij bilardowy",
+    ["weapon_wrench"] = "klucz do rur",
+    ["weapon_flashlight"] = "latarka",
+    ["gadget_parachute"] = "spadochron",
+    ["weapon_flare"] = "pistolet sygna\u0142owy",
+    ["weapon_doubleaction"] = "double-Action Revolver",
+    ["weapon_heavyrifle"] = "Heavy Rifle", -- Not Translated
+
+    -- Weapon Components
+    ["component_clip_default"] = "domy\u015Blny t\u0142umik",
+    ["component_clip_extended"] = "rozszerzony t\u0142umik",
+    ["component_clip_drum"] = "magazynek b\u0119bnowy",
+    ["component_clip_box"] = "magazynek",
+    ["component_flashlight"] = "latarka",
+    ["component_scope"] = "luneta",
+    ["component_scope_advanced"] = "zaawansowana luneta",
+    ["component_suppressor"] = "t\u0142umik",
+    ["component_grip"] = "uchwyt",
+    ["component_luxary_finish"] = "luksusowe wyko\u0144czenie broni",
+
+    -- Drug Wars DLC
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
+    ["weapon_acidpackage"] = "Acid Package", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
+
+    -- Weapon Ammo
+    ["ammo_rounds"] = "nab\xF3j/oi",
+    ["ammo_shells"] = "pocisk(\xF3w)",
+    ["ammo_charge"] = "na\u0142adowania",
+    ["ammo_petrol"] = "galon(y) paliwa",
+    ["ammo_firework"] = "fajerwerka/i",
+    ["ammo_rockets"] = "rakieta/y",
+    ["ammo_grenadelauncher"] = "granat(y)",
+    ["ammo_grenade"] = "granat(y)",
+    ["ammo_stickybomb"] = "bomba/y",
+    ["ammo_pipebomb"] = "bomba/y",
+    ["ammo_smokebomb"] = "bomba/y",
+    ["ammo_molotov"] = "kontail(e)",
+    ["ammo_proxmine"] = "mina/y",
+    ["ammo_bzgas"] = "puszka/ek",
+    ["ammo_ball"] = "kula/e",
+    ["ammo_snowball"] = "snie\u017Cka/i",
+    ["ammo_flare"] = "flara/y",
+    ["ammo_flaregun"] = "flara/y",
+
+    -- Weapon Tints
+    ["tint_default"] = "domy\u015Blny skin",
+    ["tint_green"] = "zielony skin",
+    ["tint_gold"] = "z\u0142oty skin",
+    ["tint_pink"] = "r\xF3\u017Cowy skin",
+    ["tint_army"] = "wojskowy skin",
+    ["tint_lspd"] = "niebieski skin",
+    ["tint_orange"] = "pomara\u0144czowy skin",
+    ["tint_platinum"] = "platynowy skin",
+    -- MK2 Weapon Tints
+    ["tint_classic_black"] = "klasyczna czer\u0144",
+    ["tint_classic_gray"] = "klasyczny szary",
+    ["tint_classic_two_tone"] = "klasyczny dwutonowy",
+    ["tint_classic_white"] = "klasyczna biel",
+    ["tint_classic_beige"] = "klasyczny be\u017C",
+    ["tint_classic_green"] = "klasyczna ziele\u0144",
+    ["tint_classic_blue"] = "klasyczny niebieski",
+    ["tint_classic_earth"] = "klasyczna ziemia",
+    ["tint_classic_brown_black"] = "klasyczny br\u0105zowo-czarny",
+    ["tint_contrast_red"] = "kontrastowy czerwony",
+    ["tint_contrast_blue"] = "kontrastowy niebieski",
+    ["tint_contrast_yellow"] = "kontrastowy \u017C\xF3\u0142ty",
+    ["tint_contrast_orange"] = "kontrastowy pomara\u0144czowy",
+    ["tint_bold_pink"] = "odwa\u017Cny r\xF3\u017Cowy",
+    ["tint_bold_purple_yellow"] = "odwa\u017Cny fioletowo-\u017C\xF3\u0142ty",
+    ["tint_bold_orange"] = "odwa\u017Cny pomara\u0144czowy",
+    ["tint_bold_green_purple"] = "odwa\u017Cny zielono-fioletowy",
+    ["tint_bold_red_feat"] = "odwa\u017Cny czerwony feat",
+    ["tint_bold_green_feat"] = "odwa\u017Cny zielony feat",
+    ["tint_bold_cyan_feat"] = "odwa\u017Cny cyjan feat",
+    ["tint_bold_yellow_feat"] = "odwa\u017Cny \u017C\xF3\u0142ty feat",
+    ["tint_bold_red_white"] = "odwa\u017Cny czerwony bia\u0142y",
+    ["tint_bold_blue_white"] = "odwa\u017Cny niebieski bia\u0142y",
+    ["tint_metallic_gold"] = "z\u0142oto metaliczne",
+    ["tint_metallic_platinum"] = "platyna metaliczna",
+    ["tint_metallic_gray_lilac"] = "szaro-liliowe metaliczne",
+    ["tint_metallic_purple_lime"] = "fioletowo-limonkowe metaliczne",
+    ["tint_metallic_red"] = "czerwony metaliczny",
+    ["tint_metallic_green"] = "zielony metaliczny",
+    ["tint_metallic_blue"] = "niebieski metaliczny",
+    ["tint_metallic_white_aqua"] = "bia\u0142e aqua metaliczne",
+    ["tint_metallic_red_yellow"] = "czerwono-\u017C\xF3\u0142te metaliczne",
+}
+`,
+        "locales/sl.lua": `return {
+    -- Inventory
+    ["inventory"] = "Shramba ( Teza %s / %s )",
+    ["use"] = "Uporabi",
+    ["give"] = "Daj",
+    ["remove"] = "Vrzi",
+    ["return"] = "Povratek",
+    ["give_to"] = "Daj",
+    ["amount"] = "Vsota",
+    ["giveammo"] = "Daj Strelivo",
+    ["amountammo"] = "Koli\u010Dina streliva",
+    ["noammo"] = "Ni dovolj!",
+    ["gave_item"] = "Dal si %sx %s k %s",
+    ["received_item"] = "Dobil si %sx %s od %s",
+    ["gave_weapon"] = "Dajanje %s do %s",
+    ["gave_weapon_ammo"] = "Dajanje ~o~%sx %s za %s do %s",
+    ["gave_weapon_withammo"] = "Dajanje %s z ~o~%sx %s do %s",
+    ["gave_weapon_hasalready"] = "%s ze ima %s",
+    ["gave_weapon_noweapon"] = "%s se nima tega orozja",
+    ["received_weapon"] = "Dobil si %s od %s",
+    ["received_weapon_ammo"] = "Dobil ~o~%sx %s za tvoj/o %s od %s",
+    ["received_weapon_withammo"] = "Dobil si %s z ~o~%sx %s od %s",
+    ["received_weapon_hasalready"] = "%s vam je posku\u0161al dati %s, vendar \u017Ee imate to oro\u017Eje",
+    ["received_weapon_noweapon"] = "%s vam je posku\u0161al dati strelivo za %s, vendar nimate tega oro\u017Eja",
+    ["gave_account_money"] = "Dajanje $%s (%s) do %s",
+    ["received_account_money"] = "Dobil $%s (%s) od %s",
+    ["amount_invalid"] = "Neveljavna koli\u010Dina",
+    ["players_nearby"] = "V blizini ni ljudi",
+    ["ex_inv_lim"] = "Dejanja ni mogo\u010De izvesti, saj presega najve\u010Djo te\u017Eo %s",
+    ["imp_invalid_quantity"] = "Dejanja ni mogo\u010De izvesti, koli\u010Dina je neveljavna",
+    ["imp_invalid_amount"] = "Dejanja ni mogo\u010De izvesti, znesek je neveljaven",
+    ["threw_standard"] = "Metanje %sx %s",
+    ["threw_account"] = "Metanje $%s %s",
+    ["threw_weapon"] = "Metanje %s",
+    ["threw_weapon_ammo"] = "Metanje %s z ~o~%sx %s",
+    ["threw_weapon_already"] = "Ti ze imas to orozje",
+    ["threw_cannot_pickup"] = "Shramba je poln, nemorem pobrati!",
+    ["threw_pickup_prompt"] = "Pritisni E da poberes",
+
+    -- Key mapping
+    ["keymap_showinventory"] = "Pokazi Shrambo",
+
+    -- Salary related
+    ["received_salary"] = "Vi ste pla\u010Dali: $%s",
+    ["received_help"] = "Vi ste placali svoj CEK v vrednosti: $%s",
+    ["company_nomoney"] = "podjetje, v katerem ste zaposleni, je prerevno, da bi vam izpla\u010Devalo pla\u010Do",
+    ["received_paycheck"] = "Prejel si Placilo",
+    ["bank"] = "NLB",
+    ["account_bank"] = "Banka",
+    ["account_black_money"] = "Umazan Denar",
+    ["account_money"] = "Denar",
+
+    ["act_imp"] = "Dejanja ni mogo\u010De izvesti",
+    ["in_vehicle"] = "Dejanja ni mogo\u010De izvesti, Oseba je v vozilu",
+    ["not_in_vehicle"] = "Cannot Perform Action, Player isn't in a vehicle",
+
+    -- Commands
+    ["command_bring"] = "Teleportiraj osebo do sebe",
+    ["command_car"] = "Spawnaj si vozilo",
+    ["command_car_car"] = "Koda vozila",
+    ["command_cardel"] = "Odstranite vozila v bli\u017Eini",
+    ["command_cardel_radius"] = "Odstrani vsa vozila v dolo\u010Denem radiju",
+    ["command_repair"] = "Repair your vehicle",
+    ["command_repair_success"] = "Successfully repaired vehicle",
+    ["command_repair_success_target"] = "An admin repaired your vehicle",
+    ["command_clear"] = "Odstrani vsa sporocila v CHATU",
+    ["command_clearall"] = "Po\u010Disti besedilo klepeta za vse igralce",
+    ["command_clearinventory"] = "Vzemi vse stvari iz osebove shrambe",
+    ["command_clearloadout"] = "Odstranite vse oro\u017Eje iz nalaganja igralcev",
+    ["command_freeze"] = "Zmrzni osebno",
+    ["command_unfreeze"] = "Odmrzni osebo",
+    ["command_giveaccountmoney"] = "Poslji denar na dolocen Bancni racun",
+    ["command_giveaccountmoney_account"] = "Ra\u010Dun za dodajanje",
+    ["command_giveaccountmoney_amount"] = "Znesek za dodajanje",
+    ["command_giveaccountmoney_invalid"] = "Ime ra\u010Duna je neveljavno",
+    ["command_giveitem"] = "Daj osebi neko stvar",
+    ["command_giveitem_item"] = "Ime Stvari",
+    ["command_giveitem_count"] = "Kolicina",
+    ["command_giveweapon"] = "Daj osebi orozje",
+    ["command_giveweapon_weapon"] = "Ime orozja",
+    ["command_giveweapon_ammo"] = "Kolicina",
+    ["command_giveweapon_hasalready"] = "Oseba ze ima to orozje!",
+    ["command_giveweaponcomponent"] = "Daj komponento oro\u017Eja igralcu",
+    ["command_giveweaponcomponent_component"] = "Ime Komponente",
+    ["command_giveweaponcomponent_invalid"] = "Neveljavna komponenta oro\u017Eja",
+    ["command_giveweaponcomponent_hasalready"] = "Oseba ze ima to komponento",
+    ["command_giveweaponcomponent_missingweapon"] = "Oseba nima tega orozja!",
+    ["command_goto"] = "Teleportirajte se k igralcu",
+    ["command_kill"] = "Ubij igralca",
+    ["command_save"] = "Prisilno shrani podatke igralca!",
+    ["command_saveall"] = "Prisilno shrani vse podatke igralca",
+    ["command_setaccountmoney"] = "Nastavite denar znotraj dolocenega racuna",
+    ["command_setaccountmoney_amount"] = "Znesek",
+    ["command_setcoords"] = "Teleport na dolocene koordinate",
+    ["command_setcoords_x"] = "Vrednost X",
+    ["command_setcoords_y"] = "Vrednost Y",
+    ["command_setcoords_z"] = "Z vrednost",
+    ["command_setjob"] = "Nastavi opravilo igralca",
+    ["command_setjob_job"] = "Ime",
+    ["command_setjob_grade"] = "Delovna ocena",
+    ["command_setjob_invalid"] = "delovno mesto, ocena ali oboje ni veljavno",
+    ["command_setgroup"] = "Nastavi skupino dovoljenj igralcev",
+    ["command_setgroup_group"] = "Ime skupine",
+    ["commanderror_argumentmismatch"] = "Neveljavno stetje argumentov (podano %s, zeleno %s)",
+    ["commanderror_argumentmismatch_number"] = "Neveljaven podatkovni tip argumenta #%s (posredovan niz, zeleno stevilo)",
+    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Neveljaven argument #%s tip podatkov (podano negativno/ni\u010D, zahtevano pozitivno \u0161tevilo)",
+    ["commanderror_invaliditem"] = "Neveljaven element",
+    ["commanderror_invalidweapon"] = "Neveljavno orozje",
+    ["commanderror_console"] = "Ukaza ni mogoce izvesti s konzole",
+    ["commanderror_invalidcommand"] = "Neveljaven ukaz - /%s",
+    ["commanderror_invalidplayerid"] = "Naveden igralec ni na spletu",
+    ["commandgeneric_playerid"] = "Id streznika igralca",
+    ["command_giveammo_noweapon_found"] = "%s nima tega orozja",
+    ["command_giveammo_weapon"] = "Ime orozja",
+    ["command_giveammo_ammo"] = "Kolicina streliva",
+    ["tpm_nowaypoint"] = "Ni nastavljene poti!.",
+    ["tpm_success"] = "Uspesno teleportiran",
+
+    ["noclip_message"] = "Noclip je bil %s",
+    ["enabled"] = "~g~Vkljucen~s~",
+    ["disabled"] = "~r~Izkljucen~s~",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = ",",
+    ["locale_currency"] = "\u20AC%s",
+
+    -- Weapons
+
+    -- Melee
+    ["weapon_dagger"] = "Dagger",
+    ["weapon_bat"] = "Bat",
+    ["weapon_battleaxe"] = "Battle Axe",
+    ["weapon_bottle"] = "Bottle",
+    ["weapon_crowbar"] = "Crowbar",
+    ["weapon_flashlight"] = "Flashlight",
+    ["weapon_golfclub"] = "Golf Club",
+    ["weapon_hammer"] = "Hammer",
+    ["weapon_hatchet"] = "Hatchet",
+    ["weapon_knife"] = "Knife",
+    ["weapon_knuckle"] = "Knuckledusters",
+    ["weapon_machete"] = "Machete",
+    ["weapon_nightstick"] = "Nightstick",
+    ["weapon_wrench"] = "Pipe Wrench",
+    ["weapon_poolcue"] = "Pool Cue",
+    ["weapon_stone_hatchet"] = "Stone Hatchet",
+    ["weapon_switchblade"] = "Switchblade",
+
+    -- Handguns
+    ["weapon_appistol"] = "AP Pistol",
+    ["weapon_ceramicpistol"] = "Ceramic Pistol",
+    ["weapon_combatpistol"] = "Combat Pistol",
+    ["weapon_doubleaction"] = "Double-Action Revolver",
+    ["weapon_navyrevolver"] = "Navy Revolver",
+    ["weapon_flaregun"] = "Flaregun",
+    ["weapon_gadgetpistol"] = "Gadget Pistol",
+    ["weapon_heavypistol"] = "Heavy Pistol",
+    ["weapon_revolver"] = "Heavy Revolver",
+    ["weapon_revolver_mk2"] = "Heavy Revolver MK2",
+    ["weapon_marksmanpistol"] = "Marksman Pistol",
+    ["weapon_pistol"] = "Pistol",
+    ["weapon_pistol_mk2"] = "Pistol MK2",
+    ["weapon_pistol50"] = "Pistol .50",
+    ["weapon_snspistol"] = "SNS Pistol",
+    ["weapon_snspistol_mk2"] = "SNS Pistol MK2",
+    ["weapon_stungun"] = "Taser",
+    ["weapon_raypistol"] = "Up-N-Atomizer",
+    ["weapon_vintagepistol"] = "Vintage Pistol",
+
+    -- Shotguns
+    ["weapon_assaultshotgun"] = "Assault Shotgun",
+    ["weapon_autoshotgun"] = "Auto Shotgun",
+    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",
+    ["weapon_combatshotgun"] = "Combat Shotgun",
+    ["weapon_dbshotgun"] = "Double Barrel Shotgun",
+    ["weapon_heavyshotgun"] = "Heavy Shotgun",
+    ["weapon_musket"] = "Musket",
+    ["weapon_pumpshotgun"] = "Pump Shotgun",
+    ["weapon_pumpshotgun_mk2"] = "Pump Shotgun MK2",
+    ["weapon_sawnoffshotgun"] = "Sawed Off Shotgun",
+
+    -- SMG & LMG
+    ["weapon_assaultsmg"] = "Assault SMG",
+    ["weapon_combatmg"] = "Combat MG",
+    ["weapon_combatmg_mk2"] = "Combat MG MK2",
+    ["weapon_combatpdw"] = "Combat PDW",
+    ["weapon_gusenberg"] = "Gusenberg Sweeper",
+    ["weapon_machinepistol"] = "Machine Pistol",
+    ["weapon_mg"] = "MG",
+    ["weapon_microsmg"] = "Micro SMG",
+    ["weapon_minismg"] = "Mini SMG",
+    ["weapon_smg"] = "SMG",
+    ["weapon_smg_mk2"] = "SMG MK2",
+    ["weapon_raycarbine"] = "Unholy Hellbringer",
+
+    -- Rifles
+    ["weapon_advancedrifle"] = "Advanced Rifle",
+    ["weapon_assaultrifle"] = "Assault Rifle",
+    ["weapon_assaultrifle_mk2"] = "Assault Rifle MK2",
+    ["weapon_bullpuprifle"] = "Bullpup Rifle",
+    ["weapon_bullpuprifle_mk2"] = "Bullpup Rifle MK2",
+    ["weapon_carbinerifle"] = "Carbine Rifle",
+    ["weapon_carbinerifle_mk2"] = "Carbine Rifle MK2",
+    ["weapon_compactrifle"] = "Compact Rifle",
+    ["weapon_militaryrifle"] = "Military Rifle",
+    ["weapon_specialcarbine"] = "Special Carbine",
+    ["weapon_specialcarbine_mk2"] = "Special Carbine MK2",
+    ["weapon_heavyrifle"] = "Heavy Rifle", -- Not Translated
+
+    -- Sniper
+    ["weapon_heavysniper"] = "Heavy Sniper",
+    ["weapon_heavysniper_mk2"] = "Heavy Sniper MK2",
+    ["weapon_marksmanrifle"] = "Marksman Rifle",
+    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle MK2",
+    ["weapon_sniperrifle"] = "Sniper Rifle",
+
+    -- Heavy / Launchers
+    ["weapon_compactlauncher"] = "Compact Launcher",
+    ["weapon_firework"] = "Firework Launcher",
+    ["weapon_grenadelauncher"] = "Grenade Launcher",
+    ["weapon_hominglauncher"] = "Homing Launcher",
+    ["weapon_minigun"] = "Minigun",
+    ["weapon_railgun"] = "Railgun",
+    ["weapon_rpg"] = "Rocket Launcher",
+    ["weapon_rayminigun"] = "Widowmaker",
+
+    -- Criminal Enterprises DLC
+    ["weapon_metaldetector"] = "Metal Detector",
+    ["weapon_precisionrifle"] = "Precision Rifle",
+    ["weapon_tactilerifle"] = "Service Carbine",
+
+    -- Drug Wars DLC
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
+    ["weapon_acidpackage"] = "Acid Package", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
+
+    -- Thrown
+    ["weapon_ball"] = "Baseball",
+    ["weapon_bzgas"] = "BZ Gas",
+    ["weapon_flare"] = "Flare",
+    ["weapon_grenade"] = "Grenade",
+    ["weapon_petrolcan"] = "Jerrycan",
+    ["weapon_hazardcan"] = "Hazardous Jerrycan",
+    ["weapon_molotov"] = "Molotov Cocktail",
+    ["weapon_proxmine"] = "Proximity Mine",
+    ["weapon_pipebomb"] = "Pipe Bomb",
+    ["weapon_snowball"] = "Snowball",
+    ["weapon_stickybomb"] = "Sticky Bomb",
+    ["weapon_smokegrenade"] = "Tear Gas",
+
+    -- Special
+    ["weapon_fireextinguisher"] = "Fire Extinguisher",
+    ["weapon_digiscanner"] = "Digital Scanner",
+    ["weapon_garbagebag"] = "Garbage Bag",
+    ["weapon_handcuffs"] = "Handcuffs",
+    ["gadget_nightvision"] = "Night Vision",
+    ["gadget_parachute"] = "parachute",
+
+    -- Weapon Components
+    ["component_knuckle_base"] = "base Model",
+    ["component_knuckle_pimp"] = "the Pimp",
+    ["component_knuckle_ballas"] = "the Ballas",
+    ["component_knuckle_dollar"] = "the Hustler",
+    ["component_knuckle_diamond"] = "the Rock",
+    ["component_knuckle_hate"] = "the Hater",
+    ["component_knuckle_love"] = "the Lover",
+    ["component_knuckle_player"] = "the Player",
+    ["component_knuckle_king"] = "the King",
+    ["component_knuckle_vagos"] = "the Vagos",
+
+    ["component_luxary_finish"] = "luxary Weapon Finish",
+
+    ["component_handle_default"] = "default Handle",
+    ["component_handle_vip"] = "vIP Handle",
+    ["component_handle_bodyguard"] = "bodyguard Handle",
+
+    ["component_vip_finish"] = "vIP Finish",
+    ["component_bodyguard_finish"] = "bodyguard Finish",
+
+    ["component_camo_finish"] = "digital Camo",
+    ["component_camo_finish2"] = "brushstroke Camo",
+    ["component_camo_finish3"] = "woodland Camo",
+    ["component_camo_finish4"] = "skull Camo",
+    ["component_camo_finish5"] = "sessanta Nove Camo",
+    ["component_camo_finish6"] = "perseus Camo",
+    ["component_camo_finish7"] = "leopard Camo",
+    ["component_camo_finish8"] = "zebra Camo",
+    ["component_camo_finish9"] = "geometric Camo",
+    ["component_camo_finish10"] = "boom Camo",
+    ["component_camo_finish11"] = "patriotic Camo",
+
+    ["component_camo_slide_finish"] = "digital Slide Camo",
+    ["component_camo_slide_finish2"] = "brushstroke Slide Camo",
+    ["component_camo_slide_finish3"] = "woodland Slide Camo",
+    ["component_camo_slide_finish4"] = "skull Slide Camo",
+    ["component_camo_slide_finish5"] = "sessanta Nove Slide Camo",
+    ["component_camo_slide_finish6"] = "perseus Slide Camo",
+    ["component_camo_slide_finish7"] = "leopard Slide Camo",
+    ["component_camo_slide_finish8"] = "zebra Slide Camo",
+    ["component_camo_slide_finish9"] = "geometric Slide Camo",
+    ["component_camo_slide_finish10"] = "boom Slide Camo",
+    ["component_camo_slide_finish11"] = "patriotic Slide Camo",
+
+    ["component_clip_default"] = "default Magazine",
+    ["component_clip_extended"] = "extended Magazine",
+    ["component_clip_drum"] = "drum Magazine",
+    ["component_clip_box"] = "box Magazine",
+
+    ["component_scope_holo"] = "holographic Scope",
+    ["component_scope_small"] = "small Scope",
+    ["component_scope_medium"] = "medium Scope",
+    ["component_scope_large"] = "large Scope",
+    ["component_scope"] = "mounted Scope",
+    ["component_scope_advanced"] = "advanced Scope",
+    ["component_ironsights"] = "ironsights",
+
+    ["component_suppressor"] = "suppressor",
+    ["component_compensator"] = "compensator",
+
+    ["component_muzzle_flat"] = "flat Muzzle Brake",
+    ["component_muzzle_tactical"] = "tactical Muzzle Brake",
+    ["component_muzzle_fat"] = "fat-End Muzzle Brake",
+    ["component_muzzle_precision"] = "precision Muzzle Brake",
+    ["component_muzzle_heavy"] = "heavy Duty Muzzle Brake",
+    ["component_muzzle_slanted"] = "slanted Muzzle Brake",
+    ["component_muzzle_split"] = "split-End Muzzle Brake",
+    ["component_muzzle_squared"] = "squared Muzzle Brake",
+
+    ["component_flashlight"] = "flashlight",
+    ["component_grip"] = "grip",
+
+    ["component_barrel_default"] = "default Barrel",
+    ["component_barrel_heavy"] = "heavy Barrel",
+
+    ["component_ammo_tracer"] = "tracer Ammo",
+    ["component_ammo_incendiary"] = "incendiary Ammo",
+    ["component_ammo_hollowpoint"] = "hollowpoint Ammo",
+    ["component_ammo_fmj"] = "fMJ Ammo",
+    ["component_ammo_armor"] = "armor Piercing Ammo",
+    ["component_ammo_explosive"] = "armor Piercing Incendiary Ammo",
+
+    ["component_shells_default"] = "default Shells",
+    ["component_shells_incendiary"] = "dragons Breath Shells",
+    ["component_shells_armor"] = "steel Buckshot Shells",
+    ["component_shells_hollowpoint"] = "flechette Shells",
+    ["component_shells_explosive"] = "explosive Slug Shells",
+
+    -- Weapon Ammo
+    ["ammo_rounds"] = "round(s)",
+    ["ammo_shells"] = "shell(s)",
+    ["ammo_charge"] = "charge",
+    ["ammo_petrol"] = "gallons of fuel",
+    ["ammo_firework"] = "firework(s)",
+    ["ammo_rockets"] = "rocket(s)",
+    ["ammo_grenadelauncher"] = "grenade(s)",
+    ["ammo_grenade"] = "grenade(s)",
+    ["ammo_stickybomb"] = "bomb(s)",
+    ["ammo_pipebomb"] = "bomb(s)",
+    ["ammo_smokebomb"] = "bomb(s)",
+    ["ammo_molotov"] = "cocktail(s)",
+    ["ammo_proxmine"] = "mine(s)",
+    ["ammo_bzgas"] = "can(s)",
+    ["ammo_ball"] = "ball(s)",
+    ["ammo_snowball"] = "snowball(s)",
+    ["ammo_flare"] = "flare(s)",
+    ["ammo_flaregun"] = "flare(s)",
+
+    -- Weapon Tints
+    ["tint_default"] = "default skin",
+    ["tint_green"] = "green skin",
+    ["tint_gold"] = "gold skin",
+    ["tint_pink"] = "pink skin",
+    ["tint_army"] = "army skin",
+    ["tint_lspd"] = "blue skin",
+    ["tint_orange"] = "orange skin",
+    ["tint_platinum"] = "platinum skin",
+    -- MK2 Weapon Tints
+    ["tint_classic_black"] = "klasi\u010Dna \u010Drna",
+    ["tint_classic_gray"] = "klasi\u010Dna siva",
+    ["tint_classic_two_tone"] = "klasi\u010Dna dvo-tonska",
+    ["tint_classic_white"] = "klasi\u010Dna bela",
+    ["tint_classic_beige"] = "klasi\u010Dna be\u017E",
+    ["tint_classic_green"] = "klasi\u010Dna zelena",
+    ["tint_classic_blue"] = "klasi\u010Dna modra",
+    ["tint_classic_earth"] = "klasi\u010Dna zemlja",
+    ["tint_classic_brown_black"] = "klasi\u010Dna rjava-\u010Drna",
+    ["tint_contrast_red"] = "kontrastna rde\u010Da",
+    ["tint_contrast_blue"] = "kontrastna modra",
+    ["tint_contrast_yellow"] = "kontrastna rumena",
+    ["tint_contrast_orange"] = "kontrastna oran\u017Ena",
+    ["tint_bold_pink"] = "drzna roza",
+    ["tint_bold_purple_yellow"] = "drzna vijoli\u010Dno-rumena",
+    ["tint_bold_orange"] = "drzna oran\u017Ena",
+    ["tint_bold_green_purple"] = "drzna zelena-vijoli\u010Dna",
+    ["tint_bold_red_feat"] = "drzna rde\u010Da feat",
+    ["tint_bold_green_feat"] = "drzna zelena feat",
+    ["tint_bold_cyan_feat"] = "drzna cian feat",
+    ["tint_bold_yellow_feat"] = "drzna rumena feat",
+    ["tint_bold_red_white"] = "drzna rde\u010Da bela",
+    ["tint_bold_blue_white"] = "drzna modra bela",
+    ["tint_metallic_gold"] = "metalik zlato",
+    ["tint_metallic_platinum"] = "metalik platina",
+    ["tint_metallic_gray_lilac"] = "metalik siv lila",
+    ["tint_metallic_purple_lime"] = "metalik vijoli\u010Dna limona",
+    ["tint_metallic_red"] = "metalik rde\u010Da",
+    ["tint_metallic_green"] = "metalik zelena",
+    ["tint_metallic_blue"] = "metalik modra",
+    ["tint_metallic_white_aqua"] = "metalik bela aqua",
+    ["tint_metallic_red_yellow"] = "metalik rde\u010De rumeno",
+}
+`,
+        "locales/sr.lua": `return {
+    -- Inventory
+    ["inventory"] = "Inventar ( Te\u017Eina %s / %s )",
+    ["use"] = "Koristi",
+    ["give"] = "Daj",
+    ["remove"] = "Baci",
+    ["return"] = "Nazad",
+    ["give_to"] = "Daj",
+    ["amount"] = "Koli\u010Dina",
+    ["giveammo"] = "Daj municiju",
+    ["amountammo"] = "Koli\u010Dina municije",
+    ["noammo"] = "Nemate dovoljno!",
+    ["gave_item"] = "Davanje %sx %s igra\u010Du %s",
+    ["received_item"] = "Dobijeno %sx %s od %s",
+    ["gave_weapon"] = "Davanje %s igra\u010Du %s",
+    ["gave_weapon_ammo"] = "Davanje ~o~%sx %s za %s igra\u010Du %s",
+    ["gave_weapon_withammo"] = "Davanje %s sa ~o~%sx %s igra\u010Du %s",
+    ["gave_weapon_hasalready"] = "%s ve\u0107 ima %s",
+    ["gave_weapon_noweapon"] = "%s nema to oru\u017Eje",
+    ["received_weapon"] = "Dobijeno %s od %s",
+    ["received_weapon_ammo"] = "Dobijeno ~o~%sx %s za va\u0161 %s od %s",
+    ["received_weapon_withammo"] = "Dobijeno %s sa ~o~%sx %s od %s",
+    ["received_weapon_hasalready"] = "%s je poku\u0161ao da Vam da %s, ali vi ve\u0107 imate to oru\u017Eje",
+    ["received_weapon_noweapon"] = "%s je poku\u0161ao da Vam da municiju za %s, ali vi nemate to oru\u017Eje",
+    ["gave_account_money"] = "Davanje $%s (%s) igra\u010Du %s",
+    ["received_account_money"] = "Dobijeno $%s (%s) od %s",
+    ["amount_invalid"] = "Neva\u017Ee\u0107a koli\u010Dina",
+    ["players_nearby"] = "Nema igra\u010Da u blizini",
+    ["ex_inv_lim"] = "Ne mo\u017Eete uraditi to, prema\u0161uje max te\u017Einu od %s",
+    ["imp_invalid_quantity"] = "Neva\u017Ee\u0107a koli\u010Dina",
+    ["imp_invalid_amount"] = "Neva\u017Ee\u0107i iznos",
+    ["threw_standard"] = "Bacanje %sx %s",
+    ["threw_account"] = "Bacanje $%s %s",
+    ["threw_weapon"] = "Bacanje %s",
+    ["threw_weapon_ammo"] = "Bacanje %s sa ~o~%sx %s",
+    ["threw_weapon_already"] = "Vi ve\u0107 imate to oru\u017Eje",
+    ["threw_cannot_pickup"] = "Inventar je pun, ne mo\u017Eete pokupiti to!",
+    ["threw_pickup_prompt"] = "Pritisni E da pokupi\u0161",
+
+    -- Key mapping
+    ["keymap_showinventory"] = "Otvaranje inventara",
+
+    -- Salary related
+    ["received_salary"] = "Pla\u0107eno Vam je: $%s",
+    ["received_help"] = "Ispla\u0107en Vam je \u010Dek: $%s",
+    ["company_nomoney"] = "Kompanija u kojoj ste zapo\u0161ljeni nema vi\u0161e novca",
+    ["received_paycheck"] = "primili ste platu",
+    ["bank"] = "Maze Banka",
+    ["account_bank"] = "Banka",
+    ["account_black_money"] = "Prljav novac",
+    ["account_money"] = "Novac",
+
+    ["act_imp"] = "Ne mo\u017Eete izvr\u0161iti radnju",
+    ["in_vehicle"] = "Ne mo\u017Eete uraditi to dok je igra\u010D u vozilu",
+    ["not_in_vehicle"] = "Cannot Perform Action, Player isn't in a vehicle",
+
+    -- Commands
+    ["command_bring"] = "TP-ajte igra\u010Da do Vas",
+    ["command_car"] = "Stvorite vozilo",
+    ["command_car_car"] = "Model ili hash vozila",
+    ["command_cardel"] = "Obri\u0161ite vozilo u blizini",
+    ["command_cardel_radius"] = "Obri\u0161ite sva vozila unutar navedenog radiusa",
+    ["command_repair"] = "Repair your vehicle",
+    ["command_repair_success"] = "Successfully repaired vehicle",
+    ["command_repair_success_target"] = "An admin repaired your vehicle",
+    ["command_clear"] = "Obri\u0161ite chat",
+    ["command_clearall"] = "Obri\u0161ite chat za sve igra\u010De",
+    ["command_clearinventory"] = "Obri\u0161ite sve stvari iz inventara igra\u010Da",
+    ["command_clearloadout"] = "Obri\u0161ite sva oru\u017Eja iz inventara igra\u010Da",
+    ["command_freeze"] = "Zaledite igra\u010Da",
+    ["command_unfreeze"] = "Odledite igra\u010Da",
+    ["command_giveaccountmoney"] = "Dajte novac na odredjeni nalog",
+    ["command_giveaccountmoney_account"] = "Nalog za slanje",
+    ["command_giveaccountmoney_amount"] = "Koli\u010Dina",
+    ["command_giveaccountmoney_invalid"] = "Nalog nepostoje\u0107i",
+    ["command_giveitem"] = "Dajte item igra\u010Du",
+    ["command_giveitem_item"] = "Ime item-a",
+    ["command_giveitem_count"] = "Koli\u010Dina",
+    ["command_giveweapon"] = "Dajte oru\u017Eje igra\u010Du",
+    ["command_giveweapon_weapon"] = "Ime oru\u017Eja",
+    ["command_giveweapon_ammo"] = "Koli\u010Dina municije",
+    ["command_giveweapon_hasalready"] = "Igra\u010D ve\u0107 ima to oru\u017Eje",
+    ["command_giveweaponcomponent"] = "Dajte dodatak za oru\u017Eje igra\u010Du",
+    ["command_giveweaponcomponent_component"] = "Ime dodatka",
+    ["command_giveweaponcomponent_invalid"] = "Neva\u017Ee\u0107i dodatak",
+    ["command_giveweaponcomponent_hasalready"] = "Igra\u010D ve\u0107 ima taj dodatak",
+    ["command_giveweaponcomponent_missingweapon"] = "Igra\u010D nema oru\u017Eje",
+    ["command_goto"] = "Idite do igra\u010Da",
+    ["command_kill"] = "Ubijte igra\u010Da",
+    ["command_save"] = "Forsirajte \u010Duvanje date igra\u010Da",
+    ["command_saveall"] = "Forsirajte \u010Duvanje date svih igra\u010Da",
+    ["command_setaccountmoney"] = "Postavite novac na odre\u0111eni ra\u010Dun",
+    ["command_setaccountmoney_amount"] = "Koli\u010Dina",
+    ["command_setcoords"] = "Teleportujte se na koordinate",
+    ["command_setcoords_x"] = "X",
+    ["command_setcoords_y"] = "Y",
+    ["command_setcoords_z"] = "Z",
+    ["command_setjob"] = "Postavite posao igra\u010Du",
+    ["command_setjob_job"] = "Ime",
+    ["command_setjob_grade"] = "Stepen posla",
+    ["command_setjob_invalid"] = "posao, stepen ili oba nisu validna",
+    ["command_setgroup"] = "Postavite permisiju",
+    ["command_setgroup_group"] = "Ime grupe",
+    ["commanderror_argumentmismatch"] = "Nevazeci broj argumenata (polo\u017Eio %s, \u017Eeljeno %s)",
+    ["commanderror_argumentmismatch_number"] = "Neva\u017Ee\u0107i argument #%s tip podataka (polo\u017Eeno, \u017Eeljeno)",
+    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Nevaljan argument #%s tip podataka (prosle\u0111en negativan/nula, potreban pozitivan broj)",
+    ["commanderror_invaliditem"] = "Neva\u017Ee\u0107i item",
+    ["commanderror_invalidweapon"] = "Neva\u017Ee\u0107e oru\u017Eje",
+    ["commanderror_console"] = "Komanda se ne mo\u017Ee izvr\u0161iti iz konzole",
+    ["commanderror_invalidcommand"] = "Neva\u017Ee\u0107a komanda - /%s",
+    ["commanderror_invalidplayerid"] = "Igra\u010D nije online",
+    ["commandgeneric_playerid"] = "Igra\u010Dev server ID",
+    ["command_giveammo_noweapon_found"] = "%s nema to oru\u017Eje",
+    ["command_giveammo_weapon"] = "Ime oru\u017Eja",
+    ["command_giveammo_ammo"] = "Koli\u010Dina municije",
+    ["tpm_nowaypoint"] = "Morate ozna\u010Diti lokaciju.",
+    ["tpm_success"] = "Teleportovani ste na lokaciju",
+
+    ["noclip_message"] = "Noclip %s",
+    ["enabled"] = "~g~upaljen~s~",
+    ["disabled"] = "~r~uga\u0161en~s~",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = ",",
+    ["locale_currency"] = "\xA3%s",
+
+    -- Weapons
+
+    -- Melee
+    ["weapon_dagger"] = "Dagger",
+    ["weapon_bat"] = "Bat",
+    ["weapon_battleaxe"] = "Battle Axe",
+    ["weapon_bottle"] = "Bottle",
+    ["weapon_crowbar"] = "Crowbar",
+    ["weapon_flashlight"] = "Flashlight",
+    ["weapon_golfclub"] = "Golf Club",
+    ["weapon_hammer"] = "Hammer",
+    ["weapon_hatchet"] = "Hatchet",
+    ["weapon_knife"] = "Knife",
+    ["weapon_knuckle"] = "Knuckledusters",
+    ["weapon_machete"] = "Machete",
+    ["weapon_nightstick"] = "Nightstick",
+    ["weapon_wrench"] = "Pipe Wrench",
+    ["weapon_poolcue"] = "Pool Cue",
+    ["weapon_stone_hatchet"] = "Stone Hatchet",
+    ["weapon_switchblade"] = "Switchblade",
+
+    -- Handguns
+    ["weapon_appistol"] = "AP Pistol",
+    ["weapon_ceramicpistol"] = "Ceramic Pistol",
+    ["weapon_combatpistol"] = "Combat Pistol",
+    ["weapon_doubleaction"] = "Double-Action Revolver",
+    ["weapon_navyrevolver"] = "Navy Revolver",
+    ["weapon_flaregun"] = "Flaregun",
+    ["weapon_gadgetpistol"] = "Gadget Pistol",
+    ["weapon_heavypistol"] = "Heavy Pistol",
+    ["weapon_revolver"] = "Heavy Revolver",
+    ["weapon_revolver_mk2"] = "Heavy Revolver MK2",
+    ["weapon_marksmanpistol"] = "Marksman Pistol",
+    ["weapon_pistol"] = "Pistol",
+    ["weapon_pistol_mk2"] = "Pistol MK2",
+    ["weapon_pistol50"] = "Pistol .50",
+    ["weapon_snspistol"] = "SNS Pistol",
+    ["weapon_snspistol_mk2"] = "SNS Pistol MK2",
+    ["weapon_stungun"] = "Taser",
+    ["weapon_raypistol"] = "Up-N-Atomizer",
+    ["weapon_vintagepistol"] = "Vintage Pistol",
+
+    -- Shotguns
+    ["weapon_assaultshotgun"] = "Assault Shotgun",
+    ["weapon_autoshotgun"] = "Auto Shotgun",
+    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",
+    ["weapon_combatshotgun"] = "Combat Shotgun",
+    ["weapon_dbshotgun"] = "Double Barrel Shotgun",
+    ["weapon_heavyshotgun"] = "Heavy Shotgun",
+    ["weapon_musket"] = "Musket",
+    ["weapon_pumpshotgun"] = "Pump Shotgun",
+    ["weapon_pumpshotgun_mk2"] = "Pump Shotgun MK2",
+    ["weapon_sawnoffshotgun"] = "Sawed Off Shotgun",
+
+    -- SMG & LMG
+    ["weapon_assaultsmg"] = "Assault SMG",
+    ["weapon_combatmg"] = "Combat MG",
+    ["weapon_combatmg_mk2"] = "Combat MG MK2",
+    ["weapon_combatpdw"] = "Combat PDW",
+    ["weapon_gusenberg"] = "Gusenberg Sweeper",
+    ["weapon_machinepistol"] = "Machine Pistol",
+    ["weapon_mg"] = "MG",
+    ["weapon_microsmg"] = "Micro SMG",
+    ["weapon_minismg"] = "Mini SMG",
+    ["weapon_smg"] = "SMG",
+    ["weapon_smg_mk2"] = "SMG MK2",
+    ["weapon_raycarbine"] = "Unholy Hellbringer",
+
+    -- Rifles
+    ["weapon_advancedrifle"] = "Advanced Rifle",
+    ["weapon_assaultrifle"] = "Assault Rifle",
+    ["weapon_assaultrifle_mk2"] = "Assault Rifle MK2",
+    ["weapon_bullpuprifle"] = "Bullpup Rifle",
+    ["weapon_bullpuprifle_mk2"] = "Bullpup Rifle MK2",
+    ["weapon_carbinerifle"] = "Carbine Rifle",
+    ["weapon_carbinerifle_mk2"] = "Carbine Rifle MK2",
+    ["weapon_compactrifle"] = "Compact Rifle",
+    ["weapon_militaryrifle"] = "Military Rifle",
+    ["weapon_specialcarbine"] = "Special Carbine",
+    ["weapon_specialcarbine_mk2"] = "Special Carbine MK2",
+    ["weapon_heavyrifle"] = "Heavy Rifle", -- Not Translated
+
+    -- Sniper
+    ["weapon_heavysniper"] = "Heavy Sniper",
+    ["weapon_heavysniper_mk2"] = "Heavy Sniper MK2",
+    ["weapon_marksmanrifle"] = "Marksman Rifle",
+    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle MK2",
+    ["weapon_sniperrifle"] = "Sniper Rifle",
+
+    -- Heavy / Launchers
+    ["weapon_compactlauncher"] = "Compact Launcher",
+    ["weapon_firework"] = "Firework Launcher",
+    ["weapon_grenadelauncher"] = "Grenade Launcher",
+    ["weapon_hominglauncher"] = "Homing Launcher",
+    ["weapon_minigun"] = "Minigun",
+    ["weapon_railgun"] = "Railgun",
+    ["weapon_rpg"] = "Rocket Launcher",
+    ["weapon_rayminigun"] = "Widowmaker",
+
+    -- Criminal Enterprises DLC
+    ["weapon_metaldetector"] = "Metal Detector",
+    ["weapon_precisionrifle"] = "Precision Rifle",
+    ["weapon_tactilerifle"] = "Service Carbine",
+
+    -- Drug Wars DLC
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
+    ["weapon_acidpackage"] = "Acid Package", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
+
+    -- Thrown
+    ["weapon_ball"] = "Baseball",
+    ["weapon_bzgas"] = "BZ Gas",
+    ["weapon_flare"] = "Flare",
+    ["weapon_grenade"] = "Grenade",
+    ["weapon_petrolcan"] = "Jerrycan",
+    ["weapon_hazardcan"] = "Hazardous Jerrycan",
+    ["weapon_molotov"] = "Molotov Cocktail",
+    ["weapon_proxmine"] = "Proximity Mine",
+    ["weapon_pipebomb"] = "Pipe Bomb",
+    ["weapon_snowball"] = "Snowball",
+    ["weapon_stickybomb"] = "Sticky Bomb",
+    ["weapon_smokegrenade"] = "Tear Gas",
+
+    -- Special
+    ["weapon_fireextinguisher"] = "Fire Extinguisher",
+    ["weapon_digiscanner"] = "Digital Scanner",
+    ["weapon_garbagebag"] = "Garbage Bag",
+    ["weapon_handcuffs"] = "Handcuffs",
+    ["gadget_nightvision"] = "Night Vision",
+    ["gadget_parachute"] = "parachute",
+
+    -- Weapon Components
+    ["component_knuckle_base"] = "base Model",
+    ["component_knuckle_pimp"] = "the Pimp",
+    ["component_knuckle_ballas"] = "the Ballas",
+    ["component_knuckle_dollar"] = "the Hustler",
+    ["component_knuckle_diamond"] = "the Rock",
+    ["component_knuckle_hate"] = "the Hater",
+    ["component_knuckle_love"] = "the Lover",
+    ["component_knuckle_player"] = "the Player",
+    ["component_knuckle_king"] = "the King",
+    ["component_knuckle_vagos"] = "the Vagos",
+
+    ["component_luxary_finish"] = "luxary Weapon Finish",
+
+    ["component_handle_default"] = "default Handle",
+    ["component_handle_vip"] = "vIP Handle",
+    ["component_handle_bodyguard"] = "bodyguard Handle",
+
+    ["component_vip_finish"] = "vIP Finish",
+    ["component_bodyguard_finish"] = "bodyguard Finish",
+
+    ["component_camo_finish"] = "digital Camo",
+    ["component_camo_finish2"] = "brushstroke Camo",
+    ["component_camo_finish3"] = "woodland Camo",
+    ["component_camo_finish4"] = "skull Camo",
+    ["component_camo_finish5"] = "sessanta Nove Camo",
+    ["component_camo_finish6"] = "perseus Camo",
+    ["component_camo_finish7"] = "leopard Camo",
+    ["component_camo_finish8"] = "zebra Camo",
+    ["component_camo_finish9"] = "geometric Camo",
+    ["component_camo_finish10"] = "boom Camo",
+    ["component_camo_finish11"] = "patriotic Camo",
+
+    ["component_camo_slide_finish"] = "digital Slide Camo",
+    ["component_camo_slide_finish2"] = "brushstroke Slide Camo",
+    ["component_camo_slide_finish3"] = "woodland Slide Camo",
+    ["component_camo_slide_finish4"] = "skull Slide Camo",
+    ["component_camo_slide_finish5"] = "sessanta Nove Slide Camo",
+    ["component_camo_slide_finish6"] = "perseus Slide Camo",
+    ["component_camo_slide_finish7"] = "leopard Slide Camo",
+    ["component_camo_slide_finish8"] = "zebra Slide Camo",
+    ["component_camo_slide_finish9"] = "geometric Slide Camo",
+    ["component_camo_slide_finish10"] = "boom Slide Camo",
+    ["component_camo_slide_finish11"] = "patriotic Slide Camo",
+
+    ["component_clip_default"] = "default Magazine",
+    ["component_clip_extended"] = "extended Magazine",
+    ["component_clip_drum"] = "drum Magazine",
+    ["component_clip_box"] = "box Magazine",
+
+    ["component_scope_holo"] = "holographic Scope",
+    ["component_scope_small"] = "small Scope",
+    ["component_scope_medium"] = "medium Scope",
+    ["component_scope_large"] = "large Scope",
+    ["component_scope"] = "mounted Scope",
+    ["component_scope_advanced"] = "advanced Scope",
+    ["component_ironsights"] = "ironsights",
+
+    ["component_suppressor"] = "suppressor",
+    ["component_compensator"] = "compensator",
+
+    ["component_muzzle_flat"] = "flat Muzzle Brake",
+    ["component_muzzle_tactical"] = "tactical Muzzle Brake",
+    ["component_muzzle_fat"] = "fat-End Muzzle Brake",
+    ["component_muzzle_precision"] = "precision Muzzle Brake",
+    ["component_muzzle_heavy"] = "heavy Duty Muzzle Brake",
+    ["component_muzzle_slanted"] = "slanted Muzzle Brake",
+    ["component_muzzle_split"] = "split-End Muzzle Brake",
+    ["component_muzzle_squared"] = "squared Muzzle Brake",
+
+    ["component_flashlight"] = "flashlight",
+    ["component_grip"] = "grip",
+
+    ["component_barrel_default"] = "default Barrel",
+    ["component_barrel_heavy"] = "heavy Barrel",
+
+    ["component_ammo_tracer"] = "tracer Ammo",
+    ["component_ammo_incendiary"] = "incendiary Ammo",
+    ["component_ammo_hollowpoint"] = "hollowpoint Ammo",
+    ["component_ammo_fmj"] = "fMJ Ammo",
+    ["component_ammo_armor"] = "armor Piercing Ammo",
+    ["component_ammo_explosive"] = "armor Piercing Incendiary Ammo",
+
+    ["component_shells_default"] = "default Shells",
+    ["component_shells_incendiary"] = "dragons Breath Shells",
+    ["component_shells_armor"] = "steel Buckshot Shells",
+    ["component_shells_hollowpoint"] = "flechette Shells",
+    ["component_shells_explosive"] = "explosive Slug Shells",
+
+    -- Weapon Ammo
+    ["ammo_rounds"] = "round(s)",
+    ["ammo_shells"] = "shell(s)",
+    ["ammo_charge"] = "charge",
+    ["ammo_petrol"] = "gallons of fuel",
+    ["ammo_firework"] = "firework(s)",
+    ["ammo_rockets"] = "rocket(s)",
+    ["ammo_grenadelauncher"] = "grenade(s)",
+    ["ammo_grenade"] = "grenade(s)",
+    ["ammo_stickybomb"] = "bomb(s)",
+    ["ammo_pipebomb"] = "bomb(s)",
+    ["ammo_smokebomb"] = "bomb(s)",
+    ["ammo_molotov"] = "cocktail(s)",
+    ["ammo_proxmine"] = "mine(s)",
+    ["ammo_bzgas"] = "can(s)",
+    ["ammo_ball"] = "ball(s)",
+    ["ammo_snowball"] = "snowball(s)",
+    ["ammo_flare"] = "flare(s)",
+    ["ammo_flaregun"] = "flare(s)",
+
+    -- Weapon Tints
+    ["tint_default"] = "default skin",
+    ["tint_green"] = "green skin",
+    ["tint_gold"] = "gold skin",
+    ["tint_pink"] = "pink skin",
+    ["tint_army"] = "army skin",
+    ["tint_lspd"] = "blue skin",
+    ["tint_orange"] = "orange skin",
+    ["tint_platinum"] = "platinum skin",
+    -- MK2 Weapon Tints
+    ["tint_classic_black"] = "klasi\u010Dna crna",
+    ["tint_classic_gray"] = "klasi\u010Dna siva",
+    ["tint_classic_two_tone"] = "klasi\u010Dna dvo-tonska",
+    ["tint_classic_white"] = "klasi\u010Dna bela",
+    ["tint_classic_beige"] = "klasi\u010Dna be\u017E",
+    ["tint_classic_green"] = "klasi\u010Dna zelena",
+    ["tint_classic_blue"] = "klasi\u010Dna plava",
+    ["tint_classic_earth"] = "klasi\u010Dna zemlja",
+    ["tint_classic_brown_black"] = "klasi\u010Dna braon-crna",
+    ["tint_contrast_red"] = "kontrastna crvena",
+    ["tint_contrast_blue"] = "kontrastna plava",
+    ["tint_contrast_yellow"] = "kontrastna \u017Euta",
+    ["tint_contrast_orange"] = "kontrastna narand\u017Easta",
+    ["tint_bold_pink"] = "drska roze",
+    ["tint_bold_purple_yellow"] = "drska ljubi\u010Dasto-\u017Euta",
+    ["tint_bold_orange"] = "drska narand\u017Easta",
+    ["tint_bold_green_purple"] = "drska zelena-ljubi\u010Dasta",
+    ["tint_bold_red_feat"] = "drska crvena feat",
+    ["tint_bold_green_feat"] = "drska zelena feat",
+    ["tint_bold_cyan_feat"] = "drska cijan feat",
+    ["tint_bold_yellow_feat"] = "drska \u017Euta feat",
+    ["tint_bold_red_white"] = "drska crvena bela",
+    ["tint_bold_blue_white"] = "drska plava bela",
+    ["tint_metallic_gold"] = "metalik zlatna",
+    ["tint_metallic_platinum"] = "metalik platina",
+    ["tint_metallic_gray_lilac"] = "metalik siva lila",
+    ["tint_metallic_purple_lime"] = "metalik ljubi\u010Dasta limeta",
+    ["tint_metallic_red"] = "metalik crvena",
+    ["tint_metallic_green"] = "metalik zelena",
+    ["tint_metallic_blue"] = "metalik plava",
+    ["tint_metallic_white_aqua"] = "metalik bela aqua",
+    ["tint_metallic_red_yellow"] = "metalik crvena-\u017Euta",
+}
+`,
+        "locales/sv.lua": 'return {\n    -- Inventory\n    ["inventory"] = "Inventory ( Vikt %s / %s )",\n    ["use"] = "Anv\xE4nd",\n    ["give"] = "Ge",\n    ["remove"] = "Kasta",\n    ["return"] = "Tillbaka",\n    ["give_to"] = "Ge",\n    ["amount"] = "Antal",\n    ["giveammo"] = "Ge skott",\n    ["amountammo"] = "Antal skott",\n    ["noammo"] = "Inte tillr\xE4ckligt!",\n    ["gave_item"] = "Ger %sx %s till %s",\n    ["received_item"] = "Mottog %sx %s fr\xE5n %s",\n    ["gave_weapon"] = "Ger %s till %s",\n    ["gave_weapon_ammo"] = "Ger ~o~%sx %s f\xF6r %s till %s",\n    ["gave_weapon_withammo"] = "Ger %s med ~o~%sx %s till %s",\n    ["gave_weapon_hasalready"] = "%s har redan en %s",\n    ["gave_weapon_noweapon"] = "%s har inte detta vapen",\n    ["received_weapon"] = "Mottog %s fr\xE5n %s",\n    ["received_weapon_ammo"] = "Mottog ~o~%sx %s f\xF6r din %s fr\xE5n %s",\n    ["received_weapon_withammo"] = "Mottog %s med ~o~%sx %s fr\xE5n %s",\n    ["received_weapon_hasalready"] = "%s har f\xF6rs\xF6kt ge dig en %s, men du har redan detta",\n    ["received_weapon_noweapon"] = "%s har f\xF6rs\xF6kt ge dig skott till en %s, men du har inte detta vapen",\n    ["gave_account_money"] = "Ger %skr (%s) till %s",\n    ["received_account_money"] = "Mottog %skr (%s) fr\xE5n %s",\n    ["amount_invalid"] = "Ogiltig m\xE4ngd",\n    ["players_nearby"] = "Inga spelare n\xE4ra",\n    ["ex_inv_lim"] = "Kan inte utf\xF6ra, \xF6verskrider maxvikten p\xE5 %s",\n    ["imp_invalid_quantity"] = "Kan inte utf\xF6ra, m\xE4ngden \xE4r ogiltig",\n    ["imp_invalid_amount"] = "Kan inte utf\xF6ra, antalet \xE4r ogiltig",\n    ["threw_standard"] = "Kastar %sx %s",\n    ["threw_account"] = "Kastar %skr %s",\n    ["threw_weapon"] = "Kastar %s",\n    ["threw_weapon_ammo"] = "Kastar %s med ~o~%sx %s",\n    ["threw_weapon_already"] = "Du har redan detta vapen",\n    ["threw_cannot_pickup"] = "Inventoryt \xE4r fullt, kan inte plocka upp!",\n    ["threw_pickup_prompt"] = "Tryck E f\xF6r att plocka upp",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "\xD6ppna inventory",\n\n    -- Salary related\n    ["received_salary"] = "Du har f\xE5tt ditt bidrag: %skr",\n    ["received_help"] = "Du har f\xE5tt betalt: %skr",\n    ["company_nomoney"] = "F\xF6retaget du \xE4r anst\xE4lld hos har inte r\xE5d med att betala ut l\xF6n",\n    ["received_paycheck"] = "Mottog l\xF6n",\n    ["bank"] = "Maze Bank",\n    ["account_bank"] = "Bank",\n    ["account_black_money"] = "Svarta pengar",\n    ["account_money"] = "Kontanter",\n\n    ["act_imp"] = "Kan inte utf\xF6ra",\n    ["in_vehicle"] = "Kan inte utf\xF6ra, spelaren \xE4r i ett fordon",\n    ["not_in_vehicle"] = "Kan inte utf\xF6ra, spelaren \xE4r inte i ett fordon",\n\n    -- Commands\n    ["command_bring"] = "Ta en spelare till dig",\n    ["command_car"] = "Ta fram ett fordon",\n    ["command_car_car"] = "modell",\n    ["command_cardel"] = "Raderar fordon inom en specifik radie",\n    ["command_cardel_radius"] = "Raderar fordon inom en specifik radie",\n    ["command_repair"] = "Reparera ditt fordon",\n    ["command_repair_success"] = "Fordon reparerat",\n    ["command_repair_success_target"] = "En admin har reparerat ditt fordon",\n    ["command_clear"] = "Rensa chatt",\n    ["command_clearall"] = "Rensa chatt f\xF6r alla",\n    ["command_clearinventory"] = "Raderar alla f\xF6rem\xE5l fr\xE5n en spelares inventory",\n    ["command_clearloadout"] = "Raderar alla vapen fr\xE5n en spelares inventory",\n    ["command_freeze"] = "Frys en spelare",\n    ["command_unfreeze"] = "Ta bort frysningen fr\xE5n en spelare",\n    ["command_giveaccountmoney"] = "Ge pengar till ett specifikt konto",\n    ["command_giveaccountmoney_account"] = "Konto",\n    ["command_giveaccountmoney_amount"] = "Summa",\n    ["command_giveaccountmoney_invalid"] = "Ogiltigt kontonamn",\n    ["command_removeaccountmoney"] = "Radera pengar fr\xE5n ett specifikt konto",\n    ["command_removeaccountmoney_account"] = "Konto",\n    ["command_removeaccountmoney_amount"] = "Summa",\n    ["command_removeaccountmoney_invalid"] = "Ogiltigt kontonamn",\n    ["command_giveitem"] = "Ge f\xF6rem\xE5l till en spelare",\n    ["command_giveitem_item"] = "Namn",\n    ["command_giveitem_count"] = "Antal",\n    ["command_giveweapon"] = "Ge ett vapen till en spelare",\n    ["command_giveweapon_weapon"] = "Vapen",\n    ["command_giveweapon_ammo"] = "Antal skott",\n    ["command_giveweapon_hasalready"] = "Spelaren har redan detta vapen",\n    ["command_giveweaponcomponent"] = "Ge komponent till en spelare",\n    ["command_giveweaponcomponent_component"] = "Komponent",\n    ["command_giveweaponcomponent_invalid"] = "Ogiltig komponent",\n    ["command_giveweaponcomponent_hasalready"] = "Spelaren har redan denna komponent",\n    ["command_giveweaponcomponent_missingweapon"] = "Spelaren har inte vapen f\xF6r komponenten",\n    ["command_goto"] = "Teleportera till en spelare",\n    ["command_kill"] = "D\xF6da en spelare",\n    ["command_save"] = "Spara en spelares data",\n    ["command_saveall"] = "Spara alla spelares data",\n    ["command_setaccountmoney"] = "S\xE4tt pengar p\xE5 ett specifikt konto",\n    ["command_setaccountmoney_amount"] = "Summa",\n    ["command_setcoords"] = "Teleportera till koordinater",\n    ["command_setcoords_x"] = "X value",\n    ["command_setcoords_y"] = "Y value",\n    ["command_setcoords_z"] = "Z value",\n    ["command_setjob"] = "S\xE4tt jobb f\xF6r en spelare",\n    ["command_setjob_job"] = "Namn",\n    ["command_setjob_grade"] = "Grad",\n    ["command_setjob_invalid"] = "Jobbet, graden eller b\xE5da \xE4r ogiltiga",\n    ["command_setgroup"] = "S\xE4tt en spelares grupp",\n    ["command_setgroup_group"] = "Grupp",\n    ["commanderror_argumentmismatch"] = "Invalid Argument Count (passed %s, wanted %s)",\n    ["commanderror_argumentmismatch_number"] = "Invalid Argument #%s data type (passed string, wanted number)",\n    ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",\n    ["commanderror_argumentmismatch_positive_number"] = "Ogiltigt argument #%s datatyp (skickade negativt/noll, ville ha positivt tal)",\n    ["commanderror_invaliditem"] = "Ogiltigt f\xF6rem\xE5l",\n    ["commanderror_invalidweapon"] = "Ogiltigt vapen",\n    ["commanderror_console"] = "Kommandot kan inte anv\xE4ndas i konsolen",\n    ["commanderror_invalidcommand"] = "Ogiltigt kommand - /%s",\n    ["commanderror_invalidplayerid"] = "Spelaren \xE4r inte online",\n    ["commandgeneric_playerid"] = "Spelares ID",\n    ["command_giveammo_noweapon_found"] = "%s har inte detta vapen",\n    ["command_giveammo_weapon"] = "Vapen namn",\n    ["command_giveammo_ammo"] = "Antal ammo",\n    ["tpm_nowaypoint"] = "Ingen mark\xF6r sutten.",\n    ["tpm_success"] = "Du har teleporterat",\n\n    ["noclip_message"] = "Noclip har %s",\n    ["enabled"] = "~g~aktiverats~s~",\n    ["disabled"] = "~r~avaktiverats~s~",\n\n    -- Locale settings\n    ["locale_digit_grouping_symbol"] = ",",\n    ["locale_currency"] = "%skr",\n\n    -- Weapons\n\n    -- Melee\n    ["weapon_dagger"] = "Dolk",\n    ["weapon_bat"] = "Baseballtr\xE4d",\n    ["weapon_battleaxe"] = "Stridsyxa",\n    ["weapon_bottle"] = "Glasflaska",\n    ["weapon_crowbar"] = "Kofot",\n    ["weapon_flashlight"] = "Ficklampa",\n    ["weapon_golfclub"] = "Golfklubba",\n    ["weapon_hammer"] = "Hammare",\n    ["weapon_hatchet"] = "Yxa",\n    ["weapon_knife"] = "Kniv",\n    ["weapon_knuckle"] = "Knogj\xE4rn",\n    ["weapon_machete"] = "Machete",\n    ["weapon_nightstick"] = "Ficklampa",\n    ["weapon_wrench"] = "R\xF6rt\xE5ng",\n    ["weapon_poolcue"] = "Biljardk\xF6",\n    ["weapon_stone_hatchet"] = "Stenyxa",\n    ["weapon_switchblade"] = "Fickkniv",\n\n    -- Handguns\n    ["weapon_appistol"] = "AP Pistol",\n    ["weapon_ceramicpistol"] = "Ceramic Pistol",\n    ["weapon_combatpistol"] = "Combat Pistol",\n    ["weapon_doubleaction"] = "Double-Action Revolver",\n    ["weapon_navyrevolver"] = "Navy Revolver",\n    ["weapon_flaregun"] = "Flaregun",\n    ["weapon_gadgetpistol"] = "Gadget Pistol",\n    ["weapon_heavypistol"] = "Heavy Pistol",\n    ["weapon_revolver"] = "Heavy Revolver",\n    ["weapon_revolver_mk2"] = "Heavy Revolver MK2",\n    ["weapon_marksmanpistol"] = "Marksman Pistol",\n    ["weapon_pistol"] = "Pistol",\n    ["weapon_pistol_mk2"] = "Pistol MK2",\n    ["weapon_pistol50"] = "Pistol .50",\n    ["weapon_snspistol"] = "SNS Pistol",\n    ["weapon_snspistol_mk2"] = "SNS Pistol MK2",\n    ["weapon_stungun"] = "Taser",\n    ["weapon_raypistol"] = "Up-N-Atomizer",\n    ["weapon_vintagepistol"] = "Vintage Pistol",\n\n    -- Shotguns\n    ["weapon_assaultshotgun"] = "Assault Shotgun",\n    ["weapon_autoshotgun"] = "Auto Shotgun",\n    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",\n    ["weapon_combatshotgun"] = "Combat Shotgun",\n    ["weapon_dbshotgun"] = "Double Barrel Shotgun",\n    ["weapon_heavyshotgun"] = "Heavy Shotgun",\n    ["weapon_musket"] = "Musket",\n    ["weapon_pumpshotgun"] = "Pump Shotgun",\n    ["weapon_pumpshotgun_mk2"] = "Pump Shotgun MK2",\n    ["weapon_sawnoffshotgun"] = "Sawed Off Shotgun",\n\n    -- SMG & LMG\n    ["weapon_assaultsmg"] = "Assault SMG",\n    ["weapon_combatmg"] = "Combat MG",\n    ["weapon_combatmg_mk2"] = "Combat MG MK2",\n    ["weapon_combatpdw"] = "Combat PDW",\n    ["weapon_gusenberg"] = "Gusenberg Sweeper",\n    ["weapon_machinepistol"] = "Machine Pistol",\n    ["weapon_mg"] = "MG",\n    ["weapon_microsmg"] = "Micro SMG",\n    ["weapon_minismg"] = "Mini SMG",\n    ["weapon_smg"] = "SMG",\n    ["weapon_smg_mk2"] = "SMG MK2",\n    ["weapon_raycarbine"] = "Unholy Hellbringer",\n\n    -- Rifles\n    ["weapon_advancedrifle"] = "Advanced Rifle",\n    ["weapon_assaultrifle"] = "Assault Rifle",\n    ["weapon_assaultrifle_mk2"] = "Assault Rifle MK2",\n    ["weapon_bullpuprifle"] = "Bullpup Rifle",\n    ["weapon_bullpuprifle_mk2"] = "Bullpup Rifle MK2",\n    ["weapon_carbinerifle"] = "Carbine Rifle",\n    ["weapon_carbinerifle_mk2"] = "Carbine Rifle MK2",\n    ["weapon_compactrifle"] = "Compact Rifle",\n    ["weapon_militaryrifle"] = "Military Rifle",\n    ["weapon_specialcarbine"] = "Special Carbine",\n    ["weapon_specialcarbine_mk2"] = "Special Carbine MK2",\n    ["weapon_heavyrifle"] = "Heavy Rifle",\n\n    -- Sniper\n    ["weapon_heavysniper"] = "Heavy Sniper",\n    ["weapon_heavysniper_mk2"] = "Heavy Sniper MK2",\n    ["weapon_marksmanrifle"] = "Marksman Rifle",\n    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle MK2",\n    ["weapon_sniperrifle"] = "Sniper Rifle",\n\n    -- Heavy / Launchers\n    ["weapon_compactlauncher"] = "Compact Launcher",\n    ["weapon_firework"] = "Firework Launcher",\n    ["weapon_grenadelauncher"] = "Grenade Launcher",\n    ["weapon_hominglauncher"] = "Homing Launcher",\n    ["weapon_minigun"] = "Minigun",\n    ["weapon_railgun"] = "Railgun",\n    ["weapon_rpg"] = "Rocket Launcher",\n    ["weapon_rayminigun"] = "Widowmaker",\n\n    -- Criminal Enterprises DLC\n    ["weapon_metaldetector"] = "Metal Detector",\n    ["weapon_precisionrifle"] = "Precision Rifle",\n    ["weapon_tactilerifle"] = "Service Carbine",\n\n    -- Drug wars dlc\n    ["weapon_candycane"] = "Candycane",\n    ["weapon_acidpackage"] = "Acid Package",\n    ["weapon_pistolxm3"] = "Pistol8 x3m",\n    ["weapon_railgunxm3"] = "Railgun",\n\n    -- Thrown\n    ["weapon_ball"] = "Baseball",\n    ["weapon_bzgas"] = "BZ Gas",\n    ["weapon_flare"] = "Bloss",\n    ["weapon_grenade"] = "Granat",\n    ["weapon_petrolcan"] = "Bensindunk",\n    ["weapon_hazardcan"] = "Hazardous Jerrycan",\n    ["weapon_molotov"] = "Molotov",\n    ["weapon_proxmine"] = "Mina",\n    ["weapon_pipebomb"] = "Pipe Bomb",\n    ["weapon_snowball"] = "Sn\xF6boll",\n    ["weapon_stickybomb"] = "Sticky Bomb",\n    ["weapon_smokegrenade"] = "T\xE5rgas",\n\n    -- Special\n    ["weapon_fireextinguisher"] = "Brandsl\xE4ckare",\n    ["weapon_digiscanner"] = "Digital Scanner",\n    ["weapon_garbagebag"] = "Sopp\xE5se",\n    ["weapon_handcuffs"] = "Handklovar",\n    ["gadget_nightvision"] = "Night Vision",\n    ["gadget_parachute"] = "Fallsk\xE4rm",\n\n    -- Weapon Components\n    ["component_knuckle_base"] = "base Model",\n    ["component_knuckle_pimp"] = "the Pimp",\n    ["component_knuckle_ballas"] = "the Ballas",\n    ["component_knuckle_dollar"] = "the Hustler",\n    ["component_knuckle_diamond"] = "the Rock",\n    ["component_knuckle_hate"] = "the Hater",\n    ["component_knuckle_love"] = "the Lover",\n    ["component_knuckle_player"] = "the Player",\n    ["component_knuckle_king"] = "the King",\n    ["component_knuckle_vagos"] = "the Vagos",\n\n    ["component_luxary_finish"] = "luxary Weapon Finish",\n\n    ["component_handle_default"] = "default Handle",\n    ["component_handle_vip"] = "vIP Handle",\n    ["component_handle_bodyguard"] = "bodyguard Handle",\n\n    ["component_vip_finish"] = "vIP Finish",\n    ["component_bodyguard_finish"] = "bodyguard Finish",\n\n    ["component_camo_finish"] = "digital Camo",\n    ["component_camo_finish2"] = "brushstroke Camo",\n    ["component_camo_finish3"] = "woodland Camo",\n    ["component_camo_finish4"] = "skull Camo",\n    ["component_camo_finish5"] = "sessanta Nove Camo",\n    ["component_camo_finish6"] = "perseus Camo",\n    ["component_camo_finish7"] = "leopard Camo",\n    ["component_camo_finish8"] = "zebra Camo",\n    ["component_camo_finish9"] = "geometric Camo",\n    ["component_camo_finish10"] = "boom Camo",\n    ["component_camo_finish11"] = "patriotic Camo",\n\n    ["component_camo_slide_finish"] = "digital Slide Camo",\n    ["component_camo_slide_finish2"] = "brushstroke Slide Camo",\n    ["component_camo_slide_finish3"] = "woodland Slide Camo",\n    ["component_camo_slide_finish4"] = "skull Slide Camo",\n    ["component_camo_slide_finish5"] = "sessanta Nove Slide Camo",\n    ["component_camo_slide_finish6"] = "perseus Slide Camo",\n    ["component_camo_slide_finish7"] = "leopard Slide Camo",\n    ["component_camo_slide_finish8"] = "zebra Slide Camo",\n    ["component_camo_slide_finish9"] = "geometric Slide Camo",\n    ["component_camo_slide_finish10"] = "boom Slide Camo",\n    ["component_camo_slide_finish11"] = "patriotic Slide Camo",\n\n    ["component_clip_default"] = "default Magazine",\n    ["component_clip_extended"] = "extended Magazine",\n    ["component_clip_drum"] = "drum Magazine",\n    ["component_clip_box"] = "box Magazine",\n\n    ["component_scope_holo"] = "holographic Scope",\n    ["component_scope_small"] = "small Scope",\n    ["component_scope_medium"] = "medium Scope",\n    ["component_scope_large"] = "large Scope",\n    ["component_scope"] = "mounted Scope",\n    ["component_scope_advanced"] = "advanced Scope",\n    ["component_ironsights"] = "ironsights",\n\n    ["component_suppressor"] = "ljudd\xE4mpare",\n    ["component_compensator"] = "compensator",\n\n    ["component_muzzle_flat"] = "flat Muzzle Brake",\n    ["component_muzzle_tactical"] = "tactical Muzzle Brake",\n    ["component_muzzle_fat"] = "fat-End Muzzle Brake",\n    ["component_muzzle_precision"] = "precision Muzzle Brake",\n    ["component_muzzle_heavy"] = "heavy Duty Muzzle Brake",\n    ["component_muzzle_slanted"] = "slanted Muzzle Brake",\n    ["component_muzzle_split"] = "split-End Muzzle Brake",\n    ["component_muzzle_squared"] = "squared Muzzle Brake",\n\n    ["component_flashlight"] = "Ficklampa",\n    ["component_grip"] = "grepp",\n\n    ["component_barrel_default"] = "default Barrel",\n    ["component_barrel_heavy"] = "heavy Barrel",\n\n    ["component_ammo_tracer"] = "tracer Ammo",\n    ["component_ammo_incendiary"] = "incendiary Ammo",\n    ["component_ammo_hollowpoint"] = "hollowpoint Ammo",\n    ["component_ammo_fmj"] = "fMJ Ammo",\n    ["component_ammo_armor"] = "armor Piercing Ammo",\n    ["component_ammo_explosive"] = "armor Piercing Incendiary Ammo",\n\n    ["component_shells_default"] = "default Shells",\n    ["component_shells_incendiary"] = "dragons Breath Shells",\n    ["component_shells_armor"] = "steel Buckshot Shells",\n    ["component_shells_hollowpoint"] = "flechette Shells",\n    ["component_shells_explosive"] = "explosive Slug Shells",\n\n    -- Weapon Ammo\n    ["ammo_rounds"] = "round(s)",\n    ["ammo_shells"] = "shell(s)",\n    ["ammo_charge"] = "charge",\n    ["ammo_petrol"] = "gallons of fuel",\n    ["ammo_firework"] = "firework(s)",\n    ["ammo_rockets"] = "rocket(s)",\n    ["ammo_grenadelauncher"] = "grenade(s)",\n    ["ammo_grenade"] = "grenade(s)",\n    ["ammo_stickybomb"] = "bomb(s)",\n    ["ammo_pipebomb"] = "bomb(s)",\n    ["ammo_smokebomb"] = "bomb(s)",\n    ["ammo_molotov"] = "cocktail(s)",\n    ["ammo_proxmine"] = "mine(s)",\n    ["ammo_bzgas"] = "can(s)",\n    ["ammo_ball"] = "ball(s)",\n    ["ammo_snowball"] = "snowball(s)",\n    ["ammo_flare"] = "flare(s)",\n    ["ammo_flaregun"] = "flare(s)",\n\n    -- Weapon Tints\n    ["tint_default"] = "default skin",\n    ["tint_green"] = "green skin",\n    ["tint_gold"] = "gold skin",\n    ["tint_pink"] = "pink skin",\n    ["tint_army"] = "army skin",\n    ["tint_lspd"] = "blue skin",\n    ["tint_orange"] = "orange skin",\n    ["tint_platinum"] = "platinum skin",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "klassisk svart",\n    ["tint_classic_gray"] = "klassisk gr\xE5",\n    ["tint_classic_two_tone"] = "klassisk tv\xE5f\xE4rgad",\n    ["tint_classic_white"] = "klassisk vit",\n    ["tint_classic_beige"] = "klassisk beige",\n    ["tint_classic_green"] = "klassisk gr\xF6n",\n    ["tint_classic_blue"] = "klassisk bl\xE5",\n    ["tint_classic_earth"] = "klassisk jord",\n    ["tint_classic_brown_black"] = "klassisk brun svart",\n    ["tint_contrast_red"] = "kontrast r\xF6d",\n    ["tint_contrast_blue"] = "kontrast bl\xE5",\n    ["tint_contrast_yellow"] = "kontrast gul",\n    ["tint_contrast_orange"] = "kontrast orange",\n    ["tint_bold_pink"] = "dj\xE4rv rosa",\n    ["tint_bold_purple_yellow"] = "dj\xE4rv lila gul",\n    ["tint_bold_orange"] = "dj\xE4rv orange",\n    ["tint_bold_green_purple"] = "dj\xE4rv gr\xF6n lila",\n    ["tint_bold_red_feat"] = "dj\xE4rv r\xF6d feat",\n    ["tint_bold_green_feat"] = "dj\xE4rv gr\xF6n feat",\n    ["tint_bold_cyan_feat"] = "dj\xE4rv cyan feat",\n    ["tint_bold_yellow_feat"] = "dj\xE4rv gul feat",\n    ["tint_bold_red_white"] = "dj\xE4rv r\xF6d vit",\n    ["tint_bold_blue_white"] = "dj\xE4rv bl\xE5 vit",\n    ["tint_metallic_gold"] = "metalliskt guld",\n    ["tint_metallic_platinum"] = "metalliskt platina",\n    ["tint_metallic_gray_lilac"] = "metalliskt gr\xE5 lila",\n    ["tint_metallic_purple_lime"] = "metalliskt lila lime",\n    ["tint_metallic_red"] = "metalliskt r\xF6d",\n    ["tint_metallic_green"] = "metalliskt gr\xF6n",\n    ["tint_metallic_blue"] = "metalliskt bl\xE5",\n    ["tint_metallic_white_aqua"] = "metalliskt vitt aqua",\n    ["tint_metallic_red_yellow"] = "metalliskt r\xF6d gul",\n}\n',
+        "locales/tr.lua": `return {
+    -- Inventory
+    ["inventory"] = "Envanter ( A\u011F\u0131rl\u0131k %s / %s )",
+    ["use"] = "Kullan",
+    ["give"] = "Ver",
+    ["remove"] = "At",
+    ["return"] = "Geri Ver",
+    ["give_to"] = "\u015Euna Ver",
+    ["amount"] = "Miktar",
+    ["giveammo"] = "Mermi Ver",
+    ["amountammo"] = "Mermi Miktar\u0131",
+    ["noammo"] = "Yeterli De\u011Fil!",
+    ["gave_item"] = "Verilen %sx %s %s'ye",
+    ["received_item"] = "Al\u0131nan %sx %s %s'den",
+    ["gave_weapon"] = "Verilen %s %s'ye",
+    ["gave_weapon_ammo"] = "Verilen ~o~%sx %s %s i\xE7in %s'ye",
+    ["gave_weapon_withammo"] = "Verilen %s ile ~o~%sx %s %s'ye",
+    ["gave_weapon_hasalready"] = "%s Zaten Bir %s Sahip",
+    ["gave_weapon_noweapon"] = "%s O Silah\u0131 Sahip De\u011Fil",
+    ["received_weapon"] = "%s'den %s Al\u0131nd\u0131",
+    ["received_weapon_ammo"] = "%s'den %s i\xE7in ~o~%sx %s Al\u0131nd\u0131",
+    ["received_weapon_withammo"] = "%s'den %s ile ~o~%sx %s Al\u0131nd\u0131",
+    ["received_weapon_hasalready"] = "%s Size Bir %s Vermeye \xC7al\u0131\u015Ft\u0131, Ama Zaten Bu Silah\u0131n\u0131z Var",
+    ["received_weapon_noweapon"] = "%s Size Bir %s \u0130\xE7in Mermi Vermeye \xC7al\u0131\u015Ft\u0131, Ama Bu Silaha Sahip De\u011Filsiniz",
+    ["gave_account_money"] = "Verilen $%s (%s) %s'ye",
+    ["received_account_money"] = "Al\u0131nan $%s (%s) %s'den",
+    ["amount_invalid"] = "Ge\xE7ersiz Miktar",
+    ["players_nearby"] = "Yak\u0131nlarda Hi\xE7bir Oyuncu Yok",
+    ["ex_inv_lim"] = "\u0130\u015Flem Yap\u0131lamaz, %s A\u011F\u0131rl\u0131k S\u0131n\u0131r\u0131 A\u015F\u0131ld\u0131",
+    ["imp_invalid_quantity"] = "\u0130\u015Flem Yap\u0131lamaz, Miktar Ge\xE7ersiz",
+    ["imp_invalid_amount"] = "\u0130\u015Flem Yap\u0131lamaz, Miktar Ge\xE7ersiz",
+    ["threw_standard"] = "At\u0131lan %sx %s",
+    ["threw_account"] = "At\u0131lan $%s %s",
+    ["threw_weapon"] = "At\u0131lan %s",
+    ["threw_weapon_ammo"] = "At\u0131lan %s ile ~o~%sx %s",
+    ["threw_weapon_already"] = "Bu Silaha Zaten Sahipsiniz",
+    ["threw_cannot_pickup"] = "Envanter Dolu, Al\u0131namaz!",
+    ["threw_pickup_prompt"] = "Almak \u0130\xE7in E'ye Bas\u0131n",
+
+    -- Key mapping
+    ["keymap_showinventory"] = "Envanteri G\xF6ster",
+
+    -- Salary related
+    ["received_salary"] = "Maa\u015F\u0131n\u0131z \xD6dendi: $%s",
+    ["received_help"] = "Yard\u0131m \xC7ekiniz \xD6dendi: $%s",
+    ["company_nomoney"] = "\xC7al\u0131\u015Ft\u0131\u011F\u0131n\u0131z \u015Eirket Maa\u015F\u0131n\u0131z\u0131 \xD6deyebilecek Kadar Zengin De\u011Fil",
+    ["received_paycheck"] = "Maa\u015F Al\u0131nd\u0131",
+    ["bank"] = "Maze Bank",
+    ["account_bank"] = "Banka",
+    ["account_black_money"] = "Kirli Para",
+    ["account_money"] = "Nakit",
+
+    ["act_imp"] = "\u0130\u015Flem Yap\u0131lamaz",
+    ["in_vehicle"] = "\u0130\u015Flem Yap\u0131lamaz, Oyuncu Ara\xE7ta",
+    ["not_in_vehicle"] = "\u0130\u015Flem Yap\u0131lamaz, Oyuncu Ara\xE7ta De\u011Fil",
+
+    -- Commands
+    ["command_bring"] = "Oyuncuyu Yan\u0131n\u0131za Getir",
+    ["command_car"] = "Ara\xE7 Spawn Et",
+    ["command_car_car"] = "Ara\xE7 Modeli veya Hash",
+    ["command_cardel"] = "Yak\u0131nlardaki Ara\xE7lar\u0131 Kald\u0131r",
+    ["command_cardel_radius"] = "Belirtilen Yar\u0131\xE7ap \u0130\xE7indeki T\xFCm Ara\xE7lar\u0131 Kald\u0131r\u0131r",
+    ["command_repair"] = "Ara\xE7\u0131n\u0131z\u0131 Onar\u0131n",
+    ["command_repair_success"] = "Ara\xE7 Ba\u015Far\u0131yla Onar\u0131ld\u0131",
+    ["command_repair_success_target"] = "Bir Y\xF6netici Ara\xE7\u0131n\u0131z\u0131 Onard\u0131",
+    ["command_clear"] = "Sohbeti Temizle",
+    ["command_clearall"] = "T\xFCm Oyuncular \u0130\xE7in Sohbeti Temizle",
+    ["command_clearinventory"] = "Oyuncunun Envanterindeki T\xFCm E\u015Fyalar\u0131 Kald\u0131r",
+    ["command_clearloadout"] = "Oyuncunun Y\xFCk\xFCndeki T\xFCm Silahlar\u0131 Kald\u0131r",
+    ["command_freeze"] = "Bir Oyuncuyu Dondur",
+    ["command_unfreeze"] = "Bir Oyuncunun Dondurmas\u0131n\u0131 Kald\u0131r",
+    ["command_giveaccountmoney"] = "Bir Hesaba Para Ver",
+    ["command_giveaccountmoney_account"] = "Ekleme Yap\u0131lacak Hesap",
+    ["command_giveaccountmoney_amount"] = "Eklemek \u0130\xE7in Miktar",
+    ["command_giveaccountmoney_invalid"] = "Hesap Ad\u0131 Ge\xE7ersiz",
+    ["command_removeaccountmoney"] = "Bir Hesaptan Para \xC7ek",
+    ["command_removeaccountmoney_account"] = "\xC7ekilecek Hesap",
+    ["command_removeaccountmoney_amount"] = "\xC7ekilecek Miktar",
+    ["command_removeaccountmoney_invalid"] = "Hesap Ad\u0131 Ge\xE7ersiz",
+    ["command_giveitem"] = "Oyuncuya E\u015Fya Ver",
+    ["command_giveitem_item"] = "E\u015Fya Ad\u0131",
+    ["command_giveitem_count"] = "Miktar",
+    ["command_giveweapon"] = "Oyuncuya Silah Ver",
+    ["command_giveweapon_weapon"] = "Silah Ad\u0131",
+    ["command_giveweapon_ammo"] = "Mermi Miktar\u0131",
+    ["command_giveweapon_hasalready"] = "Oyuncu Zaten Bu Silaha Sahip",
+    ["command_giveweaponcomponent"] = "Oyuncuya Silah Par\xE7as\u0131 Ver",
+    ["command_giveweaponcomponent_component"] = "Par\xE7a Ad\u0131",
+    ["command_giveweaponcomponent_invalid"] = "Ge\xE7ersiz Silah Par\xE7as\u0131",
+    ["command_giveweaponcomponent_hasalready"] = "Oyuncu Zaten Bu Silah Par\xE7as\u0131na Sahip",
+    ["command_giveweaponcomponent_missingweapon"] = "Oyuncu Bu Silaha Sahip De\u011Fil",
+    ["command_goto"] = "Kendinizi Bir Oyuncuya Teleport Et",
+    ["command_kill"] = "Bir Oyuncuyu \xD6ld\xFCr",
+    ["command_save"] = "Bir Oyuncunun Verilerini Zorla Kaydet",
+    ["command_saveall"] = "T\xFCm Oyuncu Verilerini Zorla Kaydet",
+    ["command_setaccountmoney"] = "Bir Hesaptaki Paray\u0131 Ayarla",
+    ["command_setaccountmoney_amount"] = "Miktar",
+    ["command_setcoords"] = "Belirtilen Koordinatlara Teleport Ol",
+    ["command_setcoords_x"] = "X De\u011Feri",
+    ["command_setcoords_y"] = "Y De\u011Feri",
+    ["command_setcoords_z"] = "Z De\u011Feri",
+    ["command_setjob"] = "Bir Oyuncunun Mesle\u011Fini Ayarla",
+    ["command_setjob_job"] = "Ad\u0131",
+    ["command_setjob_grade"] = "Meslek Derecesi",
+    ["command_setjob_invalid"] = "Meslek, Derece veya Her Ikisi Ge\xE7ersiz",
+    ["command_setgroup"] = "Bir Oyuncunun Yetki Grubunu Ayarla",
+    ["command_setgroup_group"] = "Grup Ad\u0131",
+    ["commanderror_argumentmismatch"] = "Ge\xE7ersiz Arg\xFCman Say\u0131s\u0131 (Verilen %s, \u0130stenen %s)",
+    ["commanderror_argumentmismatch_number"] = "Ge\xE7ersiz Arg\xFCman #%s Veri Tipi (Verilen Metin, \u0130stenen Say\u0131)",
+    ["commanderror_argumentmismatch_string"] = "Ge\xE7ersiz Arg\xFCman #%s Veri Tipi (Verilen Say\u0131, \u0130stenen Metin)",
+    ["commanderror_argumentmismatch_positive_number"] = "Ge\xE7ersiz Arg\xFCman #%s Veri Tipi (Verilen Negatif/S\u0131f\u0131r, \u0130stenen Pozitif Say\u0131)",
+    ["commanderror_invaliditem"] = "Ge\xE7ersiz E\u015Fya",
+    ["commanderror_invalidweapon"] = "Ge\xE7ersiz Silah",
+    ["commanderror_console"] = "Komut Konsoldan \xC7al\u0131\u015Ft\u0131r\u0131lamaz",
+    ["commanderror_invalidcommand"] = "Ge\xE7ersiz Komut - /%s",
+    ["commanderror_invalidplayerid"] = "Belirtilen Oyuncu \xC7evrimd\u0131\u015F\u0131",
+    ["commandgeneric_playerid"] = "Oyuncunun Sunucu ID'si",
+    ["command_giveammo_noweapon_found"] = "%s O Silaha Sahip De\u011Fil",
+    ["command_giveammo_weapon"] = "Silah Ad\u0131",
+    ["command_giveammo_ammo"] = "Mermi Miktar\u0131",
+    ["tpm_nowaypoint"] = "Hi\xE7bir Yol \u0130\u015Fareti Ayarlanmad\u0131.",
+    ["tpm_success"] = "Ba\u015Far\u0131yla Teleport Edildi",
+
+    ["noclip_message"] = "Noclip %s Yap\u0131ld\u0131",
+    ["enabled"] = "~g~Aktif Edildi~s~",
+    ["disabled"] = "~r~Pasif Edildi~s~",
+
+    -- Locale settings
+    ["locale_digit_grouping_symbol"] = ",",
+    ["locale_currency"] = "\xA3%s",
+
+    -- Silahlar
+
+    -- Melee
+    ["weapon_dagger"] = "K\u0131l\u0131\xE7",
+    ["weapon_bat"] = "Sopa",
+    ["weapon_battleaxe"] = "Sava\u015F Balta",
+    ["weapon_bottle"] = "\u015Ei\u015Fe",
+    ["weapon_crowbar"] = "Kald\u0131ra\xE7",
+    ["weapon_flashlight"] = "Fener",
+    ["weapon_golfclub"] = "Golf Sopas\u0131",
+    ["weapon_hammer"] = "\xC7eki\xE7",
+    ["weapon_hatchet"] = "Balta",
+    ["weapon_knife"] = "B\u0131\xE7ak",
+    ["weapon_knuckle"] = "D\xFC\u011Fmeli Eldiven",
+    ["weapon_machete"] = "Machete",
+    ["weapon_nightstick"] = "Gece D\xFCrb\xFCn\xFC",
+    ["weapon_wrench"] = "Anahtar",
+    ["weapon_poolcue"] = "Havuz Sopas\u0131",
+    ["weapon_stone_hatchet"] = "Ta\u015F Balta",
+    ["weapon_switchblade"] = "D\xF6nme B\u0131\xE7a\u011F\u0131",
+
+    -- Tabancalar
+    ["weapon_appistol"] = "AP Tabancas\u0131",
+    ["weapon_ceramicpistol"] = "Seramik Tabanca",
+    ["weapon_combatpistol"] = "Sava\u015F Tabancas\u0131",
+    ["weapon_doubleaction"] = "\xC7ift Aksiyonlu Tabanca",
+    ["weapon_navyrevolver"] = "Donanma Revolveri",
+    ["weapon_flaregun"] = "I\u015F\u0131k Fi\u015Fe\u011Fi Tabancas\u0131",
+    ["weapon_gadgetpistol"] = "Cihaz Tabancas\u0131",
+    ["weapon_heavypistol"] = "A\u011F\u0131r Tabanca",
+    ["weapon_revolver"] = "Revolver",
+    ["weapon_revolver_mk2"] = "Revolver MK2",
+    ["weapon_marksmanpistol"] = "Ni\u015Fanc\u0131 Tabancas\u0131",
+    ["weapon_pistol"] = "Tabanca",
+    ["weapon_pistol_mk2"] = "Tabanca MK2",
+    ["weapon_pistol50"] = "Tabanca .50",
+    ["weapon_snspistol"] = "SNS Tabancas\u0131",
+    ["weapon_snspistol_mk2"] = "SNS Tabancas\u0131 MK2",
+    ["weapon_stungun"] = "Elektrik Tabancas\u0131",
+    ["weapon_raypistol"] = "Atomizer Tabancas\u0131",
+    ["weapon_vintagepistol"] = "Vintage Tabanca",
+
+    -- Av T\xFCfekleri
+    ["weapon_assaultshotgun"] = "Sald\u0131r\u0131 T\xFCfe\u011Fi",
+    ["weapon_autoshotgun"] = "Otomatik T\xFCfek",
+    ["weapon_bullpupshotgun"] = "Bullpup T\xFCfe\u011Fi",
+    ["weapon_combatshotgun"] = "Sava\u015F T\xFCfe\u011Fi",
+    ["weapon_dbshotgun"] = "\xC7ift Namlu T\xFCfe\u011Fi",
+    ["weapon_heavyshotgun"] = "A\u011F\u0131r T\xFCfek",
+    ["weapon_musket"] = "T\xFCfek",
+    ["weapon_pumpshotgun"] = "Pompal\u0131 T\xFCfek",
+    ["weapon_pumpshotgun_mk2"] = "Pompal\u0131 T\xFCfek MK2",
+    ["weapon_sawnoffshotgun"] = "K\u0131sa Namlu T\xFCfek",
+
+    -- SMG ve LMG
+    ["weapon_assaultsmg"] = "Sald\u0131r\u0131 SMG",
+    ["weapon_combatmg"] = "Sava\u015F MG",
+    ["weapon_combatmg_mk2"] = "Sava\u015F MG MK2",
+    ["weapon_combatpdw"] = "Sava\u015F PDW",
+    ["weapon_gusenberg"] = "Gusenberg Sweeper",
+    ["weapon_machinepistol"] = "Makine Tabancas\u0131",
+    ["weapon_mg"] = "MG",
+    ["weapon_microsmg"] = "Micro SMG",
+    ["weapon_minismg"] = "Mini SMG",
+    ["weapon_smg"] = "SMG",
+    ["weapon_smg_mk2"] = "SMG MK2",
+    ["weapon_raycarbine"] = "Unholy Hellbringer",
+
+    -- T\xFCfekler
+    ["weapon_advancedrifle"] = "\u0130leri D\xFCzey T\xFCfe\u011Fi",
+    ["weapon_assaultrifle"] = "Sald\u0131r\u0131 T\xFCfe\u011Fi",
+    ["weapon_assaultrifle_mk2"] = "Sald\u0131r\u0131 T\xFCfe\u011Fi MK2",
+    ["weapon_bullpuprifle"] = "Bullpup T\xFCfe\u011Fi",
+    ["weapon_bullpuprifle_mk2"] = "Bullpup T\xFCfe\u011Fi MK2",
+    ["weapon_carbinerifle"] = "Carbine T\xFCfe\u011Fi",
+    ["weapon_carbinerifle_mk2"] = "Carbine T\xFCfe\u011Fi MK2",
+    ["weapon_compactrifle"] = "Komple T\xFCfek",
+    ["weapon_militaryrifle"] = "Askeri T\xFCfek",
+    ["weapon_specialcarbine"] = "\xD6zel Carbine",
+    ["weapon_specialcarbine_mk2"] = "\xD6zel Carbine MK2",
+    ["weapon_heavyrifle"] = "A\u011F\u0131r T\xFCfek",
+
+    -- Keskin Ni\u015Fanc\u0131
+    ["weapon_heavysniper"] = "A\u011F\u0131r Keskin Ni\u015Fanc\u0131",
+    ["weapon_heavysniper_mk2"] = "A\u011F\u0131r Keskin Ni\u015Fanc\u0131 MK2",
+    ["weapon_marksmanrifle"] = "Keskin Ni\u015Fanc\u0131 T\xFCfe\u011Fi",
+    ["weapon_marksmanrifle_mk2"] = "Keskin Ni\u015Fanc\u0131 T\xFCfe\u011Fi MK2",
+    ["weapon_sniperrifle"] = "Keskin Ni\u015Fanc\u0131 T\xFCfe\u011Fi",
+
+    -- A\u011F\u0131r / Roket At\u0131c\u0131lar
+    ["weapon_compactlauncher"] = "Kompakt Roket At\u0131c\u0131",
+    ["weapon_firework"] = "Havai Fi\u015Fek At\u0131c\u0131",
+    ["weapon_grenadelauncher"] = "El Bombas\u0131 At\u0131c\u0131",
+    ["weapon_hominglauncher"] = "Hedefli Roket At\u0131c\u0131",
+    ["weapon_minigun"] = "Minigun",
+    ["weapon_railgun"] = "Rayl\u0131 Silah",
+    ["weapon_rpg"] = "Roket At\u0131c\u0131",
+    ["weapon_rayminigun"] = "Widowmaker",
+
+    -- Su\xE7lu Giri\u015Fimleri DLC
+    ["weapon_metaldetector"] = "Metal Dedekt\xF6r\xFC",
+    ["weapon_precisionrifle"] = "Keskin Ni\u015Fanc\u0131 T\xFCfe\u011Fi",
+    ["weapon_tactilerifle"] = "Hizmet Karabina",
+
+    -- Uyu\u015Fturucu Sava\u015Flar\u0131 DLC
+    ["weapon_candycane"] = "\u015Eeker Kam\u0131\u015F\u0131",
+    ["weapon_acidpackage"] = "Asit Paketi",
+    ["weapon_pistolxm3"] = "Pistol8 x3m",
+    ["weapon_railgunxm3"] = "Rayl\u0131 Silah",
+
+    -- At\u0131lan Silahlar
+    ["weapon_ball"] = "Beyzbol Topu",
+    ["weapon_bzgas"] = "BZ Gaz\u0131",
+    ["weapon_flare"] = "Duman Fi\u015Fe\u011Fi",
+    ["weapon_grenade"] = "El Bombas\u0131",
+    ["weapon_petrolcan"] = "Petrol Bidonu",
+    ["weapon_hazardcan"] = "Tehlikeli Bidon",
+    ["weapon_molotov"] = "Molotof Kokteyli",
+    ["weapon_proxmine"] = "Yak\u0131nl\u0131k May\u0131n\u0131",
+    ["weapon_pipebomb"] = "Boru Bombas\u0131",
+    ["weapon_snowball"] = "Karla Bombas\u0131",
+    ["weapon_stickybomb"] = "Yap\u0131\u015Fkan Bomba",
+    ["weapon_smokegrenade"] = "G\xF6zya\u015F\u0131 Gaz\u0131",
+
+    -- \xD6zel
+    ["weapon_fireextinguisher"] = "Yang\u0131n S\xF6nd\xFCr\xFCc\xFC",
+    ["weapon_digiscanner"] = "Dijital Taray\u0131c\u0131",
+    ["weapon_garbagebag"] = "\xC7\xF6p Torbas\u0131",
+    ["weapon_handcuffs"] = "Kelep\xE7e",
+    ["gadget_nightvision"] = "Gece G\xF6r\xFC\u015F\xFC",
+    ["gadget_parachute"] = "Para\u015F\xFCt",
+
+    -- Silah Bile\u015Fenleri
+    ["component_knuckle_base"] = "Temel Model",
+    ["component_knuckle_pimp"] = "Fahi\u015Fe",
+    ["component_knuckle_ballas"] = "Ballas",
+    ["component_knuckle_dollar"] = "Hustler",
+    ["component_knuckle_diamond"] = "Elmas",
+    ["component_knuckle_hate"] = "Nefret",
+    ["component_knuckle_love"] = "A\u015Fk",
+    ["component_knuckle_player"] = "Oyuncu",
+    ["component_knuckle_king"] = "Kral",
+    ["component_knuckle_vagos"] = "Vagos",
+
+    ["component_luxary_finish"] = "L\xFCks Silah Kaplama",
+
+    ["component_handle_default"] = "Varsay\u0131lan Sap",
+    ["component_handle_vip"] = "VIP Sap",
+    ["component_handle_bodyguard"] = "V\xFCcut Koruma Sap\u0131",
+
+    ["component_vip_finish"] = "VIP Kaplama",
+    ["component_bodyguard_finish"] = "V\xFCcut Koruma Kaplamas\u0131",
+
+    ["component_camo_finish"] = "Dijital Kamuflaj",
+    ["component_camo_finish2"] = "F\u0131r\xE7alama Kamuflaj",
+    ["component_camo_finish3"] = "Orman Kamuflaj\u0131",
+    ["component_camo_finish4"] = "Kafatas\u0131 Kamuflaj\u0131",
+    ["component_camo_finish5"] = "Sessanta Nove Kamuflaj\u0131",
+    ["component_camo_finish6"] = "Perseus Kamuflaj\u0131",
+    ["component_camo_finish7"] = "Leopar Kamuflaj\u0131",
+    ["component_camo_finish8"] = "Zebra Kamuflaj\u0131",
+    ["component_camo_finish9"] = "Geometrik Kamuflaj",
+    ["component_camo_finish10"] = "Boom Kamuflaj\u0131",
+    ["component_camo_finish11"] = "Patriot Kamuflaj\u0131",
+
+    ["component_camo_slide_finish"] = "Dijital Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish2"] = "F\u0131r\xE7alama Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish3"] = "Orman Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish4"] = "Kafatas\u0131 Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish5"] = "Sessanta Nove Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish6"] = "Perseus Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish7"] = "Leopar Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish8"] = "Zebra Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish9"] = "Geometrik Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish10"] = "Boom Kayma Kamuflaj\u0131",
+    ["component_camo_slide_finish11"] = "Patriot Kayma Kamuflaj\u0131",
+
+    ["component_clip_default"] = "Varsay\u0131lan \u015Earj\xF6r",
+    ["component_clip_extended"] = "Uzun \u015Earj\xF6r",
+    ["component_clip_drum"] = "Davul \u015Earj\xF6r",
+    ["component_clip_box"] = "Kutu \u015Earj\xF6r",
+
+    ["component_scope_holo"] = "Holografik D\xFCrb\xFCn",
+    ["component_scope_small"] = "K\xFC\xE7\xFCk D\xFCrb\xFCn",
+    ["component_scope_medium"] = "Orta D\xFCrb\xFCn",
+    ["component_scope_large"] = "B\xFCy\xFCk D\xFCrb\xFCn",
+    ["component_scope"] = "Montelenmi\u015F D\xFCrb\xFCn",
+    ["component_scope_advanced"] = "\u0130leri Seviye D\xFCrb\xFCn",
+    ["component_ironsights"] = "Ni\u015Fangah",
+
+    ["component_suppressor"] = "Susturucu",
+    ["component_compensator"] = "Dengeleyici",
+
+    ["component_muzzle_flat"] = "D\xFCz Namlu Freni",
+    ["component_muzzle_tactical"] = "Taktiksel Namlu Freni",
+    ["component_muzzle_fat"] = "Geni\u015F U\xE7lu Namlu Freni",
+    ["component_muzzle_precision"] = "Hassas Namlu Freni",
+    ["component_muzzle_heavy"] = "A\u011F\u0131r Namlu Freni",
+    ["component_muzzle_slanted"] = "E\u011Fik Namlu Freni",
+    ["component_muzzle_split"] = "B\xF6l\xFCnm\xFC\u015F Namlu Freni",
+    ["component_muzzle_squared"] = "Kare Namlu Freni",
+
+    ["component_flashlight"] = "Fener",
+    ["component_grip"] = "Tutamak",
+
+    ["component_barrel_default"] = "Varsay\u0131lan Namlu",
+    ["component_barrel_heavy"] = "A\u011F\u0131r Namlu",
+
+    ["component_ammo_tracer"] = "I\u015F\u0131k \u0130zli M\xFChimmat",
+    ["component_ammo_incendiary"] = "Alev Al\u0131c\u0131 M\xFChimmat",
+    ["component_ammo_hollowpoint"] = "Hollowpoint M\xFChimmat",
+    ["component_ammo_fmj"] = "FMJ M\xFChimmat",
+    ["component_ammo_armor"] = "Z\u0131rh Delici M\xFChimmat",
+    ["component_ammo_explosive"] = "Z\u0131rh Delici Alev Al\u0131c\u0131 M\xFChimmat",
+
+    ["component_shells_default"] = "Varsay\u0131lan M\xFChimmat",
+    ["component_shells_incendiary"] = "Dragon's Breath M\xFChimmat\u0131",
+    ["component_shells_armor"] = "\xC7elik Buckshot M\xFChimmat",
+    ["component_shells_hollowpoint"] = "Flechette M\xFChimmat",
+    ["component_shells_explosive"] = "Patlay\u0131c\u0131 Slug M\xFChimmat",
+
+    -- Silah Mermileri
+    ["ammo_rounds"] = "Di\u015Fli(ler)",
+    ["ammo_shells"] = "Kovan(lar)",
+    ["ammo_charge"] = "\u015Earj\xF6r",
+    ["ammo_petrol"] = "Yak\u0131t Galonlar\u0131",
+    ["ammo_firework"] = "Havai Fi\u015Fek(ler)",
+    ["ammo_rockets"] = "Roket(ler)",
+    ["ammo_grenadelauncher"] = "El Bombas\u0131(lar\u0131)",
+    ["ammo_grenade"] = "El Bombas\u0131(lar\u0131)",
+    ["ammo_stickybomb"] = "Bomba(lar)",
+    ["ammo_pipebomb"] = "Bomba(lar)",
+    ["ammo_smokebomb"] = "Bomba(lar)",
+    ["ammo_molotov"] = "Molotof Kokteyli(leri)",
+    ["ammo_proxmine"] = "May\u0131n(lar)",
+    ["ammo_bzgas"] = "Kutu(lar)",
+    ["ammo_ball"] = "Top(lar)",
+    ["ammo_snowball"] = "Kar Topu(lar\u0131)",
+    ["ammo_flare"] = "Duman Fi\u015Fek(leri)",
+    ["ammo_flaregun"] = "Duman Fi\u015Fek(leri)",
+
+    -- Silah Renkleri
+    ["tint_default"] = "Varsay\u0131lan Kaplama",
+    ["tint_green"] = "Ye\u015Fil Kaplama",
+    ["tint_gold"] = "Alt\u0131n Kaplama",
+    ["tint_pink"] = "Pembe Kaplama",
+    ["tint_army"] = "Ordu Kaplamas\u0131",
+    ["tint_lspd"] = "Mavi Kaplama",
+    ["tint_orange"] = "Turuncu Kaplama",
+    ["tint_platinum"] = "Platin Kaplama",
+}
+`,
+        "locales/zh-cn.lua": 'return {\n    -- Inventory\n    ["inventory"] = "\u7269\u54C1\u680F (\u8D1F\u91CD %s / %s)",\n    ["use"] = "\u4F7F\u7528",\n    ["give"] = "\u8D60\u4E88",\n    ["remove"] = "\u4E22\u5F03",\n    ["return"] = "\u8FD4\u56DE",\n    ["give_to"] = "\u8D60\u4E88\u76EE\u6807",\n    ["amount"] = "\u6570\u91CF",\n    ["giveammo"] = "\u8D60\u4E88\u5F39\u836F",\n    ["amountammo"] = "\u5F39\u836F\u6570\u91CF",\n    ["noammo"] = "\u5F39\u836F\u4E0D\u8DB3!",\n    ["gave_item"] = "\u60A8\u5C06 %s \u4E2A %s \u8D60\u4E88\u7ED9 %s",\n    ["received_item"] = "\u60A8\u6536\u5230 %s \u4E2A %s, \u7531 %s \u7684\u8D60\u4E88",\n    ["gave_weapon"] = "\u60A8\u5C06 %s \u8D60\u4E88\u7ED9 %s",\n    ["gave_weapon_ammo"] = "\u60A8\u5C06 ~o~%s \u53D1 %s %s \u8D60\u4E88 %s",\n    ["gave_weapon_withammo"] = "\u60A8\u628A %s \u53CA ~o~%s \u53D1 %s \u8D60\u4E88 %s",\n    ["gave_weapon_hasalready"] = "%s \u5DF2\u62E5\u6709 %s",\n    ["gave_weapon_noweapon"] = "%s \u672A\u62E5\u6709\u8BE5\u6B66\u5668",\n    ["received_weapon"] = "\u60A8\u6536\u5230 %s, \u7531 %s \u8D60",\n    ["received_weapon_ammo"] = "\u60A8\u6536\u5230 ~o~%s \u53D1 %s \u7684%s, \u7531 %s \u8D60\u4E88",\n    ["received_weapon_withammo"] = "\u60A8\u6536\u5230 %s \u53CA ~o~%s \u53D1 %s, \u7531 %s \u8D60\u4E88",\n    ["received_weapon_hasalready"] = "%s \u8BD5\u56FE\u8D60\u4E88\u60A8 %s, \u4F46\u60A8\u5DF2\u62E5\u6709",\n    ["received_weapon_noweapon"] = "%s \u8BD5\u56FE\u8D60\u4E88\u60A8 %s \u53D1\u5F39\u836F, \u4F46\u60A8\u672A\u88C5\u5907\u8BE5\u6B66\u5668",\n    ["gave_account_money"] = "\u60A8\u5C06 \xA5%s (%s) \u8F6C\u8D26\u81F3 %s",\n    ["received_account_money"] = "\u60A8\u6536\u5230 \xA5%s (%s), \u7531 %s \u8F6C\u8D26",\n    ["amount_invalid"] = "\u65E0\u6548\u6570\u91CF",\n    ["players_nearby"] = "\u9644\u8FD1\u6682\u65E0\u5176\u4ED6\u4EBA\u5458",\n    ["ex_inv_lim"] = "\u64CD\u4F5C\u5931\u8D25: \u8D85\u8FC7\u6700\u5927\u8D1F\u91CD\u9650\u5236 (%s)",\n    ["imp_invalid_quantity"] = "\u64CD\u4F5C\u5931\u8D25: \u65E0\u6548\u6570\u91CF\u8F93\u5165",\n    ["imp_invalid_amount"] = "\u64CD\u4F5C\u5931\u8D25: \u65E0\u6548\u91D1\u989D\u8F93\u5165",\n    ["threw_standard"] = "\u60A8\u5DF2\u4E22\u5F03 %s \u4E2A %s",\n    ["threw_account"] = "\u60A8\u5DF2\u4E22\u5F03 \xA5%s \u7B14 %s",\n    ["threw_weapon"] = "\u60A8\u5DF2\u4E22\u5F03\u6B66\u5668 %s",\n    ["threw_weapon_ammo"] = "\u60A8\u5DF2\u4E22\u5F03 %s \u53CA\u5176 ~o~%s \u53D1 %s",\n    ["threw_weapon_already"] = "\u60A8\u5DF2\u6301\u6709\u76F8\u540C\u6B66\u5668!",\n    ["threw_cannot_pickup"] = "\u7269\u54C1\u680F\u5DF2\u6EE1, \u65E0\u6CD5\u62FE\u53D6!",\n    ["threw_pickup_prompt"] = "\u952E\u4E0B [E] \u62FE\u53D6",\n\n    -- Key mapping\n    ["keymap_showinventory"] = "\u663E\u793A\u7269\u54C1\u680F",\n\n    -- Salary related\n    ["received_salary"] = "\u60A8\u5DF2\u6536\u5230\u5DE5\u8D44: \xA5%s",\n    ["received_help"] = "\u60A8\u5DF2\u9886\u53D6\u8865\u52A9\u91D1: \xA5%s",\n    ["company_nomoney"] = "\u96C7\u4F63\u65B9\u8D44\u91D1\u4E0D\u8DB3, \u65E0\u6CD5\u652F\u4ED8\u85AA\u8D44",\n    ["received_paycheck"] = "\u5DE5\u8D44\u5230\u8D26",\n    ["bank"] = "\u6885\u5179\u94F6\u884C",\n    ["account_bank"] = "\u94F6\u884C\u8D26\u6237",\n    ["account_black_money"] = "\u8D43\u6B3E",\n    ["account_money"] = "\u73B0\u91D1",\n\n    ["act_imp"] = "\u65E0\u6CD5\u6267\u884C\u8BE5\u64CD\u4F5C",\n    ["in_vehicle"] = "\u76EE\u6807\u5904\u4E8E\u8F7D\u5177\u4E2D, \u64CD\u4F5C\u4E2D\u6B62",\n    ["not_in_vehicle"] = "\u76EE\u6807\u672A\u5728\u8F7D\u5177\u5185, \u64CD\u4F5C\u4E2D\u6B62",\n\n    -- Commands\n    ["command_bring"] = "\u5C06\u76EE\u6807\u73A9\u5BB6\u4F20\u9001\u81F3\u5F53\u524D\u4F4D\u7F6E",\n    ["command_car"] = "\u751F\u6210\u6307\u5B9A\u8F7D\u5177",\n    ["command_car_car"] = "\u8F7D\u5177\u6A21\u578B\u540D\u79F0\u6216\u54C8\u5E0C\u503C",\n    ["command_cardel"] = "\u5220\u9664\u90BB\u8FD1\u8F7D\u5177",\n    ["command_cardel_radius"] = "\u5220\u9664\u534A\u5F84\u5185\u7684\u6240\u6709\u8F7D\u5177",\n    ["command_repair"] = "\u4FEE\u590D\u5F53\u524D\u8F7D\u5177",\n    ["command_repair_success"] = "\u8F7D\u5177\u5DF2\u4FEE\u590D\u5B8C\u6BD5",\n    ["command_repair_success_target"] = "\u7BA1\u7406\u5458\u5DF2\u4FEE\u590D\u60A8\u7684\u8F7D\u5177",\n    ["command_clear"] = "\u6E05\u9664\u5F53\u524D\u804A\u5929\u8BB0\u5F55",\n    ["command_clearall"] = "\u6E05\u9664\u5168\u670D\u73A9\u5BB6\u804A\u5929\u8BB0\u5F55",\n    ["command_clearinventory"] = "\u6E05\u7A7A\u76EE\u6807\u73A9\u5BB6\u7269\u54C1\u680F",\n    ["command_clearloadout"] = "\u79FB\u9664\u76EE\u6807\u73A9\u5BB6\u5168\u90E8\u6B66\u5668",\n    ["command_freeze"] = "\u51BB\u7ED3\u76EE\u6807\u73A9\u5BB6",\n    ["command_unfreeze"] = "\u89E3\u51BB\u76EE\u6807\u73A9\u5BB6",\n    ["command_giveaccountmoney"] = "\u5411\u6307\u5B9A\u8D26\u6237\u6CE8\u5165\u8D44\u91D1",\n    ["command_giveaccountmoney_account"] = "\u63A5\u6536\u8D26\u6237\u540D\u79F0",\n    ["command_giveaccountmoney_amount"] = "\u6CE8\u5165\u91D1\u989D (\xA5)",\n    ["command_giveaccountmoney_invalid"] = "\u9519\u8BEF: \u65E0\u6548\u8D26\u6237\u7C7B\u578B",\n    ["command_removeaccountmoney"] = "\u4ECE\u8D26\u6237\u6263\u9664\u8D44\u91D1",\n    ["command_removeaccountmoney_account"] = "\u6263\u6B3E\u8D26\u6237\u540D\u79F0",\n    ["command_removeaccountmoney_amount"] = "\u6263\u9664\u91D1\u989D (\xA5)",\n    ["command_removeaccountmoney_invalid"] = "\u8D26\u6237\u540D\u79F0\u65E0\u6548",\n    ["command_giveitem"] = "\u5411\u73A9\u5BB6\u53D1\u653E\u7269\u54C1",\n    ["command_giveitem_item"] = "\u7269\u54C1ID/\u540D\u79F0",\n    ["command_giveitem_count"] = "\u53D1\u653E\u6570\u91CF",\n    ["command_giveweapon"] = "\u6388\u4E88\u73A9\u5BB6\u6B66\u5668",\n    ["command_giveweapon_weapon"] = "\u6B66\u5668ID/\u540D\u79F0",\n    ["command_giveweapon_ammo"] = "\u914D\u53D1\u5F39\u836F\u91CF",\n    ["command_giveweapon_hasalready"] = "\u64CD\u4F5C\u5931\u8D25: \u73A9\u5BB6\u5DF2\u6301\u6709\u8BE5\u6B66\u5668",\n    ["command_giveweaponcomponent"] = "\u88C5\u914D\u6B66\u5668\u7EC4\u4EF6",\n    ["command_giveweaponcomponent_component"] = "\u7EC4\u4EF6\u540D\u79F0",\n    ["command_giveweaponcomponent_invalid"] = "\u9519\u8BEF: \u65E0\u6548\u7EC4\u4EF6",\n    ["command_giveweaponcomponent_hasalready"] = "\u64CD\u4F5C\u5931\u8D25: \u8BE5\u7EC4\u4EF6\u5DF2\u88C5\u914D",\n    ["command_giveweaponcomponent_missingweapon"] = "\u9519\u8BEF: \u73A9\u5BB6\u672A\u6301\u6709\u5BF9\u5E94\u6B66\u5668",\n    ["command_goto"] = "\u4F20\u9001\u5230\u76EE\u6807\u73A9\u5BB6\u4F4D\u7F6E",\n    ["command_kill"] = "\u5F3A\u5236\u51FB\u6740\u73A9\u5BB6",\n    ["command_save"] = "\u7ACB\u5373\u4FDD\u5B58\u73A9\u5BB6\u6570\u636E",\n    ["command_saveall"] = "\u5F3A\u5236\u6267\u884C\u5168\u670D\u6570\u636E\u5B58\u6863",\n    ["command_setaccountmoney"] = "\u8BBE\u5B9A\u8D26\u6237\u8D44\u91D1\u989D\u5EA6",\n    ["command_setaccountmoney_amount"] = "\u8BBE\u5B9A\u91D1\u989D (\xA5)",\n    ["command_setcoords"] = "\u4F20\u9001\u81F3\u5750\u6807\u70B9",\n    ["command_setcoords_x"] = "X\u5750\u6807\u503C",\n    ["command_setcoords_y"] = "Y\u5750\u6807\u503C",\n    ["command_setcoords_z"] = "Z\u5750\u6807\u503C",\n    ["command_setjob"] = "\u8C03\u6574\u73A9\u5BB6\u804C\u4E1A",\n    ["command_setjob_job"] = "\u804C\u4E1AID/\u540D\u79F0",\n    ["command_setjob_grade"] = "\u804C\u7EA7\u5E8F\u53F7",\n    ["command_setjob_invalid"] = "\u914D\u7F6E\u9519\u8BEF: \u65E0\u6548\u804C\u4E1A\u6216\u804C\u7EA7",\n    ["command_setgroup"] = "\u8BBE\u7F6E\u73A9\u5BB6\u6743\u9650\u7EC4\u522B",\n    ["command_setgroup_group"] = "\u7EC4\u522B\u540D\u79F0",\n    ["commanderror_argumentmismatch"] = "\u53C2\u6570\u6570\u91CF\u9519\u8BEF (\u9700%s\u4E2A, \u8F93\u5165%s\u4E2A)",\n    ["commanderror_argumentmismatch_number"] = "\u53C2\u6570#%s\u7C7B\u578B\u4E0D\u7B26 (\u9700\u6570\u5B57\u7C7B\u578B)",\n    ["commanderror_argumentmismatch_string"] = "\u53C2\u6570#%s\u7C7B\u578B\u4E0D\u7B26 (\u9700\u6587\u672C\u7C7B\u578B)",\n    ["commanderror_argumentmismatch_positive_number"] = "\u53C2\u6570#%s\u7C7B\u578B\u4E0D\u7B26 (\u4F20\u5165\u8D1F\u6570/\u96F6\uFF0C\u9700\u8981\u6B63\u6570)",\n    ["commanderror_invaliditem"] = "\u9519\u8BEF: \u65E0\u6548\u7269\u54C1\u6807\u8BC6",\n    ["commanderror_invalidweapon"] = "\u9519\u8BEF: \u65E0\u6548\u6B66\u5668\u6807\u8BC6",\n    ["commanderror_console"] = "\u63A7\u5236\u53F0\u65E0\u6CD5\u6267\u884C\u6B64\u6307\u4EE4",\n    ["commanderror_invalidcommand"] = "\u65E0\u6548\u6307\u4EE4: /%s",\n    ["commanderror_invalidplayerid"] = "\u76EE\u6807\u73A9\u5BB6\u4E0D\u5728\u7EBF",\n    ["commandgeneric_playerid"] = "\u73A9\u5BB6\u670D\u52A1\u5668ID",\n    ["commandgeneric_dimension"] = "\u7EF4\u5EA6ID",\n    ["command_giveammo_noweapon_found"] = "\u64CD\u4F5C\u5931\u8D25: %s\u672A\u88C5\u5907\u8BE5\u6B66\u5668",\n    ["command_giveammo_weapon"] = "\u76EE\u6807\u6B66\u5668\u540D\u79F0",\n    ["command_giveammo_ammo"] = "\u8865\u5145\u5F39\u836F\u91CF",\n    ["command_setdim"] = "\u5207\u6362\u73A9\u5BB6\u7EF4\u5EA6",\n    ["tpm_nowaypoint"] = "\u4F20\u9001\u5931\u8D25: \u672A\u8BBE\u7F6E\u8DEF\u5F84\u70B9",\n    ["tpm_success"] = "\u8DEF\u5F84\u70B9\u4F20\u9001\u5B8C\u6210",\n\n    ["noclip_message"] = "\u98DE\u884C\u6A21\u5F0F %s",\n    ["enabled"] = "~g~\u5DF2\u6FC0\u6D3B~s~",\n    ["disabled"] = "~r~\u5DF2\u7981\u7528~s~",\n\n    -- Locale settings\n    ["locale_digit_grouping_symbol"] = ",",\n    ["locale_currency"] = "\xA5%s",\n\n    -- Weapons\n\n    -- Melee\n    ["weapon_dagger"] = "\u53E4\u9A91\u5175\u5315\u9996",\n    ["weapon_bat"] = "\u68D2\u7403\u68CD",\n    ["weapon_battleaxe"] = "\u6218\u65A7",\n    ["weapon_bottle"] = "\u788E\u9152\u74F6",\n    ["weapon_crowbar"] = "\u64AC\u68CD",\n    ["weapon_flashlight"] = "\u624B\u7535\u7B52",\n    ["weapon_golfclub"] = "\u9AD8\u5C14\u592B\u7403\u6746",\n    ["weapon_hammer"] = "\u94C1\u9524",\n    ["weapon_hatchet"] = "\u624B\u65A7",\n    ["weapon_knife"] = "\u5C0F\u5200",\n    ["weapon_knuckle"] = "\u624B\u6307\u864E",\n    ["weapon_machete"] = "\u5F00\u5C71\u5200",\n    ["weapon_nightstick"] = "\u8B66\u68CD",\n    ["weapon_wrench"] = "\u7BA1\u94B3\u6273\u624B",\n    ["weapon_poolcue"] = "\u53F0\u7403\u6746",\n    ["weapon_stone_hatchet"] = "\u77F3\u65A7",\n    ["weapon_switchblade"] = "\u5F39\u7C27\u5200",\n\n    -- Handguns\n    ["weapon_appistol"] = "\u7A7F\u7532\u624B\u67AA",\n    ["weapon_ceramicpistol"] = "\u9676\u74F7\u624B\u67AA",\n    ["weapon_combatpistol"] = "\u6218\u6597\u624B\u67AA",\n    ["weapon_doubleaction"] = "\u53CC\u52A8\u5F0F\u5DE6\u8F6E\u624B\u67AA",\n    ["weapon_navyrevolver"] = "\u6D77\u519B\u5DE6\u8F6E\u624B\u67AA",\n    ["weapon_flaregun"] = "\u4FE1\u53F7\u67AA",\n    ["weapon_gadgetpistol"] = "\u4F69\u91CC\u514B\u624B\u67AA",\n    ["weapon_heavypistol"] = "\u91CD\u578B\u624B\u67AA",\n    ["weapon_revolver"] = "\u91CD\u578B\u5DE6\u8F6E\u624B\u67AA",\n    ["weapon_revolver_mk2"] = "\u91CD\u578B\u5DE6\u8F6E\u624B\u67AA-MK2",\n    ["weapon_marksmanpistol"] = "\u5C04\u624B\u624B\u67AA",\n    ["weapon_pistol"] = "\u624B\u67AA",\n    ["weapon_pistol_mk2"] = "\u624B\u67AA-MK2",\n    ["weapon_pistol50"] = "0.5-\u53E3\u5F84\u624B\u67AA",\n    ["weapon_snspistol"] = "\u52A3\u8D28\u624B\u67AA",\n    ["weapon_snspistol_mk2"] = "\u52A3\u8D28\u624B\u67AA-MK2",\n    ["weapon_stungun"] = "\u7535\u51FB\u67AA",\n    ["weapon_raypistol"] = "\u539F\u5B50\u5821\u624B\u67AA",\n    ["weapon_vintagepistol"] = "\u8001\u5F0F\u624B\u67AA",\n\n    -- Shotguns\n    ["weapon_assaultshotgun"] = "\u7A81\u51FB\u9730\u5F39\u67AA",\n    ["weapon_autoshotgun"] = "\u534A\u81EA\u52A8\u9730\u5F39\u67AA",\n    ["weapon_bullpupshotgun"] = "\u65E0\u6258\u5F0F\u9730\u5F39\u67AA",\n    ["weapon_combatshotgun"] = "\u6218\u6597\u9730\u5F39\u67AA",\n    ["weapon_dbshotgun"] = "\u53CC\u7BA1\u9730\u5F39\u67AA",\n    ["weapon_heavyshotgun"] = "\u91CD\u578B\u9730\u5F39\u67AA",\n    ["weapon_musket"] = "\u8001\u5F0F\u706B\u67AA",\n    ["weapon_pumpshotgun"] = "\u6CF5\u52A8\u5F0F\u9730\u5F39\u67AA",\n    ["weapon_pumpshotgun_mk2"] = "\u6CF5\u52A8\u5F0F\u9730\u5F39\u67AA-MK2",\n    ["weapon_sawnoffshotgun"] = "\u77ED\u7BA1\u9730\u5F39\u67AA",\n\n    -- SMG & LMG\n    ["weapon_assaultsmg"] = "\u7A81\u51FB\u51B2\u950B\u67AA",\n    ["weapon_combatmg"] = "\u6218\u6597\u673A\u67AA",\n    ["weapon_combatmg_mk2"] = "\u6218\u6597\u673A\u67AA-MK2",\n    ["weapon_combatpdw"] = "\u4F5C\u6218\u81EA\u536B\u51B2\u950B\u67AA",\n    ["weapon_gusenberg"] = "\u53E4\u68EE\u67CF\u51B2\u950B\u67AA",\n    ["weapon_machinepistol"] = "\u51B2\u950B\u624B\u67AA",\n    ["weapon_mg"] = "\u673A\u67AA",\n    ["weapon_microsmg"] = "\u5FAE\u578B\u51B2\u950B\u67AA",\n    ["weapon_minismg"] = "\u8FF7\u4F60\u51B2\u950B\u67AA",\n    ["weapon_smg"] = "\u51B2\u950B\u67AA",\n    ["weapon_smg_mk2"] = "\u51B2\u950B\u67AA-MK2",\n    ["weapon_raycarbine"] = "\u4E0D\u6D01\u4F7F\u8005",\n    ["weapon_tecpistol"] = "\u6218\u672F\u51B2\u950B\u67AA",\n\n    -- Rifles\n    ["weapon_advancedrifle"] = "\u9AD8\u7EA7\u6B65\u67AA",\n    ["weapon_assaultrifle"] = "\u7A81\u51FB\u6B65\u67AA",\n    ["weapon_assaultrifle_mk2"] = "\u7A81\u51FB\u6B65\u67AA-MK2",\n    ["weapon_bullpuprifle"] = "\u65E0\u6258\u5F0F\u6B65\u67AA",\n    ["weapon_bullpuprifle_mk2"] = "\u65E0\u6258\u5F0F\u6B65\u67AA-MK2",\n    ["weapon_carbinerifle"] = "\u5361\u5BBE\u6B65\u67AA",\n    ["weapon_carbinerifle_mk2"] = "\u5361\u5BBE\u6B65\u67AA-MK2",\n    ["weapon_compactrifle"] = "\u7D27\u51D1\u578B\u6B65\u67AA",\n    ["weapon_militaryrifle"] = "\u519B\u7528\u6B65\u67AA",\n    ["weapon_specialcarbine"] = "\u7279\u5236\u5361\u5BBE\u6B65\u67AA",\n    ["weapon_specialcarbine_mk2"] = "\u7279\u5236\u5361\u5BBE\u6B65\u67AA-MK2",\n    ["weapon_heavyrifle"] = "\u91CD\u578B\u6B65\u67AA",\n    ["weapon_battlerifle"] = "\u6218\u6597\u6B65\u67AA",\n\n    -- Sniper\n    ["weapon_heavysniper"] = "\u91CD\u578B\u72D9\u51FB\u6B65\u67AA",\n    ["weapon_heavysniper_mk2"] = "\u91CD\u578B\u72D9\u51FB\u6B65\u67AA-MK2",\n    ["weapon_marksmanrifle"] = "\u5C04\u624B\u6B65\u67AA",\n    ["weapon_marksmanrifle_mk2"] = "\u5C04\u624B\u6B65\u67AA-MK2",\n    ["weapon_sniperrifle"] = "\u72D9\u51FB\u6B65\u67AA",\n\n    -- Heavy / Launchers\n    ["weapon_compactlauncher"] = "\u7D27\u51D1\u578B\u69B4\u5F39\u53D1\u5C04\u5668",\n    ["weapon_firework"] = "\u70DF\u82B1\u53D1\u5C04\u5668",\n    ["weapon_grenadelauncher"] = "\u69B4\u5F39\u53D1\u5C04\u5668",\n    ["weapon_hominglauncher"] = "\u5236\u5BFC\u706B\u7BAD\u53D1\u5C04\u5668",\n    ["weapon_minigun"] = "\u706B\u795E\u673A\u67AA",\n    ["weapon_railgun"] = "\u7535\u78C1\u8F68\u9053\u70AE",\n    ["weapon_rpg"] = "\u706B\u7BAD\u70AE",\n    ["weapon_rayminigun"] = "\u5BE1\u5987\u5236\u9020\u8005",\n\n    -- Criminal Enterprises DLC\n    ["weapon_metaldetector"] = "\u91D1\u5C5E\u63A2\u6D4B\u5668",\n    ["weapon_precisionrifle"] = "\u7CBE\u786E\u6B65\u67AA",\n    ["weapon_tactilerifle"] = "\u5236\u5F0F\u5361\u5BBE\u6B65\u67AA",\n\n    -- Drug wars dlc\n    ["weapon_candycane"] = "\u7CD6\u679C\u624B\u6756",\n    ["weapon_acidpackage"] = "\u9178\u6DB2\u5305",\n    ["weapon_pistolxm3"] = "\u6218\u672F\u624B\u67AA-x3m",\n    ["weapon_railgunxm3"] = "\u7535\u78C1\u8F68\u9053\u70AE",\n\n    -- Chop Shop DLC\n    ["weapon_snowlauncher"] = "\u96EA\u7403\u53D1\u5C04\u5668",\n    ["weapon_hackingdevice"] = "\u9ED1\u5BA2\u8BBE\u5907",\n\n    -- Bottom Dollar Bounties DLC\n    ["weapon_stunrod"] = "\u7535\u51FB\u68D2",\n\n    -- Thrown\n    ["weapon_ball"] = "\u68D2\u7403",\n    ["weapon_bzgas"] = "\u6BD2\u6C14\u5F39",\n    ["weapon_flare"] = "\u4FE1\u53F7\u68D2",\n    ["weapon_grenade"] = "\u624B\u69B4\u5F39",\n    ["weapon_petrolcan"] = "\u6C7D\u6CB9\u6876",\n    ["weapon_hazardcan"] = "\u6709\u5BB3\u6C7D\u6CB9\u6876",\n    ["weapon_molotov"] = "\u6C7D\u6CB9\u5F39",\n    ["weapon_proxmine"] = "\u611F\u5E94\u5F0F\u5730\u96F7",\n    ["weapon_pipebomb"] = "\u571F\u88FD\u70B8\u5F48",\n    ["weapon_snowball"] = "\u96EA\u7403",\n    ["weapon_stickybomb"] = "\u9ECF\u5F39",\n    ["weapon_smokegrenade"] = "\u50AC\u6CEA\u74E6\u65AF",\n\n    -- Special\n    ["weapon_fireextinguisher"] = "\u706D\u706B\u5668",\n    ["weapon_digiscanner"] = "\u6570\u4F4D\u626B\u63CF\u4EEA",\n    ["weapon_garbagebag"] = "\u5783\u573E\u888B",\n    ["weapon_handcuffs"] = "\u624B\u94D0",\n    ["gadget_nightvision"] = "\u591C\u89C6\u4EEA",\n    ["gadget_parachute"] = "\u964D\u843D\u4F1E",\n\n    -- Weapon Components\n    ["component_knuckle_base"] = "\u57FA\u7840",\n    ["component_knuckle_pimp"] = "\u76AE\u6761\u5BA2",\n    ["component_knuckle_ballas"] = "\u5DF4\u62C9\u65AF\u5E2E",\n    ["component_knuckle_dollar"] = "\u66B4\u53D1\u6237",\n    ["component_knuckle_diamond"] = "\u94BB\u77F3\u738B",\n    ["component_knuckle_hate"] = "\u618E\u6076\u7360\u7259",\n    ["component_knuckle_love"] = "\u7231\u4E4B\u60E9\u6212",\n    ["component_knuckle_player"] = "\u60C5\u573A\u73A9\u5BB6",\n    ["component_knuckle_king"] = "\u738B\u8005\u4E4B\u7259",\n    ["component_knuckle_vagos"] = "\u7EF4\u6208\u65AF\u5E2E",\n\n    ["component_luxary_finish"] = "\u5962\u534E\u9540\u5C42",\n\n    ["component_handle_default"] = "\u6807\u51C6\u63E1\u628A",\n    ["component_handle_vip"] = "VIP\u4E13\u7528\u63E1\u628A",\n    ["component_handle_bodyguard"] = "\u4FDD\u9556\u6218\u672F\u63E1\u628A",\n\n    ["component_vip_finish"] = "VIP\u5B9A\u5236\u9540\u5C42",\n    ["component_bodyguard_finish"] = "\u62A4\u536B\u961F\u7279\u4F9B\u9540\u5C42",\n\n    ["component_camo_finish"] = "\u6570\u7801\u8FF7\u5F69",\n    ["component_camo_finish2"] = "\u7B14\u5237\u8FF7\u5F69",\n    ["component_camo_finish3"] = "\u4E1B\u6797\u8FF7\u5F69",\n    ["component_camo_finish4"] = "\u9AB7\u9AC5\u8FF7\u5F69",\n    ["component_camo_finish5"] = "69\u5F0F\u8FF7\u5F69",\n    ["component_camo_finish6"] = "\u82F1\u4ED9\u5EA7\u8FF7\u5F69",\n    ["component_camo_finish7"] = "\u8C79\u7EB9\u8FF7\u5F69",\n    ["component_camo_finish8"] = "\u6591\u9A6C\u8FF7\u5F69",\n    ["component_camo_finish9"] = "\u51E0\u4F55\u8FF7\u5F69",\n    ["component_camo_finish10"] = "\u7206\u70B8\u6548\u679C\u8FF7\u5F69",\n    ["component_camo_finish11"] = "\u7231\u56FD\u8005\u8FF7\u5F69",\n\n    ["component_camo_slide_finish"] = "\u6570\u7801\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish2"] = "\u7B14\u5237\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish3"] = "\u4E1B\u6797\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish4"] = "\u9AB7\u9AC5\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish5"] = "69\u5F0F\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish6"] = "\u82F1\u4ED9\u5EA7\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish7"] = "\u8C79\u7EB9\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish8"] = "\u6591\u9A6C\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish9"] = "\u51E0\u4F55\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish10"] = "\u7206\u70B8\u6548\u679C\u8FF7\u5F69\u6ED1\u8F68",\n    ["component_camo_slide_finish11"] = "\u7231\u56FD\u8005\u8FF7\u5F69\u6ED1\u8F68",\n\n    ["component_clip_default"] = "\u6807\u51C6\u5F39\u5323",\n    ["component_clip_extended"] = "\u6269\u5BB9\u5F39\u5323",\n    ["component_clip_drum"] = "\u5F39\u9F13",\n    ["component_clip_box"] = "\u5F39\u7BB1",\n\n    ["component_scope_holo"] = "\u5168\u606F\u7784\u5177",\n    ["component_scope_small"] = "\u7D27\u51D1\u578B\u7784\u5177",\n    ["component_scope_medium"] = "\u4E2D\u578B\u7784\u5177",\n    ["component_scope_large"] = "\u8FDC\u8DDD\u5149\u5B66\u7784\u5177",\n    ["component_scope"] = "\u6218\u672F\u5BFC\u8F68\u7784\u5177",\n    ["component_scope_advanced"] = "\u5148\u8FDB\u6218\u6597\u5149\u5B66\u7784\u5177",\n    ["component_ironsights"] = "\u673A\u68B0\u7784\u5177",\n\n    ["component_suppressor"] = "\u6D88\u97F3\u5668",\n    ["component_compensator"] = "\u67AA\u53E3\u8865\u507F\u5668",\n\n    ["component_muzzle_flat"] = "\u5E73\u9762\u5236\u9000\u5668",\n    ["component_muzzle_tactical"] = "\u6218\u672F\u5236\u9000\u5668",\n    ["component_muzzle_fat"] = "\u7C97\u9F7F\u5236\u9000\u5668",\n    ["component_muzzle_precision"] = "\u7CBE\u5BC6\u8865\u507F\u5668",\n    ["component_muzzle_heavy"] = "\u91CD\u578B\u67AA\u53E3\u5236\u9000\u5668",\n    ["component_muzzle_slanted"] = "\u659C\u5207\u5F0F\u67AA\u53E3\u5236\u9000\u5668",\n    ["component_muzzle_split"] = "\u5F00\u53C9\u5F0F\u67AA\u53E3\u5236\u9000\u5668",\n    ["component_muzzle_squared"] = "\u5E73\u9876\u5F0F\u67AA\u53E3\u5236\u9000\u5668",\n\n    ["component_flashlight"] = "\u6218\u672F\u624B\u7535",\n    ["component_grip"] = "\u63E1\u628A",\n\n    ["component_barrel_default"] = "\u6807\u51C6\u67AA\u7BA1",\n    ["component_barrel_heavy"] = "\u91CD\u578B\u67AA\u7BA1",\n\n    ["component_ammo_tracer"] = "\u66F3\u5149\u5F39\u836F",\n    ["component_ammo_incendiary"] = "\u71C3\u70E7\u5F39\u836F",\n    ["component_ammo_hollowpoint"] = "\u7A7A\u5C16\u5F39\u836F",\n    ["component_ammo_fmj"] = "\u5168\u91D1\u5C5E\u88AB\u7532\u5F39\u836F",\n    ["component_ammo_armor"] = "\u7A7F\u7532\u5F39\u836F",\n    ["component_ammo_explosive"] = "\u9AD8\u7206\u71C3\u70E7\u5F39\u836F",\n\n    ["component_shells_default"] = "\u6807\u51C6\u5F39\u58F3",\n    ["component_shells_incendiary"] = "\u9F99\u606F\u5F39",\n    ["component_shells_armor"] = "\u94A2\u73E0\u9730\u5F39",\n    ["component_shells_hollowpoint"] = "\u7BAD\u5F62\u5F39",\n    ["component_shells_explosive"] = "\u9AD8\u7206\u72EC\u5934\u5F39",\n\n    -- Weapon Ammo\n    ["ammo_rounds"] = "\u53D1\u5B50\u5F39",\n    ["ammo_shells"] = "\u53D1\u9730\u5F39",\n    ["ammo_charge"] = "\u53D1\u80FD\u91CF",\n    ["ammo_petrol"] = "\u5347\u71C3\u6599",\n    ["ammo_firework"] = "\u4E2A\u70DF\u82B1",\n    ["ammo_rockets"] = "\u679A\u706B\u7BAD\u5F39",\n    ["ammo_grenadelauncher"] = "\u679A\u69B4\u5F39",\n    ["ammo_grenade"] = "\u679A\u624B\u96F7",\n    ["ammo_stickybomb"] = "\u679A\u7C98\u6027\u70B8\u5F39",\n    ["ammo_pipebomb"] = "\u679A\u7BA1\u72B6\u70B8\u5F39",\n    ["ammo_smokebomb"] = "\u679A\u70DF\u96FE\u5F39",\n    ["ammo_molotov"] = "\u74F6\u71C3\u70E7\u74F6",\n    ["ammo_proxmine"] = "\u4E2A\u611F\u5E94\u5730\u96F7",\n    ["ammo_bzgas"] = "\u7F50\u6BD2\u6C14",\n    ["ammo_ball"] = "\u4E2A\u7403\u4F53",\n    ["ammo_snowball"] = "\u4E2A\u96EA\u7403",\n    ["ammo_flare"] = "\u53D1\u4FE1\u53F7\u5F39",\n    ["ammo_flaregun"] = "\u53D1\u4FE1\u53F7\u5F39",\n\n    -- Weapon Tints\n    ["tint_default"] = "\u9ED8\u8BA4\u6D82\u88C5",\n    ["tint_green"] = "\u7EFF\u8272\u6D82\u88C5",\n    ["tint_gold"] = "\u91D1\u8272\u6D82\u88C5",\n    ["tint_pink"] = "\u7C89\u8272\u6D82\u88C5",\n    ["tint_army"] = "\u8FF7\u5F69\u6D82\u88C5",\n    ["tint_lspd"] = "\u8B66\u7528\u84DD\u8272\u6D82\u88C5",\n    ["tint_orange"] = "\u6A59\u8272\u6D82\u88C5",\n    ["tint_platinum"] = "\u94C2\u91D1\u6D82\u88C5",\n    -- MK2 Weapon Tints\n    ["tint_classic_black"] = "\u7ECF\u5178\u9ED1",\n    ["tint_classic_gray"] = "\u7ECF\u5178\u7070",\n    ["tint_classic_two_tone"] = "\u7ECF\u5178\u53CC\u8272",\n    ["tint_classic_white"] = "\u7ECF\u5178\u767D",\n    ["tint_classic_beige"] = "\u7ECF\u5178\u7C73\u8272",\n    ["tint_classic_green"] = "\u7ECF\u5178\u7EFF",\n    ["tint_classic_blue"] = "\u7ECF\u5178\u84DD",\n    ["tint_classic_earth"] = "\u7ECF\u5178\u5927\u5730\u8272",\n    ["tint_classic_brown_black"] = "\u7ECF\u5178\u68D5\u9ED1",\n    ["tint_contrast_red"] = "\u5BF9\u6BD4\u7EA2",\n    ["tint_contrast_blue"] = "\u5BF9\u6BD4\u84DD",\n    ["tint_contrast_yellow"] = "\u5BF9\u6BD4\u9EC4",\n    ["tint_contrast_orange"] = "\u5BF9\u6BD4\u6A59",\n    ["tint_bold_pink"] = "\u70AB\u5F69\u7C89",\n    ["tint_bold_purple_yellow"] = "\u70AB\u5F69\u7D2B\u9EC4",\n    ["tint_bold_orange"] = "\u70AB\u5F69\u6A59",\n    ["tint_bold_green_purple"] = "\u70AB\u5F69\u7EFF\u7D2B",\n    ["tint_bold_red_feat"] = "\u70AB\u5F69\u7EA2\u7279\u8C03",\n    ["tint_bold_green_feat"] = "\u70AB\u5F69\u7EFF\u7279\u8C03",\n    ["tint_bold_cyan_feat"] = "\u70AB\u5F69\u9752\u7279\u8C03",\n    ["tint_bold_yellow_feat"] = "\u70AB\u5F69\u9EC4\u7279\u8C03",\n    ["tint_bold_red_white"] = "\u70AB\u5F69\u7EA2\u767D",\n    ["tint_bold_blue_white"] = "\u70AB\u5F69\u84DD\u767D",\n    ["tint_metallic_gold"] = "\u91D1\u5C5E\u91D1",\n    ["tint_metallic_platinum"] = "\u91D1\u5C5E\u94C2\u91D1",\n    ["tint_metallic_gray_lilac"] = "\u91D1\u5C5E\u7070\u7D2B\u8272",\n    ["tint_metallic_purple_lime"] = "\u91D1\u5C5E\u7D2B\u67E0\u8272",\n    ["tint_metallic_red"] = "\u91D1\u5C5E\u7EA2",\n    ["tint_metallic_green"] = "\u91D1\u5C5E\u7EFF",\n    ["tint_metallic_blue"] = "\u91D1\u5C5E\u84DD",\n    ["tint_metallic_white_aqua"] = "\u91D1\u5C5E\u767D\u6C34\u8272",\n    ["tint_metallic_red_yellow"] = "\u91D1\u5C5E\u7EA2\u9EC4\u8272"\n}\n',
+        "locale.js": "var locale = [];\n\n/**\n * Similar to the concept of gettext, this function returns the\n * localized string for the parsed string. The function supports\n * wrapping.\n *\n * @param {string} args The string we want localized\n * @return {string} Returns the localized string\n *\n */\nfunction _U() {\n	var args = arguments;\n	var string = args[0];\n\n	// Was a string specified?\n	if (!string) {\n		console.log('locale.js: no string was parsed');\n		return 'locale.js: no string was parsed';\n	}\n\n	// Has the locale file been set?\n	if (locale.length === 0) {\n		console.log('locale.js: no locale has been set');\n		return 'locale.js: no locale has been set';\n	}\n\n	// Does the translation exist?\n	if (!locale[string]) {\n		console.log('locale.js: translation [{0}] does not exist'.format(string));\n		return 'locale.js: translation [{0}] does not exist'.format(string);\n	}\n\n	// Do we need to format the string?\n	if (args.length === 1) {\n		return capitalize(locale[string]);\n	} else {\n		return formatString(args);\n	}\n}\n\nfunction formatString(args) {\n	var string = capitalize(locale[args[0]]);\n\n	for (var i = 1; i < args.length; i++) {\n		string = string.replace(/%s/, args[i]);\n	}\n\n	return string;\n}\n\nfunction capitalize(string) {\n	return string[0].toUpperCase() + string.slice(1);\n}\n\n// https://stackoverflow.com/a/35359503\nString.prototype.format = function () {\n	var args = arguments;\n	return this.replace(/{(\\d+)}/g, function (match, number) {\n		return typeof args[number] != 'undefined'\n			? args[number]\n			: match\n			;\n	});\n};\n",
+        "html/ui.html": '<html>\n    <head>\n        <link rel="stylesheet" href="css/app.css" />\n    </head>\n    <body>\n        <div id="inventory_notifications"></div>\n\n        <script src="nui://game/ui/jquery.js" type="text/javascript"><\/script>\n        <script src="js/mustache.min.js"><\/script>\n        <script src="js/app.js"><\/script>\n    </body>\n</html>\n',
+        "html/css/app.css": '@font-face {\n    font-family: "Pricedown";\n    src: url("../fonts/pdown.ttf");\n}\n\n@font-face {\n    font-family: "bankgothic";\n    src: url("../fonts/bankgothic.ttf");\n}\n\nhtml {\n    overflow: hidden;\n}\n\n#inventory_notifications {\n    font-family: bankgothic;\n    position: absolute;\n    right: 40;\n    bottom: 40;\n    font-size: 2em;\n    font-weight: bold;\n    color: #fff;\n    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;\n}\n\n.menu {\n    font-family: "Open Sans", sans-serif;\n    min-width: 400px;\n    min-height: 250px;\n    color: #fff;\n    position: absolute;\n    left: 40;\n    top: 0;\n}\n\n.menu .head {\n    font-family: "Open Sans", sans-serif;\n    font-size: 28px;\n    padding: 10px;\n    background: #1a1a1a;\n    border-bottom: 3px solid #bc1635;\n    border-radius: 10px 10px 0 0;\n    -webkit-border-radius: 10px 10px 0 0;\n    -moz-border-radius: 10px 10px 0 0;\n    -o-border-radius: 10px 10px 0 0;\n    box-shadow: inset 0px 1px 0 rgba(255, 255, 255, 0.28);\n    -webkit-box-shadow: inset 0px 1px 0 rgba(255, 255, 255, 0.28);\n    -moz-box-shadow: inset 0px 1px 0 rgba(255, 255, 255, 0.28);\n    -o-box-shadow: inset 0px 1px 0 rgba(255, 255, 255, 0.28);\n    box-shadow: 1px 1px 10px 4px rgba(0, 0, 0, 0.4);\n}\n\n.menu .head span {\n    font-family: "Pricedown";\n    font-size: 28px;\n    padding-left: 15px;\n    padding-top: 6px;\n}\n\n.menu .menu-items .menu-item {\n    font-family: "Open Sans", sans-serif;\n    font-size: 14px;\n    height: 40px;\n    display: block;\n    background-color: #f1f1f1;\n    box-shadow: inset 1px 0px 0px 1px #b8b8b8;\n    height: 32px;\n    line-height: 32px;\n    color: #3a3a3a;\n    text-align: center;\n}\n\n.menu .menu-items .menu-item.selected {\n    background-color: #ccc;\n}\n',
+        "html/js/mustache.min.js": `(function defineMustache(global, factory) {
+    if (typeof exports === "object" && exports && typeof exports.nodeName !== "string") {
+        factory(exports);
+    } else if (typeof define === "function" && define.amd) {
+        define(["exports"], factory);
+    } else {
+        global.Mustache = {};
+        factory(global.Mustache);
+    }
+})(this, function mustacheFactory(mustache) {
+    var objectToString = Object.prototype.toString;
+    var isArray =
+        Array.isArray ||
+        function isArrayPolyfill(object) {
+            return objectToString.call(object) === "[object Array]";
+        };
+    function isFunction(object) {
+        return typeof object === "function";
+    }
+    function typeStr(obj) {
+        return isArray(obj) ? "array" : typeof obj;
+    }
+    function escapeRegExp(string) {
+        return string.replace(/[\\-\\[\\]{}()*+?.,\\\\\\^$|#\\s]/g, "\\\\$&");
+    }
+    function hasProperty(obj, propName) {
+        return obj != null && typeof obj === "object" && propName in obj;
+    }
+    var regExpTest = RegExp.prototype.test;
+    function testRegExp(re, string) {
+        return regExpTest.call(re, string);
+    }
+    var nonSpaceRe = /\\S/;
+    function isWhitespace(string) {
+        return !testRegExp(nonSpaceRe, string);
+    }
+    var entityMap = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "/": "&#x2F;", "\`": "&#x60;", "=": "&#x3D;" };
+    function escapeHtml(string) {
+        return String(string).replace(/[&<>"'\`=\\/]/g, function fromEntityMap(s) {
+            return entityMap[s];
+        });
+    }
+    var whiteRe = /\\s*/;
+    var spaceRe = /\\s+/;
+    var equalsRe = /\\s*=/;
+    var curlyRe = /\\s*\\}/;
+    var tagRe = /#|\\^|\\/|>|\\{|&|=|!/;
+    function parseTemplate(template, tags) {
+        if (!template) return [];
+        var sections = [];
+        var tokens = [];
+        var spaces = [];
+        var hasTag = false;
+        var nonSpace = false;
+        function stripSpace() {
+            if (hasTag && !nonSpace) {
+                while (spaces.length) delete tokens[spaces.pop()];
+            } else {
+                spaces = [];
+            }
+            hasTag = false;
+            nonSpace = false;
+        }
+        var openingTagRe, closingTagRe, closingCurlyRe;
+        function compileTags(tagsToCompile) {
+            if (typeof tagsToCompile === "string") tagsToCompile = tagsToCompile.split(spaceRe, 2);
+            if (!isArray(tagsToCompile) || tagsToCompile.length !== 2) throw new Error("Invalid tags: " + tagsToCompile);
+            openingTagRe = new RegExp(escapeRegExp(tagsToCompile[0]) + "\\\\s*");
+            closingTagRe = new RegExp("\\\\s*" + escapeRegExp(tagsToCompile[1]));
+            closingCurlyRe = new RegExp("\\\\s*" + escapeRegExp("}" + tagsToCompile[1]));
+        }
+        compileTags(tags || mustache.tags);
+        var scanner = new Scanner(template);
+        var start, type, value, chr, token, openSection;
+        while (!scanner.eos()) {
+            start = scanner.pos;
+            value = scanner.scanUntil(openingTagRe);
+            if (value) {
+                for (var i = 0, valueLength = value.length; i < valueLength; ++i) {
+                    chr = value.charAt(i);
+                    if (isWhitespace(chr)) {
+                        spaces.push(tokens.length);
+                    } else {
+                        nonSpace = true;
+                    }
+                    tokens.push(["text", chr, start, start + 1]);
+                    start += 1;
+                    if (chr === "\\n") stripSpace();
+                }
+            }
+            if (!scanner.scan(openingTagRe)) break;
+            hasTag = true;
+            type = scanner.scan(tagRe) || "name";
+            scanner.scan(whiteRe);
+            if (type === "=") {
+                value = scanner.scanUntil(equalsRe);
+                scanner.scan(equalsRe);
+                scanner.scanUntil(closingTagRe);
+            } else if (type === "{") {
+                value = scanner.scanUntil(closingCurlyRe);
+                scanner.scan(curlyRe);
+                scanner.scanUntil(closingTagRe);
+                type = "&";
+            } else {
+                value = scanner.scanUntil(closingTagRe);
+            }
+            if (!scanner.scan(closingTagRe)) throw new Error("Unclosed tag at " + scanner.pos);
+            token = [type, value, start, scanner.pos];
+            tokens.push(token);
+            if (type === "#" || type === "^") {
+                sections.push(token);
+            } else if (type === "/") {
+                openSection = sections.pop();
+                if (!openSection) throw new Error('Unopened section "' + value + '" at ' + start);
+                if (openSection[1] !== value) throw new Error('Unclosed section "' + openSection[1] + '" at ' + start);
+            } else if (type === "name" || type === "{" || type === "&") {
+                nonSpace = true;
+            } else if (type === "=") {
+                compileTags(value);
+            }
+        }
+        openSection = sections.pop();
+        if (openSection) throw new Error('Unclosed section "' + openSection[1] + '" at ' + scanner.pos);
+        return nestTokens(squashTokens(tokens));
+    }
+    function squashTokens(tokens) {
+        var squashedTokens = [];
+        var token, lastToken;
+        for (var i = 0, numTokens = tokens.length; i < numTokens; ++i) {
+            token = tokens[i];
+            if (token) {
+                if (token[0] === "text" && lastToken && lastToken[0] === "text") {
+                    lastToken[1] += token[1];
+                    lastToken[3] = token[3];
+                } else {
+                    squashedTokens.push(token);
+                    lastToken = token;
+                }
+            }
+        }
+        return squashedTokens;
+    }
+    function nestTokens(tokens) {
+        var nestedTokens = [];
+        var collector = nestedTokens;
+        var sections = [];
+        var token, section;
+        for (var i = 0, numTokens = tokens.length; i < numTokens; ++i) {
+            token = tokens[i];
+            switch (token[0]) {
+                case "#":
+                case "^":
+                    collector.push(token);
+                    sections.push(token);
+                    collector = token[4] = [];
+                    break;
+                case "/":
+                    section = sections.pop();
+                    section[5] = token[2];
+                    collector = sections.length > 0 ? sections[sections.length - 1][4] : nestedTokens;
+                    break;
+                default:
+                    collector.push(token);
+            }
+        }
+        return nestedTokens;
+    }
+    function Scanner(string) {
+        this.string = string;
+        this.tail = string;
+        this.pos = 0;
+    }
+    Scanner.prototype.eos = function eos() {
+        return this.tail === "";
+    };
+    Scanner.prototype.scan = function scan(re) {
+        var match = this.tail.match(re);
+        if (!match || match.index !== 0) return "";
+        var string = match[0];
+        this.tail = this.tail.substring(string.length);
+        this.pos += string.length;
+        return string;
+    };
+    Scanner.prototype.scanUntil = function scanUntil(re) {
+        var index = this.tail.search(re),
+            match;
+        switch (index) {
+            case -1:
+                match = this.tail;
+                this.tail = "";
+                break;
+            case 0:
+                match = "";
+                break;
+            default:
+                match = this.tail.substring(0, index);
+                this.tail = this.tail.substring(index);
+        }
+        this.pos += match.length;
+        return match;
+    };
+    function Context(view, parentContext) {
+        this.view = view;
+        this.cache = { ".": this.view };
+        this.parent = parentContext;
+    }
+    Context.prototype.push = function push(view) {
+        return new Context(view, this);
+    };
+    Context.prototype.lookup = function lookup(name) {
+        var cache = this.cache;
+        var value;
+        if (cache.hasOwnProperty(name)) {
+            value = cache[name];
+        } else {
+            var context = this,
+                names,
+                index,
+                lookupHit = false;
+            while (context) {
+                if (name.indexOf(".") > 0) {
+                    value = context.view;
+                    names = name.split(".");
+                    index = 0;
+                    while (value != null && index < names.length) {
+                        if (index === names.length - 1) lookupHit = hasProperty(value, names[index]);
+                        value = value[names[index++]];
+                    }
+                } else {
+                    value = context.view[name];
+                    lookupHit = hasProperty(context.view, name);
+                }
+                if (lookupHit) break;
+                context = context.parent;
+            }
+            cache[name] = value;
+        }
+        if (isFunction(value)) value = value.call(this.view);
+        return value;
+    };
+    function Writer() {
+        this.cache = {};
+    }
+    Writer.prototype.clearCache = function clearCache() {
+        this.cache = {};
+    };
+    Writer.prototype.parse = function parse(template, tags) {
+        var cache = this.cache;
+        var tokens = cache[template];
+        if (tokens == null) tokens = cache[template] = parseTemplate(template, tags);
+        return tokens;
+    };
+    Writer.prototype.render = function render(template, view, partials) {
+        var tokens = this.parse(template);
+        var context = view instanceof Context ? view : new Context(view);
+        return this.renderTokens(tokens, context, partials, template);
+    };
+    Writer.prototype.renderTokens = function renderTokens(tokens, context, partials, originalTemplate) {
+        var buffer = "";
+        var token, symbol, value;
+        for (var i = 0, numTokens = tokens.length; i < numTokens; ++i) {
+            value = undefined;
+            token = tokens[i];
+            symbol = token[0];
+            if (symbol === "#") value = this.renderSection(token, context, partials, originalTemplate);
+            else if (symbol === "^") value = this.renderInverted(token, context, partials, originalTemplate);
+            else if (symbol === ">") value = this.renderPartial(token, context, partials, originalTemplate);
+            else if (symbol === "&") value = this.unescapedValue(token, context);
+            else if (symbol === "name") value = this.escapedValue(token, context);
+            else if (symbol === "text") value = this.rawValue(token);
+            if (value !== undefined) buffer += value;
+        }
+        return buffer;
+    };
+    Writer.prototype.renderSection = function renderSection(token, context, partials, originalTemplate) {
+        var self = this;
+        var buffer = "";
+        var value = context.lookup(token[1]);
+        function subRender(template) {
+            return self.render(template, context, partials);
+        }
+        if (!value) return;
+        if (isArray(value)) {
+            for (var j = 0, valueLength = value.length; j < valueLength; ++j) {
+                buffer += this.renderTokens(token[4], context.push(value[j]), partials, originalTemplate);
+            }
+        } else if (typeof value === "object" || typeof value === "string" || typeof value === "number") {
+            buffer += this.renderTokens(token[4], context.push(value), partials, originalTemplate);
+        } else if (isFunction(value)) {
+            if (typeof originalTemplate !== "string") throw new Error("Cannot use higher-order sections without the original template");
+            value = value.call(context.view, originalTemplate.slice(token[3], token[5]), subRender);
+            if (value != null) buffer += value;
+        } else {
+            buffer += this.renderTokens(token[4], context, partials, originalTemplate);
+        }
+        return buffer;
+    };
+    Writer.prototype.renderInverted = function renderInverted(token, context, partials, originalTemplate) {
+        var value = context.lookup(token[1]);
+        if (!value || (isArray(value) && value.length === 0)) return this.renderTokens(token[4], context, partials, originalTemplate);
+    };
+    Writer.prototype.renderPartial = function renderPartial(token, context, partials) {
+        if (!partials) return;
+        var value = isFunction(partials) ? partials(token[1]) : partials[token[1]];
+        if (value != null) return this.renderTokens(this.parse(value), context, partials, value);
+    };
+    Writer.prototype.unescapedValue = function unescapedValue(token, context) {
+        var value = context.lookup(token[1]);
+        if (value != null) return value;
+    };
+    Writer.prototype.escapedValue = function escapedValue(token, context) {
+        var value = context.lookup(token[1]);
+        if (value != null) return mustache.escape(value);
+    };
+    Writer.prototype.rawValue = function rawValue(token) {
+        return token[1];
+    };
+    mustache.name = "mustache.js";
+    mustache.version = "2.3.0";
+    mustache.tags = ["{{", "}}"];
+    var defaultWriter = new Writer();
+    mustache.clearCache = function clearCache() {
+        return defaultWriter.clearCache();
+    };
+    mustache.parse = function parse(template, tags) {
+        return defaultWriter.parse(template, tags);
+    };
+    mustache.render = function render(template, view, partials) {
+        if (typeof template !== "string") {
+            throw new TypeError('Invalid template! Template should be a "string" ' + 'but "' + typeStr(template) + '" was given as the first ' + "argument for mustache#render(template, view, partials)");
+        }
+        return defaultWriter.render(template, view, partials);
+    };
+    mustache.to_html = function to_html(template, view, partials, send) {
+        var result = mustache.render(template, view, partials);
+        if (isFunction(send)) {
+            send(result);
+        } else {
+            return result;
+        }
+    };
+    mustache.escape = escapeHtml;
+    mustache.Scanner = Scanner;
+    mustache.Context = Context;
+    mustache.Writer = Writer;
+    return mustache;
+});
+`,
+        "html/js/wrapper.js": '(() => {\n    let ESXWrapper = {};\n    ESXWrapper.MessageSize = 1024;\n    ESXWrapper.messageId = 0;\n\n    window.SendMessage = function (namespace, type, msg) {\n        ESXWrapper.messageId = ESXWrapper.messageId < 65535 ? ESXWrapper.messageId + 1 : 0;\n        const str = JSON.stringify(msg);\n\n        for (let i = 0; i < str.length; i++) {\n            let count = 0;\n            let chunk = "";\n\n            while (count < ESXWrapper.MessageSize && i < str.length) {\n                chunk += str[i];\n\n                count++;\n                i++;\n            }\n\n            i--;\n\n            const data = {\n                __type: type,\n                id: ESXWrapper.messageId,\n                chunk: chunk,\n            };\n\n            if (i === str.length - 1) data.end = true;\n\n            $.post("http://" + namespace + "/__chunk", JSON.stringify(data));\n        }\n    };\n})();\n',
+        "html/js/app.js": '(() => {\n    ESX = {};\n\n    ESX.inventoryNotification = function (add, label, count) {\n        let notif = "";\n\n        if (add) {\n            notif += "+";\n        } else {\n            notif += "-";\n        }\n\n        if (count) {\n            notif += count + " " + label;\n        } else {\n            notif += " " + label;\n        }\n\n        let elem = $("<div>" + notif + "</div>");\n        $("#inventory_notifications").append(elem);\n\n        $(elem)\n            .delay(3000)\n            .fadeOut(1000, function () {\n                elem.remove();\n            });\n    };\n\n    window.onData = (data) => {\n        if (data.action === "inventoryNotification") {\n            ESX.inventoryNotification(data.add, data.item, data.count);\n        }\n    };\n\n    window.onload = function (e) {\n        window.addEventListener("message", (event) => {\n            onData(event.data);\n        });\n    };\n})();\n',
+        "client/imports/class.lua": "local class = {}\nclass.__index = class\n\nfunction class:new(...)\n	local instance = setmetatable({}, self)\n	if instance.constructor then\n		local ret = instance:constructor(...)\n		if type(ret) == 'table' then\n			return ret\n		end\n	end\n	return instance\nend\n\nfunction Class(body, heritage)\n	local prototype = body or {}\n	prototype.__index = prototype\n	return setmetatable(prototype, heritage or class)\nend\n\nreturn Class"
+      }
+    },
     {
       "name": "esx_lib",
       "scripts": [
@@ -18487,186 +25905,6 @@ return xLib.verify
       }
     },
     {
-      "name": "example-caller",
-      "scripts": [],
-      "uiPage": null,
-      "files": [],
-      "fileContents": {}
-    },
-    {
-      "name": "example-hello",
-      "scripts": [],
-      "uiPage": null,
-      "files": [],
-      "fileContents": {}
-    },
-    {
-      "name": "oxmysql",
-      "scripts": [],
-      "uiPage": null,
-      "files": [
-        "lib/MySQL.lua"
-      ],
-      "fileContents": {
-        "lib/MySQL.lua": `local promise = promise
-local Await = Citizen.Await
-local resourceName = GetCurrentResourceName()
-local GetResourceState = GetResourceState
-
-local options = {
-	return_callback_errors = false
-}
-
-for i = 1, GetNumResourceMetadata(resourceName, 'mysql_option') do
-	local option = GetResourceMetadata(resourceName, 'mysql_option', i - 1)
-	options[option] = true
-end
-
-local function await(fn, query, parameters)
-	local p = promise.new()
-
-	fn(nil, query, parameters, function(result, error)
-		if error then
-			return p:reject(error)
-		end
-
-		p:resolve(result)
-	end, resourceName, true)
-
-	return Await(p)
-end
-
-local type = type
-local queryStore = {}
-
-local function safeArgs(query, parameters, cb, transaction)
-	local queryType = type(query)
-
-	if queryType == 'number' then
-		query = queryStore[query]
-		assert(query, "First argument received invalid query store reference")
-	elseif transaction then
-		if queryType ~= 'table' then
-			error(("First argument expected table, received '%s'"):format(query))
-		end
-	elseif queryType ~= 'string' then
-		error(("First argument expected string, received '%s'"):format(query))
-	end
-
-	if parameters then
-		local paramType = type(parameters)
-
-		if paramType ~= 'table' and paramType ~= 'function' then
-			error(("Second argument expected table or function, received '%s'"):format(parameters))
-		end
-
-		if paramType == 'function' or parameters.__cfx_functionReference then
-			cb = parameters
-			parameters = nil
-		end
-	end
-
-	if cb and parameters then
-		local cbType = type(cb)
-
-		if cbType ~= 'function' and (cbType == 'table' and not cb.__cfx_functionReference) then
-			error(("Third argument expected function, received '%s'"):format(cb))
-		end
-	end
-
-	return query, parameters, cb
-end
-
-local oxmysql = exports.oxmysql
-
-local mysql_method_mt = {
-	__call = function(self, query, parameters, cb)
-		query, parameters, cb = safeArgs(query, parameters, cb, self.method == 'transaction')
-		return oxmysql[self.method](nil, query, parameters, cb, resourceName, options.return_callback_errors)
-	end
-}
-
-local MySQL = setmetatable(MySQL or {}, {
-	__index = function(_, index)
-		return function(...)
-			return oxmysql[index](nil, ...)
-		end
-	end
-})
-
-for _, method in pairs({
-	'scalar', 'single', 'query', 'insert', 'update', 'prepare', 'transaction', 'rawExecute',
-}) do
-	MySQL[method] = setmetatable({
-		method = method,
-		await = function(query, parameters)
-			query, parameters = safeArgs(query, parameters, nil, method == 'transaction')
-			return await(oxmysql[method], query, parameters)
-		end
-	}, mysql_method_mt)
-end
-
-local alias = {
-	fetchAll = 'query',
-	fetchScalar = 'scalar',
-	fetchSingle = 'single',
-	insert = 'insert',
-	execute = 'update',
-	transaction = 'transaction',
-	prepare = 'prepare'
-}
-
-local alias_mt = {
-	__index = function(self, key)
-		if alias[key] then
-			local method = MySQL[alias[key]]
-			MySQL.Async[key] = method
-			MySQL.Sync[key] = method.await
-			alias[key] = nil
-			return self[key]
-		end
-	end
-}
-
-local function addStore(query, cb)
-	assert(type(query) == 'string', 'The SQL Query must be a string')
-
-	local storeN = #queryStore + 1
-	queryStore[storeN] = query
-
-	return cb and cb(storeN) or storeN
-end
-
-MySQL.Sync = setmetatable({ store = addStore }, alias_mt)
-MySQL.Async = setmetatable({ store = addStore }, alias_mt)
-
-local function onReady(cb)
-	while GetResourceState('oxmysql') ~= 'started' do
-		Wait(50)
-	end
-
-	oxmysql.awaitConnection()
-
-	return cb and cb() or true
-end
-
-MySQL.ready = setmetatable({
-	await = onReady
-}, {
-	__call = function(_, cb)
-		Citizen.CreateThreadNow(function() onReady(cb) end)
-	end,
-})
-
-function MySQL.startTransaction(cb)
-	return oxmysql:startTransaction(cb, resourceName)
-end
-
-_ENV.MySQL = MySQL
-`
-      }
-    },
-    {
       "name": "skinchanger",
       "scripts": [
         {
@@ -19364,6 +26602,186 @@ SkinChanger:Init()
 `
         }
       ],
+      "uiPage": null,
+      "files": [],
+      "fileContents": {}
+    },
+    {
+      "name": "oxmysql",
+      "scripts": [],
+      "uiPage": null,
+      "files": [
+        "lib/MySQL.lua"
+      ],
+      "fileContents": {
+        "lib/MySQL.lua": `local promise = promise
+local Await = Citizen.Await
+local resourceName = GetCurrentResourceName()
+local GetResourceState = GetResourceState
+
+local options = {
+	return_callback_errors = false
+}
+
+for i = 1, GetNumResourceMetadata(resourceName, 'mysql_option') do
+	local option = GetResourceMetadata(resourceName, 'mysql_option', i - 1)
+	options[option] = true
+end
+
+local function await(fn, query, parameters)
+	local p = promise.new()
+
+	fn(nil, query, parameters, function(result, error)
+		if error then
+			return p:reject(error)
+		end
+
+		p:resolve(result)
+	end, resourceName, true)
+
+	return Await(p)
+end
+
+local type = type
+local queryStore = {}
+
+local function safeArgs(query, parameters, cb, transaction)
+	local queryType = type(query)
+
+	if queryType == 'number' then
+		query = queryStore[query]
+		assert(query, "First argument received invalid query store reference")
+	elseif transaction then
+		if queryType ~= 'table' then
+			error(("First argument expected table, received '%s'"):format(query))
+		end
+	elseif queryType ~= 'string' then
+		error(("First argument expected string, received '%s'"):format(query))
+	end
+
+	if parameters then
+		local paramType = type(parameters)
+
+		if paramType ~= 'table' and paramType ~= 'function' then
+			error(("Second argument expected table or function, received '%s'"):format(parameters))
+		end
+
+		if paramType == 'function' or parameters.__cfx_functionReference then
+			cb = parameters
+			parameters = nil
+		end
+	end
+
+	if cb and parameters then
+		local cbType = type(cb)
+
+		if cbType ~= 'function' and (cbType == 'table' and not cb.__cfx_functionReference) then
+			error(("Third argument expected function, received '%s'"):format(cb))
+		end
+	end
+
+	return query, parameters, cb
+end
+
+local oxmysql = exports.oxmysql
+
+local mysql_method_mt = {
+	__call = function(self, query, parameters, cb)
+		query, parameters, cb = safeArgs(query, parameters, cb, self.method == 'transaction')
+		return oxmysql[self.method](nil, query, parameters, cb, resourceName, options.return_callback_errors)
+	end
+}
+
+local MySQL = setmetatable(MySQL or {}, {
+	__index = function(_, index)
+		return function(...)
+			return oxmysql[index](nil, ...)
+		end
+	end
+})
+
+for _, method in pairs({
+	'scalar', 'single', 'query', 'insert', 'update', 'prepare', 'transaction', 'rawExecute',
+}) do
+	MySQL[method] = setmetatable({
+		method = method,
+		await = function(query, parameters)
+			query, parameters = safeArgs(query, parameters, nil, method == 'transaction')
+			return await(oxmysql[method], query, parameters)
+		end
+	}, mysql_method_mt)
+end
+
+local alias = {
+	fetchAll = 'query',
+	fetchScalar = 'scalar',
+	fetchSingle = 'single',
+	insert = 'insert',
+	execute = 'update',
+	transaction = 'transaction',
+	prepare = 'prepare'
+}
+
+local alias_mt = {
+	__index = function(self, key)
+		if alias[key] then
+			local method = MySQL[alias[key]]
+			MySQL.Async[key] = method
+			MySQL.Sync[key] = method.await
+			alias[key] = nil
+			return self[key]
+		end
+	end
+}
+
+local function addStore(query, cb)
+	assert(type(query) == 'string', 'The SQL Query must be a string')
+
+	local storeN = #queryStore + 1
+	queryStore[storeN] = query
+
+	return cb and cb(storeN) or storeN
+end
+
+MySQL.Sync = setmetatable({ store = addStore }, alias_mt)
+MySQL.Async = setmetatable({ store = addStore }, alias_mt)
+
+local function onReady(cb)
+	while GetResourceState('oxmysql') ~= 'started' do
+		Wait(50)
+	end
+
+	oxmysql.awaitConnection()
+
+	return cb and cb() or true
+end
+
+MySQL.ready = setmetatable({
+	await = onReady
+}, {
+	__call = function(_, cb)
+		Citizen.CreateThreadNow(function() onReady(cb) end)
+	end,
+})
+
+function MySQL.startTransaction(cb)
+	return oxmysql:startTransaction(cb, resourceName)
+end
+
+_ENV.MySQL = MySQL
+`
+      }
+    },
+    {
+      "name": "example-caller",
+      "scripts": [],
+      "uiPage": null,
+      "files": [],
+      "fileContents": {}
+    },
+    {
+      "name": "example-hello",
+      "scripts": [],
       "uiPage": null,
       "files": [],
       "fileContents": {}
@@ -20102,6 +27520,26 @@ end
 
 // client/boot.entry.js
 var vm = createFengariVM();
+var log2 = (...a) => {
+  try {
+    alt.log(...a);
+  } catch {
+  }
+  try {
+    console.log(...a);
+  } catch {
+  }
+};
+var logError2 = (...a) => {
+  try {
+    alt.logError(...a);
+  } catch {
+  }
+  try {
+    console.error(...a);
+  } catch {
+  }
+};
 var rt = createFiveMClientRuntime({
   vm,
   alt,
@@ -20109,11 +27547,15 @@ var rt = createFiveMClientRuntime({
   payload: PAYLOAD,
   preludeSrc: PRELUDE_SRC,
   config: { convars: PAYLOAD.convars || {} },
-  log: (...a) => alt.log(...a),
-  logError: (...a) => alt.logError(...a)
+  log: log2,
+  logError: logError2
 });
 rt.boot().catch((e) => {
-  alt.logError("[fivem-client] boot failed:", e && e.message || e);
+  logError2("[fivem-client] boot failed:", e && e.message || e);
+  try {
+    if (typeof alt.emitServer === "function") alt.emitServer("__fivem:ready", false);
+  } catch {
+  }
 });
 /**
 @license MIT

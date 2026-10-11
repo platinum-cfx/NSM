@@ -113,7 +113,10 @@ export function wireFivemClients({ alt, runtime, log = () => {}, logError = () =
     stateSync.snapshotFor(player);
     log(`fivem-client ready: player ${player.id} (${player.name || 'unknown'})`);
   };
-  alt.onClient('__fivem:ready', (player) => sendInit(player));
+  alt.onClient('__fivem:ready', (player, ok) => {
+    if (ok === false) logError(`fivem-client: player ${player.id} booted WITH ERRORS — check the client log for [fivem-client] lines`);
+    sendInit(player);
+  });
 
   // ---- disconnect: drop the stored bag (alt:V removes synced meta itself) ----
   alt.on('playerDisconnect', (player) => {

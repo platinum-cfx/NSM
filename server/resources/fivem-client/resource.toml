@@ -3,5 +3,6 @@ type = 'js'
 client-main = 'client.js'
 client-files = [
     'client.js',
+    'ui/es_extended/ui.html',
     'ui/esx_lib/medal.html'
 ]

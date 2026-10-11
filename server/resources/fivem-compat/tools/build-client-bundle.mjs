@@ -33,7 +33,13 @@ function arg(name, dflt) {
 }
 
 const OUT = path.resolve(arg('--out', path.join(ROOT, '..', 'fivem-client')));
-const RESDIR = path.resolve(arg('--resdir', path.join(ROOT, 'fivem_resources')));
+// Default to the DEPLOYED FiveM resources (server/fivem_resources — includes
+// [core]/es_extended etc.). The in-repo fixtures under fivem-compat/fivem_resources
+// are only a fallback: building from them once shipped a client bundle with no
+// es_extended in it, which meant players got free-roam with no ESX client.
+const DEPLOYED = path.join(ROOT, '..', '..', 'fivem_resources');
+const RESDIR = path.resolve(arg('--resdir',
+  fs.existsSync(path.join(DEPLOYED, '[core]')) ? DEPLOYED : path.join(ROOT, 'fivem_resources')));
 const ESBUILD = arg('--esbuild', 'npx --yes esbuild@0.28.2');
 
 const mock = makeMockAlt();
@@ -55,10 +61,13 @@ for (const entry of fs.readdirSync(RESDIR, { withFileTypes: true })) {
     found.push([entry.name, path.join(RESDIR, entry.name)]);
   }
 }
-for (const [name, dir] of found.sort((a, b) => a[0].localeCompare(b[0]))) {
-  await rt.loadResource(name, dir);
-  loaded.push(name);
-}
+// loadAll = dependency-ordered loading (manifest `dependencies` + @imports).
+// Loading alphabetically here once broke es_extended: it loads before esx_lib,
+// its '@esx_lib/imports.lua' import fails, the resource is marked FAILED and
+// silently drops out of the client payload — players then get free-roam with
+// no ESX client code at all.
+const ordered = await rt.loadAll(found);
+loaded.push(...ordered.filter((r) => r.status === 'running').map((r) => r.name));
 
 const payload = rt.buildClientPayload();
 console.log(`[build-client] loaded ${loaded.length} resource(s): ${loaded.join(', ')}`);

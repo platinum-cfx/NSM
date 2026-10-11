@@ -1003,7 +1003,12 @@ function __makeEnv(name)
   end
   env.files = function(v) addfile(v) end
   env.file = function(v) addfile(v) end
-  env.ui_page = function(v) manifest.ui_page = tostring(v) end
+  env.ui_page = function(v)
+    -- FiveM accepts both ui_page 'x.html' and ui_page { 'x.html' } (esx-legacy
+    -- ships the table form) — unwrap a single-element table like it does.
+    if type(v) == 'table' and #v == 1 then v = v[1] end
+    manifest.ui_page = tostring(v)
+  end
   for _, d in ipairs({
     'provide', 'replace_script', 'escrow_ignore',
     'use_experimental_fxv2_oal', 'is_master_manifest',

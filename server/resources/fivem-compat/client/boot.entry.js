@@ -16,6 +16,9 @@ import { PRELUDE_SRC } from './gen/prelude.gen.js';
 // (see docs/CLIENT_COMPATIBILITY.md — needs on-device verification).
 const vm = createFengariVM();
 
+const log = (...a) => { try { alt.log(...a); } catch {} try { console.log(...a); } catch {} };
+const logError = (...a) => { try { alt.logError(...a); } catch {} try { console.error(...a); } catch {} };
+
 const rt = createFiveMClientRuntime({
   vm,
   alt,
@@ -23,10 +26,13 @@ const rt = createFiveMClientRuntime({
   payload: PAYLOAD,
   preludeSrc: PRELUDE_SRC,
   config: { convars: PAYLOAD.convars || {} },
-  log: (...a) => alt.log(...a),
-  logError: (...a) => alt.logError(...a),
+  log,
+  logError,
 });
 
 rt.boot().catch((e) => {
-  alt.logError('[fivem-client] boot failed:', (e && e.message) || e);
+  logError('[fivem-client] boot failed:', (e && e.message) || e);
+  // report to the server even on failure — otherwise the server console has
+  // no sign the client resource is alive at all
+  try { if (typeof alt.emitServer === 'function') alt.emitServer('__fivem:ready', false); } catch {}
 });
