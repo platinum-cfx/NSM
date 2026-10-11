@@ -23,6 +23,19 @@ $requiredSdk = 'c150769'   # alt:V 16.4.39 (what gtamp-server.exe / altv-server.
 
 Write-Host "== NSM js-module fixer ==" -ForegroundColor Cyan
 
+# Known-good pair for SDK #c150769 (alt:V 16.4.31) — committed to this repo.
+$goodJsHash   = '717f4a55990d56f95f3a6005485965843f8b20b6'
+$goodNodeHash = '3fdf239aa2ec19c38b14b6645d82d8caa7d1d58e'
+$jsPath   = Join-Path $root 'modules\js-module\js-module.dll'
+$nodePath = Join-Path $root 'modules\js-module\libnode.dll'
+
+$jsOk   = (Test-Path $jsPath)   -and ((Get-FileHash $jsPath -Algorithm SHA1).Hash.ToLower() -eq $goodJsHash)
+$nodeOk = (Test-Path $nodePath) -and ((Get-FileHash $nodePath -Algorithm SHA1).Hash.ToLower() -eq $goodNodeHash)
+if ($jsOk -and $nodeOk) {
+    Write-Host "   js-module.dll + libnode.dll are already the official 16.4.31 / SDK #c150769 builds - nothing to do." -ForegroundColor Green
+    exit 0
+}
+
 Write-Host "1. Fetching official js-module info from alt:V CDN..."
 $info = Invoke-RestMethod 'https://cdn.alt-mp.com/js-module/release/x64_win32/update.json'
 
