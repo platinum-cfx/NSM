@@ -80,7 +80,7 @@ connectionQueue = false
 # sendPlayerNames = true
 
 # Spawn player automatically at 0,0,71 after connect
-spawnAfterConnect = false
+spawnAfterConnect = true
 
 # An array of all resources that should be loaded
 resources = [ 'gtamp-online', 'vmenu' ]

@@ -513,4 +513,9 @@
 
   // Initial state: hidden until toggled by player
   renderMenu();
+  try {
+    if (typeof alt !== 'undefined' && alt.emit) {
+      alt.emit('vmenu:ready');
+    }
+  } catch (e) {}
 })();

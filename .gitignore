@@ -1,0 +1,8 @@
+# Binaries over 100MB (hosted on GitHub Releases v1.0.1)
+libnode.dll
+*/libnode.dll
+*/*/libnode.dll
+
+# Node modules & scratch
+node_modules/
+*.log

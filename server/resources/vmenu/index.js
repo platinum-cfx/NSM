@@ -1,4 +1,4 @@
-import alt from 'alt-server';
+import * as alt from 'alt-server';
 
 // Track spawned vehicles per player
 const playerVehicles = new Map();
@@ -64,7 +64,7 @@ alt.onClient('vmenu:setPed', (player, modelName) => {
 alt.onClient('vmenu:healPlayer', (player) => {
   if (!player || !player.valid) return;
   player.health = 200;
-  player.clearBloodDamage();
+  try { player.clearBloodDamage(); } catch (e) {}
   alt.emitClient(player, 'vmenu:notify', '~g~Player health restored.');
 });
 
