@@ -109,10 +109,13 @@ Auth tokens that exist today:
 qb-core/ESX resource is executed as: fxmanifest.lua → manifest v2 parser → Lua scripts
 → fork-syntax transform (backtick keys, `?.`, compound assignment) → wasmoon VM with a
 FiveM-shaped `_G` (Citizen, events, exports, natives stubs, statebag proxy). Frameworks
-verified loading clean under this path as of `a82d23e`: qb-core (19 scripts), esx_lib +
-es_extended (27 scripts). Cross-resource `exports` today resolve per-shim-instance in JS
-and per-VM in Lua — **live cross-resource exports and the single-VM runtime are the next
-build item** (design recorded in `docs/RUNTIME_DECISION.md`).
+verified loading clean as of v3 (`6af03b7`): qb-core (12 shared + 7 server scripts),
+esx_lib + es_extended (27 scripts). Since v3 all resources share **one** wasmoon VM with
+per-resource environment tables, and cross-resource exports are **live direct calls** —
+`exports['qb-core']:GetCoreObject()` returns the real table (functions, identity, shared
+mutations). Startup is dependency-ordered (`loadAll()`), and unsupported manifest
+directives are reported rather than silently ignored. Runtime design record:
+`docs/RUNTIME_DECISION.md`.
 
 ## 5. Build/packaging pipeline (as shipped)
 

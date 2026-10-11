@@ -88,9 +88,9 @@ Legend: **Tested** = executed and verified in this workspace with a repeatable c
 | FiveM compat | Lua runtime (wasmoon) + fork-syntax transform | Tested + Shipped | 46/46 unit suite; `tools/load-real.mjs`; lua-transform.js (v2 backward-bracket-matching walker) |
 | FiveM compat | qb-core load | **Tested** | 12 shared + 7 server scripts, zero errors |
 | FiveM compat | esx_lib + es_extended load | **Tested** | 27 scripts, zero errors; required load()-wrap + `__transformLua` bridge |
-| FiveM compat | Cross-resource live exports (`exports['qb-core']:GetCoreObject()` → live table) | **Missing** | Next build item; design frozen (see RUNTIME_DECISION.md §4) |
-| FiveM compat | Dependency-ordered resource loading | **Missing** | Current loads are alphabetical; `@`-import targets must load first |
-| FiveM compat | Unsupported manifest directives diagnostics | **Missing** | Unknown fxmanifest directives currently no-op silently (acceptance-criteria gap) |
+| FiveM compat | Cross-resource live exports (`exports['qb-core']:GetCoreObject()` → live table) | **Tested + Shipped** | v3 `6af03b7`: 17/17 live-export checks vs real qb-core + es_extended (`tools/live-exports-check.mjs`) — functions callable, identity preserved, mutations shared, source propagates |
+| FiveM compat | Dependency-ordered resource loading | **Tested + Shipped** | v3 `6af03b7`: `loadAll()` orders by manifest `dependencies` + `@resource/` imports; fixes es_extended-before-esx_lib; cycle detection with clear errors |
+| FiveM compat | Unsupported manifest directives diagnostics | **Tested + Shipped** | v3 `6af03b7`: ignored directives are reported per resource (`unsupported directive(s) ignored: ...`); missing exports/deps error clearly |
 | FiveM compat | oxmysql bridge to real DB | Partial | oxmysql loads; MySQL layer not wired (design only) |
 | Gameplay | Spawn/respawn/under-map rescue | Shipped | `server/resources/gtamp-online/` |
 | Gameplay | vMenu server side | Shipped | `server/resources/vmenu/index.js` (182 lines) — vMenu client is alt:V-native C#, **not** the FiveM vMenu |
@@ -103,20 +103,25 @@ Legend: **Tested** = executed and verified in this workspace with a repeatable c
 
 ## 4. What is NOT in the repo (gap list, prioritized)
 
-1. **Live cross-resource exports + single-VM runtime** — blocks real framework interop.
-2. **Dependency-ordered loading in the real loader** — alphabetical order loads
-   `es_extended` before `esx_lib` today.
-3. **Manifest diagnostics** — unsupported directives must warn loudly, not no-op.
-4. **Security fixes for S1–S9** with regression tests (see §5 plan).
-5. **Regression test suite inside the repo** — the 46-test suite lives in the dev
-   workspace tools, not committed as CI-runnable form for this repo layout.
-6. **DATABASE.md / NUI.md / voice docs** — no documentation exists for any of these.
+*(Updated 2026-10-11 after v3 `6af03b7`: the former top three gaps — live
+exports + single-VM runtime, dependency-ordered loading, manifest
+diagnostics — are implemented, tested, and shipped.)*
+
+1. **Security fixes for S1–S9** with regression tests (see §5 plan) — in progress.
+2. **Resource lifecycle beyond load** — stop/restart of a single resource,
+   handler/timer/export cleanup on stop (Phase 3.2 of the dev plan).
+3. **oxmysql→real-DB wiring for framework SQL flows** — the MySQL API exists and
+   is tested against a mock; production pool behavior is untested against MariaDB.
+4. **NUI/browser UI compat** — not started (Phase 9).
+5. **Voice docs/integration tests** — client voice config exists; no tests.
+6. **CI workflow** — the test suites run in-repo with plain Node but no CI config
+   runs them automatically on push.
 
 ## 5. Remediation order (what this audit recommends, in sequence)
 
-1. Runtime work first (it unblocks everything user-visible): one-VM/live-exports, then
-   dependency-ordered loading, then manifest diagnostics.
-2. Security fixes in one pass with tests, server-side of the repo:
+1. ~~Runtime work first~~ — **DONE** (v3 `6af03b7`: one-VM/live-exports,
+   dependency-ordered loading, manifest diagnostics; 69/69 + 17/17 + 62/62).
+2. Security fixes in one pass with tests, server-side of the repo — **in progress**:
    - masterlist: require key/admin on delete; auth+ratelimit on upvote; fix defaults
      (`OPEN_ANNOUNCE` default off, `TIMEOUT_MS` default 90000) and README agreement;
    - website: remove backdoor delete paths (`CravenzOwnerKey`, bare `Authorization`,

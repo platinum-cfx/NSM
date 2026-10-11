@@ -51,9 +51,9 @@ as the game runtime, and implements FiveM compatibility as a **resource-level la
 ## Consequences — the actual work plan (runtime track)
 
 The decision commits us to finishing the compat layer to real interop parity, in this
-order (first two are in progress now):
+order (items 1–3 are DONE and shipped as `6af03b7`; evidence inline):
 
-### 1. Single-VM runtime + live exports (current build item)
+### 1. Single-VM runtime + live exports — SHIPPED (v3, `6af03b7`)
 
 Frozen design (keep; it is what gets implemented):
 - **One** wasmoon engine for the whole server, created once.
@@ -73,27 +73,30 @@ Frozen design (keep; it is what gets implemented):
   pushed as Lua `nil` (bridges convert to `false`); promises are tables tagged
   `__nsmPromise`; scheduler uses `__cfx_await__` + `__asyncResume`.
 
-### 2. Dependency-ordered loading
+### 2. Dependency-ordered loading — SHIPPED (v3, `6af03b7`)
 
-The real resource index must load in dependency order: `@`-import targets (e.g.
+`loadAll()` builds the order from manifest `dependencies` + `@resource/` imports
+(verified: esx_lib before es_extended, consumer-after-framework, wrong listing
+order auto-corrected; cycles reported then broken by listed order). Details kept
+for the design record: `@`-import targets (e.g.
 `@oxmysql/lib/MySQL.lua`) load before dependents; framework cores before their plugins.
 Today's alphabetical order loads `es_extended` before `esx_lib`, which only worked in
 testing because we manually ordered the directory list. The loader must: build the
 dependency graph from fxmanifest `dependencies` + `@`-imports, detect cycles, and emit
 clear errors.
 
-### 3. Manifest diagnostics
+### 3. Manifest diagnostics — SHIPPED (v3, `6af03b7`)
 
-Unsupported fxmanifest directives must produce explicit, actionable diagnostics
+Unsupported fxmanifest directives now produce explicit, actionable diagnostics
 (current behavior: silent no-op — fails the acceptance criteria for the compat layer).
 No fake success returns: a directive the layer does not implement must say so at load
 time, not pretend it worked.
 
-### 4. Then, and only then
+### 4. Now in progress
 
-oxmysql→DB bridge, NUI-adjacent features (server-driven), voice docs, and the security
-fixes from `REPOSITORY_AUDIT.md` §5 (security fixes are independent of this track and
-can interleave).
+Security fixes from `REPOSITORY_AUDIT.md` §5 (masterlist + website, with regression
+tests), then resource lifecycle (stop/restart + cleanup), oxmysql→DB bridge, and
+NUI-adjacent features (server-driven).
 
 ## What would force a re-decision
 
