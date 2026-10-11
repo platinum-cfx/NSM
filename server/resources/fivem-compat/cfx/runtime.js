@@ -1802,7 +1802,7 @@ export class CfxCompatRuntime {
 
     if (!callName.startsWith('mysql:')) return fail(`unknown async op ${callName}`);
     const kind = callName.slice(6);
-    if (!this.adapter.mysql) return fail('no database configured — create server/fivem_resources/mysql.json (see README)');
+    if (!this.adapter.mysql) return fail('no database configured — copy mysql.json.example to mysql.json next to gtamp-server.exe and set your MariaDB credentials (see docs/QUICKSTART-FIVEM.md)');
     const sql = String(args[0]);
     let values;
     try { values = JSON.parse(String(args[1] || '{}')); } catch { values = {}; }

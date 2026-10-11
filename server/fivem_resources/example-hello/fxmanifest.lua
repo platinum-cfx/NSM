@@ -7,6 +7,3 @@ server_scripts {
     'server.lua'
 }
 
-client_scripts {
-    'client.lua' -- ignored by cfx-compat (server-side only)
-}

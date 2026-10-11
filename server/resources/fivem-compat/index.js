@@ -78,7 +78,7 @@ const adapter = {
     let payload = '[]';
     try { payload = JSON.stringify(args); } catch {}
     try { alt.emitClient(p, '__fivem:net', name, payload); } catch {}   // fivem-client resources
-    try { alt.emitClient(p, name, ...args); } catch {}                  // native alt:V listeners
+    try { alt.emitClient(p, name, ...args.filter((v) => typeof v !== 'function' && typeof v !== 'symbol' && typeof v !== 'bigint')); } catch {} // native alt:V listeners (MValue-safe)
   },
   emitAllClients: (name, ...args) => {
     if (isProtocolEvent(name)) {
@@ -88,7 +88,7 @@ const adapter = {
     let payload = '[]';
     try { payload = JSON.stringify(args); } catch {}
     try { alt.emitAllClients('__fivem:net', name, payload); } catch {}
-    try { alt.emitAllClients(name, ...args); } catch {}
+    try { alt.emitAllClients(name, ...args.filter((v) => typeof v !== 'function' && typeof v !== 'symbol' && typeof v !== 'bigint')); } catch {}
   },
   findPlayer,
   playerIds: () => alt.Player.all.map((p) => p.id),
