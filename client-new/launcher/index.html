@@ -1655,7 +1655,29 @@ button,input{font:inherit;color:inherit;font-family:inherit}
 <script>
 (() => {
   const $ = s => document.querySelector(s);
-  const API = '';
+  let API = (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+    ? (window.location.origin)
+    : 'http://127.0.0.1:9987';
+
+  // Auto-probing fetch that automatically connects to whichever port NSM.exe is bound to (9987-9995)
+  async function apiFetch(path, options = {}) {
+    const defaultEp = (API || window.location.origin || 'http://127.0.0.1:9987') + path;
+    try {
+      const res = await fetch(defaultEp, options);
+      return res;
+    } catch (err) {
+      for (const p of [9987, 9988, 9989, 9990, 9991, 9992, 9993, 9994, 9995]) {
+        const candidate = `http://127.0.0.1:${p}`;
+        if (candidate === API) continue;
+        try {
+          const res = await fetch(candidate + path, options);
+          API = candidate;
+          return res;
+        } catch (_) {}
+      }
+      throw err;
+    }
+  }
   let cfg = { masterlistUrl: '', version: '' };
   let servers = [], pings = {}, selected = null;
   let sort = { key:'players', dir:-1 };
@@ -1667,7 +1689,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
   let page = 'home';                 // 'home' (Play tab) | 'servers'
   let topIdx = 0, topTimer = null;   // TopServers carousel state
 
-  setInterval(() => fetch(API + '/api/heartbeat').catch(()=>{}), 5000);
+  setInterval(() => apiFetch('/api/heartbeat').catch(()=>{}), 5000);
 
   const FLAGS = { en:'🇺🇸', us:'🇺🇸', gb:'🇬🇧', de:'🇩🇪', fr:'🇫🇷', es:'🇪🇸', pt:'🇧🇷',
     br:'🇧🇷', nl:'🇳🇱', pl:'🇵🇱', ru:'🇷🇺', it:'🇮🇹', tr:'🇹🇷', th:'🇹🇭', ar:'🇸🇦',
@@ -1681,7 +1703,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
   const langOf = l => LANGNAME[(l||'').toLowerCase()] || (l||'').toUpperCase();
 
   async function loadConfig() {
-    try { cfg = await (await fetch(API + '/api/config')).json();
+    try { cfg = await (await apiFetch('/api/config')).json();
           if (cfg.version) $('#verstamp').textContent = 'Ver. ' + cfg.version; } catch {}
     if (!cfg.masterlistUrl) cfg.masterlistUrl = localStorage.getItem('gtamp.masterlist') || 'http://127.0.0.1:8080';
   }
@@ -1718,7 +1740,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
 
   async function pingAll() {
     await Promise.all(servers.slice(0,60).map(async s => {
-      try { const r = await fetch(`${API}/api/ping?host=${encodeURIComponent(s.host)}&port=${s.port}`);
+      try { const r = await apiFetch(`/api/ping?host=${encodeURIComponent(s.host)}&port=${s.port}`);
             pings[s.id] = (await r.json()).ms; } catch { pings[s.id] = undefined; }
       document.querySelectorAll(`[data-ping="${s.id}"]`).forEach(el=>{
         el.className='ping '+pingClass(pings[s.id]); el.innerHTML=pingInner(s.id); });
@@ -2127,7 +2149,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
 
   async function disconnectGame() {
     try {
-      await fetch(API + '/api/disconnect', { method: 'POST' });
+      await apiFetch('/api/disconnect', { method: 'POST' });
     } catch (e) {}
 
     if (currentConnectedServer) {
@@ -2154,7 +2176,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
     if (gamePollTimer) clearInterval(gamePollTimer);
     gamePollTimer = setInterval(async () => {
       try {
-        const res = await fetch(API + '/api/gamestate');
+        const res = await apiFetch('/api/gamestate');
         if (!res.ok) return;
         const data = await res.json();
         if (data.state === 'idle') {
@@ -2193,7 +2215,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
     localStorage.setItem('gtamp.hist', JSON.stringify(hist));
 
     try{
-      const r=await fetch(API+'/api/connect',{method:'POST',
+      const r=await apiFetch('/api/connect',{method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({host,port:Number(port)||7788,name:name||''})});
       if(!r.ok) throw new Error('HTTP '+r.status);
@@ -2360,7 +2382,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
         const pHost = args[0];
         const pPort = args[1] ? Number(args[1]) : 7788;
         printF8(`Pinging ${pHost}:${pPort}...`, 'info');
-        fetch(`${API}/api/ping?host=${encodeURIComponent(pHost)}&port=${pPort}`)
+        apiFetch(`/api/ping?host=${encodeURIComponent(pHost)}&port=${pPort}`)
           .then(r => r.json())
           .then(data => {
             if (data.ms >= 0) printF8(`Reply from ${pHost}:${pPort} — ${data.ms} ms`, 'info');
@@ -2372,7 +2394,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
       case 'quit':
       case 'exit':
         printF8('Exiting launcher...', 'info');
-        fetch(API + '/api/quit', { method: 'POST' }).catch(() => {});
+        apiFetch('/api/quit', { method: 'POST' }).catch(() => {});
         setTimeout(() => { try { window.close(); } catch {} }, 300);
         break;
 
@@ -2448,7 +2470,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
   async function pingLauncherPresence() {
     try {
       const ml = (cfg.masterlistUrl || 'http://127.0.0.1:8080').replace(/\/+$/, '');
-      const r = await fetch(`${API}/api/launcher/ping?id=${myLauncherId}`).catch(() =>
+      const r = await apiFetch(`/api/launcher/ping?id=${myLauncherId}`).catch(() =>
         fetch(`${ml}/api/launcher/ping?id=${myLauncherId}`)
       );
       if (r && r.ok) {
@@ -2474,7 +2496,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
   // Localhost Server Polling
   async function checkLocalServer() {
     try {
-      const r = await fetch(`${API}/api/localserver`).catch(() => 
+      const r = await apiFetch(`/api/localserver`).catch(() => 
         fetch('http://127.0.0.1:7799/discord.json')
       );
       if (r && r.ok) {
@@ -2597,7 +2619,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
       localStorage.setItem('gtamp.user', JSON.stringify(currentUser));
 
       try {
-        await fetch(`${API}/api/auth/avatar`, {
+        await apiFetch(`/api/auth/avatar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: currentUser.username, avatar: dataUrl })
@@ -2664,7 +2686,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
     btn.textContent = 'Signing in...';
 
     try {
-      let r = await fetch(`${API}/api/auth/login`, {
+      let r = await apiFetch(`/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: u, password: p })
@@ -2713,7 +2735,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
     btn.textContent = 'Creating account...';
 
     try {
-      let r = await fetch(`${API}/api/auth/register`, {
+      let r = await apiFetch(`/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: u, email: em, password: p })

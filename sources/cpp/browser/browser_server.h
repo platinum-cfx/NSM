@@ -428,6 +428,13 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
         }
     });
 
+    svr.set_post_routing_handler([](const auto&, auto& res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+        res.set_header("Cache-Control", "no-store");
+    });
+
     auto serveHtml = [](const httplib::Request&, httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
         res.set_header("Cache-Control", "no-store");
@@ -648,11 +655,22 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
         res.set_content("{\"ok\":true,\"activeLaunchers\":1}", "application/json");
     });
 
-    svr.Options(R"(.*)", [](const httplib::Request&, httplib::Response& res) {
+    auto handleCorsOptions = [](const httplib::Request&, httplib::Response& res) {
+        res.status = 200;
         res.set_header("Access-Control-Allow-Origin", "*");
         res.set_header("Access-Control-Allow-Headers", "*");
-        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    });
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+        res.set_header("Access-Control-Max-Age", "86400");
+        res.set_content("", "text/plain");
+    };
+    svr.Options(R"(.*)", handleCorsOptions);
+    svr.Options("/api/connect", handleCorsOptions);
+    svr.Options("/api/gamestate", handleCorsOptions);
+    svr.Options("/api/disconnect", handleCorsOptions);
+    svr.Options("/api/quit", handleCorsOptions);
+    svr.Options("/api/config", handleCorsOptions);
+    svr.Options("/api/heartbeat", handleCorsOptions);
+    svr.Options("/api/launcher/ping", handleCorsOptions);
 
     if (!svr.bind_to_port("127.0.0.1", boundPort)) {
         for (int p = boundPort + 1; p < GTAMP_LAUNCHER_PORT + 30; p++) {
@@ -677,30 +695,7 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
     if (openBrowser) OpenInBrowser("http://127.0.0.1:" + std::to_string(boundPort) + "/");
 #endif
 
-    std::thread([]() {
-        while (!g_launcherState.shouldQuit) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (g_launcherState.shouldQuit) break;
-#ifdef _WIN32
-            if (g_hUiProcess != NULL) {
-                DWORD exitCode = 0;
-                if (GetExitCodeProcess(g_hUiProcess, &exitCode) && exitCode != STILL_ACTIVE) {
-                    bool isInGame = false;
-                    {
-                        std::lock_guard<std::mutex> lk(g_launcherState.m);
-                        isInGame = (g_launcherState.gameState == "in_game" || g_launcherState.gameState == "connecting");
-                    }
-                    if (!isInGame) {
-                        std::lock_guard<std::mutex> lk(g_launcherState.m);
-                        g_launcherState.shouldQuit = true;
-                        g_launcherState.cv.notify_all();
-                        break;
-                    }
-                }
-            }
-#endif
-        }
-    }).detach();
+    // Watchdog removed: NSM.exe persists independently so browser delegation never kills the session
 
     return true;
 }
