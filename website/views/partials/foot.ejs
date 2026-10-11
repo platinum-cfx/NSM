@@ -1,0 +1,42 @@
+<footer>
+  <div class="container"><div class="spacer">
+    <div class="legal-links platform-links">
+      <div><a href="https://github.com/lsdojrp123-ai/GTAMPv1">GitHub</a></div>
+      <div class="footer-bullet">•</div>
+      <div><a href="/support">Support</a></div>
+      <div class="footer-bullet">•</div>
+      <div><a href="/keymaster">Portal</a></div>
+      <div class="footer-bullet">•</div>
+      <div><a href="/forum">Forum</a></div>
+      <div class="footer-bullet">•</div>
+      <div><a href="/marketplace">Marketplace</a></div>
+      <div class="footer-bullet">•</div>
+      <div><a href="/docs">Docs</a></div>
+    </div>
+    <div class="legal-links">
+      <div><a href="/terms">Terms of Service</a></div>
+      <div class="footer-bullet">•</div>
+      <div><a href="/privacy">Privacy</a></div>
+      <div class="footer-bullet">•</div>
+      <div><a href="/cookies">Cookie Policy</a></div>
+      <div class="footer-bullet">•</div>
+      <div><a href="/cookies">Cookie Settings</a></div>
+    </div>
+    <div class="copyright">Copyright © 2024–2026 GTAMP. Not affiliated with Rockstar Games, Take-Two Interactive, or Cfx.re.</div>
+  </div></div>
+</footer>
+<script src="/js/main.js"></script>
+<script>
+(function(){
+  var bo=document.getElementById('burger-open'),bm=document.getElementById('burger-menu'),bc=document.getElementById('burger-close');
+  if(bo&&bm){bo.addEventListener('click',function(){bm.classList.add('active');document.body.classList.add('disable-scroll')});}
+  if(bc&&bm){bc.addEventListener('click',function(){bm.classList.remove('active');document.body.classList.remove('disable-scroll')});}
+  var dl=document.getElementById('dl');
+  if(dl){dl.addEventListener('click',function(){
+    var s=document.getElementById('hero-seller'),t=document.getElementById('hero-thanks');
+    if(s&&t){s.classList.add('faded');t.classList.add('active');}
+  });}
+})();
+</script>
+</body>
+</html>

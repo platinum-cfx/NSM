@@ -1,0 +1,12 @@
+<%- include('partials/head') %>
+<div class="form-card">
+  <h1 style="margin-bottom:20px">Login</h1>
+  <% if (typeof error !== 'undefined' && error) { %><div class="error"><%= error %></div><% } %>
+  <form method="POST" action="/login">
+    <div class="form-row"><label>Username</label><input type="text" name="username" required></div>
+    <div class="form-row"><label>Password</label><input type="password" name="password" required></div>
+    <button class="btn btn-accent" style="width:100%">LOGIN</button>
+  </form>
+  <p class="muted mt center">No account? <a href="/register">Register</a></p>
+</div>
+<%- include('partials/foot') %>

@@ -1,0 +1,55 @@
+<%- include('partials/head') %>
+<div class="wrap" style="padding:44px 24px;max-width:820px">
+  <a href="/servers" class="muted">← All servers</a>
+  <div class="card mt" style="display:flex;gap:18px;align-items:center">
+    <div class="server-icon" style="width:64px;height:64px;font-size:20px"><%= (srv.name||'S')[0] %></div>
+    <div style="flex:1">
+      <h1 style="font-size:26px;color:#fff"><%= srv.name %></h1>
+      <div class="muted"><%= srv.desc || 'No description' %></div>
+      <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+        <span class="tag"><span class="live-dot"></span> <b id="srv-players"><%= srv.players %></b>/<span id="srv-max"><%= srv.maxPlayers %></span> players online</span>
+        <span class="tag">Mode: <%= srv.mode %></span>
+        <% (srv.tags||[]).forEach(function(t){ %><span class="tag"><%= t %></span><% }) %>
+        <span class="tag">⭐ <%= srv.upvotes||0 %> upvotes</span>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:20px;display:flex;gap:10px">
+    <button class="btn btn-accent" onclick="window.location='/servers'">CONNECT</button>
+    <% if (user) { %>
+      <button class="btn btn-ghost" id="upvote-btn" onclick="upvote(<%= srv.id %>)">▲ UPVOTE</button>
+    <% } else { %>
+      <a href="/login" class="btn btn-ghost">▲ Upvote (login)</a>
+    <% } %>
+  </div>
+  <% if (user && String(srv.ownerId)===String(user.id)) { %>
+    <div class="card mt">
+      <h3>Manage tags</h3>
+      <p class="muted" style="margin:6px 0 12px">Tags make this server appear under those categories on the list.</p>
+      <input type="text" id="tag-input" placeholder="freeroam, roleplay, drift, ..." value="<%= (srv.tags||[]).join(', ') %>">
+      <button class="btn btn-accent mt" onclick="saveTags(<%= srv.id %>)">SAVE TAGS</button>
+    </div>
+  <% } %>
+</div>
+<script>
+(function() {
+  const sId = "<%= srv.id %>";
+  const pEl = document.getElementById('srv-players');
+  const mEl = document.getElementById('srv-max');
+  const uEl = document.getElementById('srv-upvotes');
+  async function pollLive() {
+    try {
+      const r = await fetch('/api/servers/' + sId + '/live');
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d && d.ok) {
+        if (pEl) pEl.textContent = d.players;
+        if (mEl) mEl.textContent = d.maxPlayers;
+        if (uEl && d.upvotes !== undefined) uEl.textContent = d.upvotes;
+      }
+    } catch(e) {}
+  }
+  setInterval(pollLive, 2000);
+})();
+</script>
+<%- include('partials/foot') %>

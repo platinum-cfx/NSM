@@ -1,0 +1,26 @@
+<%- include('partials/head') %>
+<div class="wrap" style="padding:44px 24px;max-width:820px">
+  <h1 class="section-title">Create Your Own Server</h1>
+  <p class="section-sub">Install the GTAMP server artifacts and get running in minutes.</p>
+  <div class="card mt">
+    <h3>1. Download the server artifacts</h3>
+    <p class="muted">Pick the build for your platform.</p>
+    <div class="mt" style="display:flex;flex-direction:column;gap:10px">
+      <% artifacts.forEach(function(a){ %>
+        <div class="post" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div><b>GTAMP Server v<%= a.version %></b> <span class="tag"><%= a.platform %></span> <% if(a.note){ %><span class="tag"><%= a.note %></span><% } %></div>
+          <a href="<%= a.url %>" class="btn btn-accent btn-sm">DOWNLOAD</a>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+  <div class="card mt">
+    <h3>2. Set it up</h3>
+    <p class="muted mt">Unzip the artifacts, put your resources in the resources folder, and start the server. Full guide: <a href="/docs/runserver">Running a Server</a>.</p>
+  </div>
+  <div class="card mt">
+    <h3>3. Get a license key</h3>
+    <p class="muted mt">You'll need a Keymaster key for a public server. <a href="/keymaster">Open Keymaster</a>.</p>
+  </div>
+</div>
+<%- include('partials/foot') %>

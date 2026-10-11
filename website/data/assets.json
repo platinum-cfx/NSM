@@ -1,0 +1,35 @@
+[
+  {
+    "id": 1,
+    "ownerId": 3,
+    "title": "Realistic Car Pack",
+    "desc": "10 fully tuned vehicles ready for your server.",
+    "price": 12.99,
+    "cat": "car",
+    "published": true,
+    "downloads": 340,
+    "at": 1790915306453
+  },
+  {
+    "id": 2,
+    "ownerId": 3,
+    "title": "Advanced Job System",
+    "desc": "Framework for jobs, crews, and paychecks.",
+    "price": 0,
+    "cat": "script",
+    "published": true,
+    "downloads": 900,
+    "at": 1791174506453
+  },
+  {
+    "id": 3,
+    "ownerId": 1,
+    "title": "City Hall Interior Map",
+    "desc": "Detailed interior for roleplay servers.",
+    "price": 8.99,
+    "cat": "map",
+    "published": true,
+    "downloads": 120,
+    "at": 1791347306453
+  }
+]

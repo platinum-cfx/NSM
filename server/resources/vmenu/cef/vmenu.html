@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>vMenu</title>
+  <link rel="stylesheet" href="vmenu.css">
+</head>
+<body>
+  <div id="vmenu-container" class="vmenu hidden">
+    <!-- Header -->
+    <div class="vmenu-header">
+      <div class="vmenu-banner">
+        <h1 class="vmenu-title">vMenu</h1>
+        <span class="vmenu-tag">v3.5.0</span>
+        <button class="vmenu-close-btn" id="vmenu-close" title="Close Menu (M / Esc)">✕</button>
+      </div>
+      <div class="vmenu-subbar">
+        <div class="vmenu-breadcrumb" id="vmenu-subtitle">MAIN MENU</div>
+        <div class="vmenu-counter" id="vmenu-counter">1 / 6</div>
+      </div>
+    </div>
+
+    <!-- Items List -->
+    <div class="vmenu-items" id="vmenu-items">
+      <!-- Generated dynamically -->
+    </div>
+
+    <!-- Description Footer -->
+    <div class="vmenu-footer" id="vmenu-footer">
+      <p class="vmenu-desc" id="vmenu-desc">Select an option using Arrow keys / Mouse and press Enter.</p>
+    </div>
+
+    <!-- Keybind tips bar -->
+    <div class="vmenu-tips">
+      <span><b>[M]</b> or <b>[F1]</b> Toggle</span>
+      <span><b>[↑/↓]</b> Select</span>
+      <span><b>[ENTER]</b> Confirm</span>
+      <span><b>[ESC/BKSP]</b> Back</span>
+    </div>
+  </div>
+
+  <script src="vmenu.js"></script>
+</body>
+</html>

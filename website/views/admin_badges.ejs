@@ -1,0 +1,61 @@
+<%- include('partials/head') %>
+<div class="wrap" style="padding:44px 24px;max-width:900px">
+  <h1 class="section-title">Badges — Staff Admin</h1>
+  <p class="section-sub">Grant or remove badges (Verified ✔, Staff, Founder, Developer, etc.)</p>
+    <div class="card mt">
+    <h3>Promote User to Administrator</h3>
+    <p class="muted" style="margin-bottom:10px">Owners and Admins can promote registered users to Administrator.</p>
+    <form method="POST" onsubmit="this.action='/admin/users/'+this.uid.value+'/promote'" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:180px"><label>User</label>
+        <select name="uid"><% users.forEach(function(u){ %><option value="<%= u.id %>"><%= u.username %> (<%= u.role || 'Basic User' %>)</option><% }) %></select></div>
+      <button class="btn btn-accent">PROMOTE TO ADMIN</button>
+    </form>
+  </div>
+
+  <div class="card mt">
+    <h3>Delete Server from Masterlist</h3>
+    <p class="muted" style="margin-bottom:10px">Owners and Admins can remove server listings from the masterlist and website.</p>
+    <% if (typeof servers !== 'undefined' && servers && servers.length) { %>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <% servers.forEach(function(s){ %>
+          <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:4px">
+            <div><b><%= s.name %></b> <span class="muted">(<%= s.addr %>)</span></div>
+            <form method="POST" action="/api/servers/<%= s.id %>/delete" onsubmit="return confirm('Delete this server?');">
+              <button class="btn btn-ghost" style="color:#ff5555;padding:4px 10px;font-size:12px">DELETE</button>
+            </form>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <div class="muted">No servers currently registered.</div>
+    <% } %>
+  </div>
+
+  <div class="card mt">
+    <h3>Grant a badge</h3>
+    <form method="POST" action="/admin/badges/grant" class="mt" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:180px"><label>User</label>
+        <select name="uid"><% users.forEach(function(u){ %><option value="<%= u.id %>"><%= u.username %></option><% }) %></select></div>
+      <div style="flex:1;min-width:180px"><label>Badge</label>
+        <select name="bid"><% badges.forEach(function(b){ %><option value="<%= b.id %>"><%= b.name %></option><% }) %></select></div>
+      <button class="btn btn-accent">GRANT</button>
+    </form>
+  </div>
+  <div class="card mt">
+    <h3>Remove a badge</h3>
+    <form method="POST" action="/admin/badges/remove" class="mt" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:180px"><label>User</label>
+        <select name="uid"><% users.forEach(function(u){ %><option value="<%= u.id %>"><%= u.username %></option><% }) %></select></div>
+      <div style="flex:1;min-width:180px"><label>Badge</label>
+        <select name="bid"><% badges.forEach(function(b){ %><option value="<%= b.id %>"><%= b.name %></option><% }) %></select></div>
+      <button class="btn btn-ghost">REMOVE</button>
+    </form>
+  </div>
+  <h3 class="mt">Badge definitions</h3>
+  <div class="mt">
+    <% badges.forEach(function(b){ %>
+      <span class="badge-chip" style="background:<%= b.color %>22;border-color:<%= b.color %>;color:<%= b.color %>"><span class="bicon"><%= b.icon %></span><%= b.name %></span>
+    <% }) %>
+  </div>
+</div>
+<%- include('partials/foot') %>

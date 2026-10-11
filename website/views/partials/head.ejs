@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= typeof title !== 'undefined' && title ? title + ' - ' : '' %>GTAMP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500&family=Rubik:ital,wght@0,300;0,400;1,300;1,400&family=Material+Icons+Outlined&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container"><div class="spacer">
+<header>
+  <div class="hbar">
+    <a href="/" class="logo">
+      <svg class="logo-img" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 1 L29 8.5 V23.5 L16 31 L3 23.5 V8.5 Z" fill="#f40552"/><path d="M11 21.5 V10.5 h7.2 c2.6 0 4.3 1.5 4.3 3.9 0 1.6-.8 2.8-2.1 3.4 L23 21.5 h-3.4 l-2.2-3.4 H14 v3.4 Z M14 13.2 v2.2 h4 c1 0 1.6-.5 1.6-1.1 s-.6-1.1-1.6-1.1 Z" fill="#fff"/></svg>
+      <span class="logo-title">GTAMP</span>
+    </a>
+    <div class="burger-toggle" id="burger-open"><span class="material-icons-outlined">menu</span></div>
+    <ul class="links hidden-xs hidden-sm hidden-md">
+      <li><a href="/servers" class="<%= page==='/servers'?'active':'' %>">Server List</a></li>
+      <li><a href="/support" class="<%= page==='/support'?'active':'' %>">Support</a></li>
+      <li><a href="/keymaster" class="<%= page==='/keymaster'?'active':'' %>">Portal</a></li>
+      <li><a href="/forum" class="<%= page==='/forum'?'active':'' %>">Forum</a></li>
+      <li><a href="/marketplace" class="<%= page==='/marketplace'?'active':'' %>">Marketplace</a></li>
+      <li><a href="/docs" class="<%= page==='/docs'?'active':'' %>">Documentation</a></li>
+    </ul>
+  </div>
+</header>
+<div class="burger-links" id="burger-menu">
+  <ul class="links">
+    <li><a href="/servers">Server List</a></li>
+    <li><a href="/support">Support</a></li>
+    <li><a href="/keymaster">Portal</a></li>
+    <li><a href="/forum">Forum</a></li>
+    <li><a href="/marketplace">Marketplace</a></li>
+    <li><a href="/docs">Documentation</a></li>
+    <% if (user) { %><li><a href="/logout">Log out (<%= user.username %>)</a></li><% } %>
+  </ul>
+  <div class="close" id="burger-close"><span class="material-icons-outlined">close</span></div>
+</div>
+</div></div>

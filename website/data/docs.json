@@ -1,0 +1,50 @@
+[
+  {
+    "id": "getstarted",
+    "cat": "Getting Started",
+    "title": "Getting Started",
+    "body": "Install, launch, and connect to your first server."
+  },
+  {
+    "id": "install",
+    "cat": "Getting Started",
+    "title": "How to Install GTAMP",
+    "body": "Download the launcher, install ScriptHookV, and run."
+  },
+  {
+    "id": "runserver",
+    "cat": "Running a Server",
+    "title": "Run Your Own Server",
+    "body": "Create a server and install the FXServer artifacts."
+  },
+  {
+    "id": "artifacts",
+    "cat": "Running a Server",
+    "title": "Installing Artifacts",
+    "body": "Download and set up the server artifacts."
+  },
+  {
+    "id": "resources",
+    "cat": "Running a Server",
+    "title": "Adding Resources",
+    "body": "Add resources to your server."
+  },
+  {
+    "id": "scripting",
+    "cat": "Scripting",
+    "title": "Scripting Basics",
+    "body": "Write your first Lua/JS script."
+  },
+  {
+    "id": "keymaster",
+    "cat": "Keymaster",
+    "title": "Using the Keymaster",
+    "body": "Manage your server license keys."
+  },
+  {
+    "id": "faq",
+    "cat": "Support",
+    "title": "FAQ",
+    "body": "Common questions answered."
+  }
+]

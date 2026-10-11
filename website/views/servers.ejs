@@ -1,0 +1,102 @@
+<%- include('partials/head') %>
+
+<div class="sv-hero">
+  <div class="in">
+    <h1>Server <b>List</b></h1>
+    <div class="sub">Find a server to play on — live, synced from GTAMP launchers.</div>
+  </div>
+</div>
+
+<div class="sv-controls">
+  <div class="sv-search">
+    <i class="si material-icons-outlined">search</i>
+    <input type="text" id="srv-search" placeholder="Search servers…">
+  </div>
+  <select id="srv-tag"><option value="">All tags</option></select>
+  <span class="sv-count" id="sv-count">Loading…</span>
+</div>
+
+<div class="sv-list" id="server-list">
+  <div class="muted" style="padding:20px 4px">Loading servers…</div>
+</div>
+
+<script>window.__sample = <%- JSON.stringify(typeof sampleServers !== 'undefined' ? sampleServers : []) %>;
+window.__isStaff = <%= (typeof user !== 'undefined' && user && (user.isOwner || user.isAdmin)) ? 'true' : 'false' %>;</script>
+<script>
+(function(){
+  const listEl=document.getElementById('server-list');
+  const countEl=document.getElementById('sv-count');
+  const search=document.getElementById('srv-search');
+  const tagSel=document.getElementById('srv-tag');
+  let all=[];
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  async function refresh(){
+    try{
+      const r=await fetch('/api/servers/live');const d=await r.json();all=(d.servers&&d.servers.length)?d.servers:(window.__sample||[]);
+      if(!all.length)all=window.__sample||[];
+      if(tagSel){const tags=new Set();all.forEach(s=>(s.tags||[]).forEach(t=>tags.add(t)));
+        const cur=tagSel.value;
+        tagSel.innerHTML='<option value="">All tags</option>'+[...tags].map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('');
+        tagSel.value=cur;}
+      render();
+    }catch(e){all=window.__sample||[];render();}
+  }
+  function render(){
+    const q=(search&&search.value||'').toLowerCase();
+    const t=tagSel?tagSel.value:'';
+    const maxUp=Math.max.apply(null,all.map(s=>s.upvotes||0).concat([0]));
+    const rows=all.filter(s=>{
+      const hay=((s.name||'')+' '+(s.mode||'')+' '+(s.tags||[]).join(' ')).toLowerCase();
+      return (!q||hay.includes(q))&&(!t||(s.tags||[]).includes(t));
+    }).sort((a,b)=>((b.upvotes||0)-(a.upvotes||0))||((b.players||0)-(a.players||0)));
+    const tp=all.reduce((a,s)=>a+(s.players||0),0);
+    countEl.innerHTML='<b>'+all.length+'</b> servers · <b>'+tp+'</b> players online';
+    if(!rows.length){listEl.innerHTML='<div class="muted" style="padding:20px 4px">No servers match your search.</div>';return;}
+    listEl.innerHTML=rows.map(s=>{
+      const max=s.maxPlayers||64;
+      const pct=Math.min(100,Math.round(((s.players||0)/max)*100));
+      const boosted=(s.upvotes||0)>=Math.max(10,maxUp*0.8)&&(s.upvotes||0)>0;
+      return '<div class="sv-row'+(boosted?' boosted':'')+'" onclick="location.href=\'/servers/'+s.id+'\'">'+
+        '<div class="sv-icon">'+esc((s.name||'S')[0]).toUpperCase()+'</div>'+
+        '<div class="sv-main">'+
+          '<div class="sv-name">'+(boosted?'<span class="sv-burst">★</span>':'')+'<span class="live-dot"></span>'+esc(s.name)+'</div>'+
+          '<div class="sv-desc">'+esc(s.desc||s.mode||'')+'</div>'+
+          ((s.tags&&s.tags.length)?'<div class="sv-tags">'+s.tags.map(x=>'<span class="tag">'+esc(x)+'</span>').join('')+'</div>':'')+
+        '</div>'+
+        '<div class="sv-right">'+
+          '<div class="sv-players">'+
+            '<div class="n">'+s.players+'<small>/'+max+'</small></div>'+
+            '<div class="c">players</div>'+
+            '<div class="sv-pbar"><i style="width:'+pct+'%"></i></div>'+
+          '</div>'+
+          '<div class="sv-upvote"><span class="ai">▲</span>'+(s.upvotes||0)+'</div>'+
+          (window.__isStaff ? '<button style="margin-left:8px;padding:4px 8px;color:#ef4444;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:4px;cursor:pointer" onclick="event.stopPropagation();if(confirm(\'Delete server \'+s.name+\'?\'))fetch(\'/api/servers/\'+s.id+\'/delete\',{method:\'POST\'}).then(()=>refresh())" title="Delete Server (Admin/Owner)">🗑</button>' : '')+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+  if(search)search.addEventListener('input',render);
+  if(tagSel)tagSel.addEventListener('change',render);
+  refresh();
+  setInterval(refresh, 2500);
+
+  function connectWs() {
+    try {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${proto}//${location.host}`);
+      ws.onmessage = (evt) => {
+        try {
+          const d = JSON.parse(evt.data);
+          if (d && d.t === 'servers' && Array.isArray(d.servers)) {
+            all = d.servers;
+            render();
+          }
+        } catch(e) {}
+      };
+      ws.onclose = () => setTimeout(connectWs, 3000);
+    } catch(e) {}
+  }
+  connectWs();
+})();
+</script>
+<%- include('partials/foot') %>

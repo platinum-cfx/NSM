@@ -1,0 +1,5 @@
+# Generated
+*.gen
+shared/JSBindings.h
+
+node_modules/
