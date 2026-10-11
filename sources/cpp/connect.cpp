@@ -192,7 +192,6 @@ bool IsProcessRunning(const string& processName) {
     return exists;
 }
 
-// Silently kill processes by executable name using native Win32 termination
 void KillProcessSilent(const char* exeName) {
     PROCESSENTRY32 entry;
     entry.dwSize = sizeof(PROCESSENTRY32);
@@ -211,7 +210,6 @@ void KillProcessSilent(const char* exeName) {
     }
 }
 
-// Kill all other NSM.exe or connect.exe processes by PID (excluding current)
 void KillOtherLauncherInstances() {
     DWORD currentPid = GetCurrentProcessId();
     PROCESSENTRY32 entry;
@@ -286,7 +284,6 @@ HWND CreateHiddenWindow() {
     wc.hInstance = GetModuleHandle(NULL);
     wc.lpszClassName = "gtamp_hidden_class";
     
-    // Load icon from resource 1 if available
     HICON hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(1));
     if (hIcon) {
         wc.hIcon = hIcon;
@@ -321,7 +318,6 @@ void ShowCustomError() {
 }
 
 void CheckAlreadyRunning() {
-    // Terminate any old background/zombie NSM.exe or connect.exe instances
     KillOtherLauncherInstances();
     Sleep(150);
 
@@ -582,6 +578,57 @@ inline void EnsureGtaPathConfigured(const string& baseDir) {
     }
 }
 
+// Ensures game files are extracted into local target directory when launching GTA
+bool EnsureGameFilesReady(const string& baseDir, const string& targetDir) {
+    DWORD attr = GetFileAttributesA(targetDir.c_str());
+    bool dirExists = (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY));
+    if (dirExists) {
+        return true;
+    }
+
+    string testPack = baseDir + "\\packs\\mp1.pack";
+    if (GetFileAttributesA(testPack.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        // Packs not adjacent, check current directory or client-new
+        testPack = baseDir + "\\client-new\\packs\\mp1.pack";
+        if (GetFileAttributesA(testPack.c_str()) == INVALID_FILE_ATTRIBUTES) {
+            return false;
+        }
+    }
+
+    string packsFolder = baseDir + "\\packs";
+    if (GetFileAttributesA(packsFolder.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        packsFolder = baseDir + "\\client-new\\packs";
+    }
+
+    CreateDirectoryA(targetDir.c_str(), NULL);
+    CreateDirectoryA((targetDir + "\\logs").c_str(), NULL);
+    CreateDirectoryA((targetDir + "\\proxy").c_str(), NULL);
+    CreateDirectoryA((targetDir + "\\cef").c_str(), NULL);
+    CreateDirectoryA((targetDir + "\\cef\\locales").c_str(), NULL);
+    CreateDirectoryA((targetDir + "\\libs").c_str(), NULL);
+    CreateDirectoryA((targetDir + "\\cache").c_str(), NULL);
+    CreateDirectoryA((targetDir + "\\backup").c_str(), NULL);
+
+    for (int i = 1; i <= 7; ++i) {
+        string packName = "mp" + to_string(i);
+        string mpPackPath = packsFolder + "\\" + packName + ".pack";
+        string mpDllPath = targetDir + "\\" + packName + "_ext.dll";
+        if (DecryptDataAES(mpPackPath, mpDllPath)) {
+            HMODULE hMp = LoadLibraryA(mpDllPath.c_str());
+            if (hMp) {
+                typedef void (*RunExtractorFunc)(const char*);
+                RunExtractorFunc runExtractor = (RunExtractorFunc)GetProcAddress(hMp, "RunExtractor");
+                if (runExtractor) runExtractor(targetDir.c_str());
+                FreeLibrary(hMp);
+            }
+            DeleteFileA(mpDllPath.c_str());
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -663,76 +710,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     string key = "gtamp";
     string targetDir = string(localAppData) + "\\" + ComputeHash(key);
     
-    // Setup logging
     CreateDirectoryA((targetDir + "\\logs").c_str(), NULL);
     g_logFilePath = targetDir + "\\logs\\connect.log";
     WriteLog("Starting connect.exe / NSM.exe");
-    
-    // Check if target directory already exists
-    DWORD attr = GetFileAttributesA(targetDir.c_str());
-    bool dirExists = (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY));
-    
-    if (dirExists) {
-        WriteLog("Target directory exists, verifying files...");
-        int manifestSize = sizeof(g_Manifest) / sizeof(g_Manifest[0]);
-        for (int i = 0; i < manifestSize; ++i) {
-            string filePath = targetDir + g_Manifest[i].relPath;
-            if (filePath.find("skin.bin") != string::npos) continue;
-            
-            size_t actualSize = GetFileSizeStr(filePath);
-            if (actualSize != g_Manifest[i].expectedSize) {
-                WriteLog("Verification failed (size mismatch): " + filePath);
-                dirExists = false;
-                break;
-            }
-            string actualSha1 = ComputeFileSHA1(filePath);
-            if (actualSha1 != g_Manifest[i].expectedSha1) {
-                WriteLog("Verification failed (hash mismatch): " + filePath);
-                dirExists = false;
-                break;
-            }
-        }
-        if (dirExists) {
-            WriteLog("Verification successful.");
-        }
-    }
-
-    if (!dirExists) {
-        WriteLog("Extracting packs...");
-        CreateDirectoryA(targetDir.c_str(), NULL);
-        CreateDirectoryA((targetDir + "\\logs").c_str(), NULL);
-        CreateDirectoryA((targetDir + "\\proxy").c_str(), NULL);
-        CreateDirectoryA((targetDir + "\\cef").c_str(), NULL);
-        CreateDirectoryA((targetDir + "\\cef\\locales").c_str(), NULL);
-        CreateDirectoryA((targetDir + "\\libs").c_str(), NULL);
-        CreateDirectoryA((targetDir + "\\cache").c_str(), NULL);
-        CreateDirectoryA((targetDir + "\\backup").c_str(), NULL);
-        
-        for (int i = 1; i <= 7; ++i) {
-            string packName = "mp" + to_string(i);
-            WriteLog("Extracting " + packName + "...");
-            string mpPackPath = baseDir + "\\\\packs\\\\" + packName + ".pack";
-            string mpDllPath = targetDir + "\\\\" + packName + "_ext.dll";
-            if (DecryptDataAES(mpPackPath, mpDllPath)) {
-                HMODULE hMp = LoadLibraryA(mpDllPath.c_str());
-                if (hMp) {
-                    typedef void (*RunExtractorFunc)(const char*);
-                    RunExtractorFunc runExtractor = (RunExtractorFunc)GetProcAddress(hMp, "RunExtractor");
-                    if (runExtractor) runExtractor(targetDir.c_str());
-                    FreeLibrary(hMp);
-                }
-                DeleteFileA(mpDllPath.c_str());
-            } else {
-                string errorMsg = "Failed to decrypt " + packName + ".pack";
-                WriteLog(errorMsg);
-                MessageBoxA(NULL, errorMsg.c_str(), "Error", MB_ICONERROR);
-                return 1;
-            }
-        }
-        WriteLog("Extraction complete.");
-    }
-
-    MarkForDeleteOnReboot(targetDir);
 
     // ========================================================
     // Main FiveM Session Loop:
@@ -779,6 +759,24 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             gtamp::g_launcherState.currentServer = pickedServer;
             gtamp::g_launcherState.serverName = pickedName.empty() ? pickedServer : pickedName;
             gtamp::g_launcherState.disconnectRequested = false;
+        }
+
+        // Ensure game engine packs are ready
+        if (!EnsureGameFilesReady(baseDir, targetDir)) {
+            MessageBoxW(
+                NULL,
+                L"GTAMP game packs (packs/mp1.pack) not found in launcher directory.\nPlease place NSM.exe inside your GTAMP folder to launch GTA V.",
+                L"NSM Launcher",
+                MB_ICONINFORMATION | MB_OK
+            );
+            // Stay in launcher session, reset to idle
+            {
+                std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
+                gtamp::g_launcherState.gameState = "idle";
+                gtamp::g_launcherState.currentServer = "";
+            }
+            if (hasConnect) break;
+            continue;
         }
 
         string skinBinPath = targetDir + "\\cache\\skin.bin";
