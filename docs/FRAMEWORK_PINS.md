@@ -7,3 +7,7 @@ Canonical upstreams (remotes were not recorded in the clone configs):
 - qb-core    → https://github.com/qbx-framework/qb-core   @ 9b3cddc
 - esx-legacy → https://github.com/esx-legacy/esx-legacy   @ fe59ca0
 - oxmysql    → https://github.com/overextended/oxmysql    @ bae715c
+
+> 2026-10-11: the clones now live at `server/resource_store/` (canonical,
+> loaded-from copy is `server/fivem_resources/`). The paths above are the
+> historical record of where the pins were first taken.
