@@ -16,9 +16,9 @@
 ### Prompt 2 — Foundation, security, reproducible builds ✅ DONE (Node side)
 - Security: S1–S4, S6, S9–S12 + defaults-vs-docs fixed with 46 regression
   checks (22 masterlist + 24 website), all passing (`docs/SECURITY.md`).
-- Reproducibility: website `package-lock.json` committed (was gitignored!),
-  `.gitignore` fixed (masterlist runtime data excluded), CI workflow added
-  (all suites + real-framework gates), `docs/BUILDING.md` verified commands.
+- Reproducibility: website `package-lock.json` confirmed committed,
+  `.gitignore` excludes masterlist runtime data, CI workflow added (all
+  suites + real-framework gates), `docs/BUILDING.md` verified commands.
 - Reliability: `.cfg` inline-`#` truncation bug fixed in wrapper source
   (**not compile-tested** — Windows/MSVC only; flagged for rebuild).
 - **Open**: S5 (token-verify proxy hardening — needs Windows C++ rebuild),

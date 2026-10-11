@@ -48,8 +48,8 @@ framework milestones will pin exact commits.
 
 ## Dependency policy
 
-- `website/package-lock.json` is **committed** (reproducible `npm ci`).
-  Ranges in `package.json` are locked by the lockfile.
+- `website/package-lock.json` is **committed** (reproducible `npm ci`;
+  ranges in `package.json` are locked by the lockfile).
 - masterlist and cfx-compat deliberately have **zero runtime npm deps**
   (wasmoon is vendored under `server/resources/fivem-compat/vendor/wasmoon`,
   MIT license).

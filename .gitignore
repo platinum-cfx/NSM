@@ -1,3 +1,6 @@
 # Node modules & scratch
 node_modules/
 *.log
+
+# Runtime data (masterlist keys / runtime state must never be committed)
+masterlist/data/
