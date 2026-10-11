@@ -1,0 +1,1 @@
+#define ALT_SDK_VERSION "c150769"

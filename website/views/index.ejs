@@ -1,0 +1,245 @@
+<%- include('partials/head') %>
+
+<!-- ARTWORK BAND: header backdrop + hero -->
+<div class="bg-holder with-bg">
+  <div class="container"><div class="spacer">
+  <section class="hero">
+    <div class="hero-seller" id="hero-seller" style="display:flex;flex-wrap:wrap;gap:var(--q2);align-items:center;justify-content:space-between;width:100%">
+      <div class="hero-lead">
+        <p class="lead"><strong>GTAMP</strong> is a multiplayer modification for Grand Theft Auto&nbsp;V, built on our own code. <strong>Play</strong> on community-run servers, or <strong>create</strong> your own world.</p>
+      </div>
+      <div class="hero-cta">
+        <div class="players">
+          <span class="live-dot"></span>Join the <span class="current-players"><%= livePlayers.toLocaleString('en-US') %></span> people playing right now!
+        </div>
+        <a id="dl" href="/download/NSM.exe">
+          <span class="txt">DOWNLOAD GTAMP</span>
+          <span class="desc">NSM.exe</span>
+        </a>
+        <p class="plaText">By downloading, you agree to the terms of the <a href="/terms">GTAMP License Agreement</a></p>
+        <div class="server">
+          <a class="btn block" href="/run-server">Create your own server</a>
+        </div>
+      </div>
+    </div>
+    <div class="hero-thanks" id="hero-thanks">
+      <div class="message">
+        <h1>Thank you — you are <span class="hl">awesome!</span></h1>
+        <div class="snail-happy" style="margin-top:var(--q2)"><span class="material-icons-outlined">sentiment_very_satisfied</span></div>
+      </div>
+      <p>If the download doesn't start, <a id="dl-retry" href="/download/NSM.exe">click here</a>.<br>
+      Once installed, browse the <a href="/servers">Server List</a> and jump in.</p>
+    </div>
+  </section>
+  </div></div>
+</div>
+
+<!-- FEATURES -->
+<section class="features">
+  <div class="container"><div class="spacer">
+    <div class="fx"><div class="c-xs-12">
+      <div class="preamb">
+        <p>Building on everything we learned shipping our own launcher, relay server, and in-game hook, GTAMP is a <em>community-driven</em> multiplayer project that puts players and server owners <em>first</em>.<br>No compromises, no lock-in — just play.</p>
+      </div>
+    </div></div>
+    <h1>What we have for you</h1>
+    <div class="fx">
+      <div class="c-lg-3 c-md-4 c-sm-6 c-xs-12">
+        <article class="a1">
+          <h2><div class="icon-wrap"><span class="material-icons-outlined md-24">cloud_download</span></div>Download &amp; play</h2>
+          <span class="txt">GTAMP lets servers ship custom cars, maps, weapons, and more — delivered <em>dynamically</em> as you play.</span>
+        </article>
+      </div>
+      <div class="c-lg-3 c-md-4 c-sm-6 c-xs-12">
+        <article class="a2">
+          <h2><div class="icon-wrap"><span class="material-icons-outlined md-24">supervisor_account</span></div>Nametags &amp; blips</h2>
+          <span class="txt">FiveM-style nametags and map blips show you who's who. You'll <em>never</em> lose your crew.</span>
+        </article>
+      </div>
+      <div class="c-lg-3 c-md-4 c-sm-6 c-xs-12">
+        <article class="a3">
+          <h2><div class="icon-wrap"><span class="material-icons-outlined md-24">sync_alt</span></div>Sync quality</h2>
+          <span class="txt">GTAMP's own UDP relay keeps every player smoothly in sync, so you get the <em>best</em> experience around.</span>
+        </article>
+      </div>
+      <div class="c-lg-3 c-md-4 c-sm-6 c-xs-12">
+        <article class="a4">
+          <h2><div class="icon-wrap"><span class="material-icons-outlined md-24">widgets</span></div>Standalone</h2>
+          <span class="txt">GTAMP doesn't modify your GTAV installation, so you can switch between GTA Online and GTAMP <em>freely</em>.</span>
+        </article>
+      </div>
+    </div>
+    <h2 class="closing">Resulting in endless possibilities to play or create your desired gamemode!</h2>
+  </div></div>
+</section>
+
+<!-- ENHANCED EDITION CARD -->
+<section class="enhanced">
+  <div class="container"><div class="spacer">
+    <hr>
+    <div class="root"><div class="inner-root">
+      <div class="content">
+        <div class="cleft">
+          <span class="ea-badge">Early Access</span>
+          <h1>GTAMP for GTAV Enhanced</h1>
+          <p>The immersion of GTAMP with GTAV Enhanced edition graphics, now available in Early Access. Features subject to change during Early Access or prior to full release. Visit our <a href="/support">Support</a> page for more information.</p>
+          <hr>
+          <div class="btnrow">
+            <a class="ghostbtn" href="/download/NSM.exe">
+              <span class="in">
+                <span class="gbtn-txt">Download GTAMP for GTAV Enhanced</span>
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.75c-.41 0-.75.34-.75.75v5.19L5.53 5.97a.75.75 0 1 0-1.06 1.06l3 3c.29.29.77.29 1.06 0l3-3a.75.75 0 1 0-1.06-1.06L8.75 7.69V2.5c0-.41-.34-.75-.75-.75ZM3 8.71c-.41 0-.75.34-.75.75v3A1.75 1.75 0 0 0 4 14.21h8a1.75 1.75 0 0 0 1.75-1.75v-3c0-.41-.34-.75-.75-.75s-.75.34-.75.75v3c0 .14-.11.25-.25.25H4a.25.25 0 0 1-.25-.25v-3c0-.41-.34-.75-.75-.75Z"/></svg>
+              </span>
+            </a>
+            <p class="dl-text">By downloading, you agree to the terms of the <a href="/terms">GTAMP License Agreement</a></p>
+          </div>
+        </div>
+        <div class="cright"></div>
+      </div>
+    </div></div>
+  </div></div>
+</section>
+
+<!-- SYSTEM REQUIREMENTS -->
+<section class="reqs">
+  <div class="container"><div class="spacer">
+    <hr>
+    <h1>System requirements</h1>
+    <h2>GTAMP Legacy</h2>
+    <h4 class="version-desc">Requires Grand Theft Auto V Legacy.</h4>
+    <div class="fx">
+      <div class="c-lg-6 c-xs-12">
+        <h2 class="sub">Minimum</h2>
+        <h4 class="windows-version">Windows 10</h4>
+        <table class="stat-table">
+          <tr><td><span class="stat">CPU</span></td><td>Intel Core 2 Quad CPU Q6600 2.4 GHz (4 cores) / AMD Phenom 9850 Quad-Core Processor 2.5 GHz (4 cores)</td></tr>
+          <tr><td><span class="stat">GPU</span></td><td>NVIDIA 9800 GT with 1GB of video memory / AMD HD 4870 with 1GB of video memory (DX 10, 10.1, 11)</td></tr>
+          <tr><td><span class="stat">RAM</span></td><td>4GB</td></tr>
+          <tr><td><span class="stat">HDD</span></td><td>125GB + 4GB</td></tr>
+        </table>
+      </div>
+      <div class="c-lg-6 c-xs-12">
+        <h2 class="sub">Recommended</h2>
+        <h4 class="windows-version">Windows 11</h4>
+        <table class="stat-table">
+          <tr><td><span class="stat">CPU</span></td><td>Intel Core i5 3470 3.2GHz (4 cores) / AMD X8 FX-8350 4GHz (8 cores)</td></tr>
+          <tr><td><span class="stat">GPU</span></td><td>NVIDIA GTX 660 with 2GB of video memory / AMD HD 7870 with 2GB of video memory</td></tr>
+          <tr><td><span class="stat">RAM</span></td><td>8GB</td></tr>
+          <tr><td><span class="stat">HDD</span></td><td>125GB + 8GB</td></tr>
+        </table>
+      </div>
+    </div>
+    <hr class="table-div">
+    <h2>GTAMP for GTAV Enhanced</h2>
+    <h4 class="version-desc">Requires Grand Theft Auto V Enhanced.</h4>
+    <div class="fx">
+      <div class="c-lg-6 c-xs-12">
+        <h2 class="sub">Minimum</h2>
+        <h4 class="windows-version">Windows 10</h4>
+        <table class="stat-table">
+          <tr><td><span class="stat">CPU</span></td><td>Intel Core i7-4770 / AMD FX-9590</td></tr>
+          <tr><td><span class="stat">GPU</span></td><td>NVIDIA GeForce GTX 1630 with 4GB video memory / AMD Radeon RX 6400 with 4GB video memory</td></tr>
+          <tr><td><span class="stat">RAM</span></td><td>8GB</td></tr>
+          <tr><td><span class="stat">HDD</span></td><td>105GB + 4GB</td></tr>
+        </table>
+      </div>
+      <div class="c-lg-6 c-xs-12">
+        <h2 class="sub">Recommended</h2>
+        <h4 class="windows-version">Windows 11</h4>
+        <table class="stat-table">
+          <tr><td><span class="stat">CPU</span></td><td>Intel Core i5-9600K / AMD Ryzen 5 3600</td></tr>
+          <tr><td><span class="stat">GPU</span></td><td>NVIDIA GeForce RTX 3060 with 8GB of video memory / AMD Radeon RX 6600 XT with 8GB of video memory</td></tr>
+          <tr><td><span class="stat">RAM</span></td><td>16GB in dual-channel mode</td></tr>
+          <tr><td><span class="stat">HDD</span></td><td>105GB + 8GB</td></tr>
+        </table>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- DEVELOPERS BAND -->
+<section class="dev" id="dev">
+  <div class="container"><div class="spacer">
+    <div class="fx"><div class="c-xs-12"><h1>We &hearts; developers</h1></div></div>
+    <article>
+      <div class="fx"><div class="c-xs-12">
+        <h2>Run your own server!</h2>
+        <p>GTAMP is built for creativity. Create your own server and make your dreams come true.<br><br>Our multiplayer framework gives you a growing toolbox to personalize the gameplay experience of your server — roleplay, drifting, racing, deathmatch, or something completely original.</p>
+        <div class="btnpadder"><a href="/run-server" class="btn">Create a server now</a></div>
+      </div></div>
+    </article>
+    <article>
+      <h2>Develop using your favorite programming language</h2>
+      <p>With GTAMP's support for multiple scripting approaches, everyone can get started quickly.</p>
+      <div class="langs"><div class="fx between-lg">
+        <div class="c-lg-4 c-md-4 c-sm-6">
+          <a class="lang lua" href="/docs/scripting">
+            <div class="logo"><svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"><path d="M39.5 6A20.5 20.5 0 1 0 58 32 16 16 0 0 1 39.5 6Zm0-3A23 23 0 0 1 61 32a23.5 23.5 0 1 1-23-25.5c.5 0 1-.02 1.5 0Z"/></svg></div>
+            <div class="aux"><h2>Lua</h2><span class="d">A concise, lightweight scripting language that is easy to pick up.</span></div>
+          </a>
+        </div>
+        <div class="c-lg-4 c-md-4 c-sm-6">
+          <a class="lang cs" href="/docs/scripting">
+            <div class="logo"><svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"><path d="M39 20a15 15 0 1 0 0 24h3a18 18 0 1 1 0-24Z"/><path d="M47 27h12v3H53v4h6v3h-6v4h6v3H47Z"/></svg></div>
+            <div class="aux"><h2>C#</h2><span class="d">Static typing and structure, for the most <em>advanced</em> projects.</span></div>
+          </a>
+        </div>
+        <div class="c-lg-4 c-md-4 c-sm-6">
+          <a class="lang js" href="/docs/scripting">
+            <div class="logo"><svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"><path d="M8 8h48v48H8Zm6 6v36h36V14Zm22 26.5c0 4.2-2.6 6.5-7 6.5-3.4 0-5.6-1.6-6.7-4l3-1.8c.6 1.1 1.3 2 2.9 2 1.4 0 2.3-.6 2.3-3V25.5H36Z"/></svg></div>
+            <div class="aux"><h2>JavaScript</h2><span class="d">Use your existing web development knowledge and tooling.</span></div>
+          </a>
+        </div>
+      </div></div>
+    </article>
+    <article>
+      <div class="fx"><div class="c-xs-12">
+        <h2>Contribute to the GTAMP project</h2>
+        <p>We believe in the power of communities. As a community platform, we appreciate everyone who contributes — building features, squashing bugs, writing resources, or researching game internals.</p>
+        <div class="btnpadder"><a href="https://github.com/lsdojrp123-ai/GTAMPv1" class="btn">Read more</a></div>
+      </div></div>
+    </article>
+  </div></div>
+</section>
+
+<!-- FAQ -->
+<section class="faq" id="faq">
+  <div class="container"><div class="spacer">
+    <div class="fx"><div class="c-xs-12">
+      <h1>F.A.Q.</h1>
+      <div class="list">
+        <div id="no-bans">
+          <h3><a href="#no-bans">#</a> Will I get banned from GTA Online for playing GTAMP?</h3>
+          <p>No. GTAMP does not interact with Rockstar Games Online Services, and it doesn't modify your game files at all, so you don't have to do anything to switch between GTAMP and GTA Online.</p>
+        </div>
+        <div id="ownership">
+          <h3><a href="#ownership">#</a> Is GTAMP the same project as FiveM?</h3>
+          <p>No. GTAMP is our own codebase, built independently. It follows a similar architecture philosophy — a client hook, a relay server, and community servers — but shares no code with any other project.</p>
+        </div>
+        <div id="playing-on-console">
+          <h3><a href="#playing-on-console">#</a> Can I play GTAMP on my console?</h3>
+          <p>Unfortunately not. GTAMP relies on mechanisms that only exist on the PC platform, so a PC copy of Grand Theft Auto V is required.</p>
+        </div>
+        <div id="onesync">
+          <h3><a href="#onesync">#</a> How many players can a server hold?</h3>
+          <p>Our relay is built to scale with the server host's bandwidth. Small community servers typically run 8–32 players; larger capsules are on the roadmap as sync quality improves.</p>
+        </div>
+        <div id="crashreport">
+          <h3><a href="#crashreport">#</a> My GTAMP crashes, what should I do?</h3>
+          <p>You should post a topic on the <a href="/forum">forum</a> describing what happened, using as much detail as you can — the more you tell us, the faster we can fix it.</p>
+        </div>
+        <div id="m-is">
+          <h3><a href="#m-is">#</a> What does the M in GTAMP stand for?</h3>
+          <p>Multiplayer — GTAMP is the GTA Multiplayer Project: a modification that adds community-run multiplayer to Grand Theft Auto V.</p>
+        </div>
+        <div id="running-server">
+          <h3><a href="#running-server">#</a> I want to run a server, how do I do so?</h3>
+          <p>Running your own server is easy. Refer to our <a href="/run-server">server page</a> to get started, and check the <a href="/docs">documentation</a> for configuration details.</p>
+          <p>You can also ask the community on our <a href="/forum">forum</a> — someone is always happy to help.</p>
+        </div>
+      </div>
+    </div></div>
+  </div></div>
+</section>
+
+<%- include('partials/foot') %>

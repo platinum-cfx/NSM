@@ -1,0 +1,13 @@
+<%- include('partials/head') %>
+<div class="form-card">
+  <h1 style="margin-bottom:20px">Create account</h1>
+  <% if (typeof error !== 'undefined' && error) { %><div class="error"><%= error %></div><% } %>
+  <form method="POST" action="/register">
+    <div class="form-row"><label>Username</label><input type="text" name="username" required></div>
+    <div class="form-row"><label>Email (optional)</label><input type="email" name="email"></div>
+    <div class="form-row"><label>Password</label><input type="password" name="password" required></div>
+    <button class="btn btn-accent" style="width:100%">REGISTER</button>
+  </form>
+  <p class="muted mt center">Already have an account? <a href="/login">Login</a></p>
+</div>
+<%- include('partials/foot') %>

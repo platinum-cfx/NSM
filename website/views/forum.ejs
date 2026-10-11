@@ -1,0 +1,34 @@
+<%- include('partials/head') %>
+<div class="dc-page">
+  <h1 class="dc-title">Categories</h1>
+  <div class="dc-table">
+    <%
+      var palette = ['#f40552','#07baae','#0785bd','#e8a13d','#a2ba0b','#b9084e','#8b6cff','#6ac6ff'];
+      cats.forEach(function(c, i){
+        var color = c.color || palette[i % palette.length];
+        var cp = posts.filter(p => p.cat === c.id);
+        var last = cp.slice().sort((a,b) => (b.at||0)-(a.at||0))[0];
+        var lastUser = (last && typeof usersMap !== 'undefined' && usersMap) ? usersMap[last.uid] : null;
+    %>
+      <div class="dc-cat" onclick="location.href='/forum/<%= c.id %>'" style="cursor:pointer">
+        <div>
+          <div class="dc-catname"><span class="cbox" style="background:<%= color %>"></span><%= c.name %></div>
+          <div class="dc-catdesc"><%= c.desc %></div>
+        </div>
+        <div class="dc-topics"><b><%= cp.length %></b><span>topics</span></div>
+        <div class="dc-latest">
+          <% if (last) { %>
+            <div class="dc-av" style="background:<%= color %>"><%= (lastUser && lastUser.username ? lastUser.username[0] : 'G').toUpperCase() %></div>
+            <div style="min-width:0">
+              <a class="t" href="/forum/thread/<%= last.id %>"><%= last.title %></a>
+              <span class="d"><%= new Date(last.at).toLocaleDateString() %></span>
+            </div>
+          <% } else { %>
+            <span class="d muted">No topics yet</span>
+          <% } %>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</div>
+<%- include('partials/foot') %>

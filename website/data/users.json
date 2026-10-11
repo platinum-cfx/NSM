@@ -1,0 +1,39 @@
+[
+  {
+    "id": 5,
+    "username": "Cravenz",
+    "email": "cravenz@owner.local",
+    "pass": "$2a$10$24qz/HUp.vmzWozedbLWqeJ0qPbLLckO5x9j/weo5CwjQc09kX/A6",
+    "password": "$2a$10$24qz/HUp.vmzWozedbLWqeJ0qPbLLckO5x9j/weo5CwjQc09kX/A6",
+    "role": "owner",
+    "createdAt": 1791692906664
+  },
+  {
+    "id": 1,
+    "username": "GTAMP_Team",
+    "email": "",
+    "password": "$2a$10$HUZHyeMAvoWpWSEAIFJGL.Hzd5mtfV1LXLp/lviLHnEdxuwlU37/u",
+    "createdAt": 1789100906451
+  },
+  {
+    "id": 2,
+    "username": "ServerHost",
+    "email": "",
+    "password": "$2a$10$HUZHyeMAvoWpWSEAIFJGL.Hzd5mtfV1LXLp/lviLHnEdxuwlU37/u",
+    "createdAt": 1789964906451
+  },
+  {
+    "id": 3,
+    "username": "Scripter",
+    "email": "",
+    "password": "$2a$10$HUZHyeMAvoWpWSEAIFJGL.Hzd5mtfV1LXLp/lviLHnEdxuwlU37/u",
+    "createdAt": 1790396906451
+  },
+  {
+    "id": 4,
+    "username": "Community",
+    "email": "",
+    "password": "$2a$10$HUZHyeMAvoWpWSEAIFJGL.Hzd5mtfV1LXLp/lviLHnEdxuwlU37/u",
+    "createdAt": 1790828906451
+  }
+]

@@ -1,0 +1,46 @@
+<%- include('partials/head') %>
+<%
+  var cats = {};
+  docs.forEach(d => { (cats[d.cat] = cats[d.cat] || []).push(d); });
+  var catNames = Object.keys(cats);
+  var activeId = (typeof activeDoc !== 'undefined' && activeDoc) ? activeDoc.id : null;
+%>
+<div class="docs-layout">
+  <aside class="docs-nav">
+    <div class="docs-search">
+      <input type="text" id="docs-filter" placeholder="Filter documentation…" oninput="filterDocs(this.value)">
+    </div>
+    <% catNames.forEach(function(c){ %>
+      <div class="navGroup">
+        <div class="navGroupTitle"><%= c %></div>
+        <% cats[c].forEach(function(d){ %>
+          <a class="docLink <%= activeId === d.id ? 'active' : '' %>" href="/docs/<%= d.id %>"><%= d.title %></a>
+        <% }) %>
+      </div>
+    <% }) %>
+  </aside>
+  <main class="docs-content">
+    <h1>GTAMP Documentation</h1>
+    <% catNames.forEach(function(c){ %>
+      <div class="section" data-cat="<%= c %>">
+        <div class="sectionTitle"><%= c %></div>
+        <% cats[c].forEach(function(d){ %>
+          <p>📄 <a href="/docs/<%= d.id %>"><%= d.title %></a><br><span class="muted" style="font-size:var(--fs08)"><%= d.summary || d.body %></span></p>
+        <% }) %>
+      </div>
+    <% }) %>
+  </main>
+</div>
+<script>
+function filterDocs(q){
+  q=(q||'').toLowerCase();
+  document.querySelectorAll('.docLink').forEach(a=>{
+    a.style.display = !q || a.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  document.querySelectorAll('.navGroup').forEach(g=>{
+    const any=[...g.querySelectorAll('.docLink')].some(a=>a.style.display!=='none');
+    g.style.display=any?'':'none';
+  });
+}
+</script>
+<%- include('partials/foot') %>

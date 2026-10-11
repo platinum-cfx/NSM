@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "cat": "announcements",
+    "title": "GTAMP v2.1.1 is live",
+    "body": "FiveM-style launcher, remote players with nametags, F8 chat, and the new website.",
+    "uid": 1,
+    "at": 1791433706452
+  },
+  {
+    "id": 2,
+    "cat": "client-support",
+    "title": "Fixed: hook loads as v1.5.2",
+    "body": "Reinstall the current launcher — older copies ship the old hook.",
+    "uid": 2,
+    "at": 1791520106452
+  },
+  {
+    "id": 3,
+    "cat": "scripting",
+    "title": "Your first GTAMP script",
+    "body": "A few lines of JS or Lua is all it takes — check the docs.",
+    "uid": 3,
+    "at": 1791606506453
+  }
+]

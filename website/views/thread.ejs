@@ -1,0 +1,49 @@
+<%- include('partials/head') %>
+<div class="dc-page" style="max-width:900px">
+  <p><a href="/forum<%= cat ? '/' + cat.id : '' %>" class="muted">← <%= cat ? cat.name : 'Forum' %></a></p>
+  <h1 class="dc-title" style="margin:10px 0 4px"><%= post.title %></h1>
+  <p class="muted" style="margin-bottom:24px">Topic #<%= post.id %> · <%= new Date(post.at).toLocaleString() %></p>
+
+  <% function av(u, color) { var n = u && u.username ? u.username : 'user'; %>
+    <div class="dc-av" style="<%= color ? 'background:' + color : '' %>"><%= n[0].toUpperCase() %></div>
+  <% } %>
+
+  <div class="dc-post">
+    <div class="who">
+      <% av((typeof usersMap !== 'undefined' && usersMap) ? usersMap[post.uid] : null); %>
+      <div class="nm"><%= (typeof usersMap !== 'undefined' && usersMap && usersMap[post.uid]) ? usersMap[post.uid].username : 'user' %></div>
+    </div>
+    <div class="body">
+      <div class="when"><%= new Date(post.at).toLocaleString() %></div>
+      <div class="text"><%= post.body %></div>
+    </div>
+  </div>
+
+  <% replies.forEach(function(r){ %>
+    <div class="dc-post">
+      <div class="who">
+        <% av((typeof usersMap !== 'undefined' && usersMap) ? usersMap[r.uid] : null); %>
+        <div class="nm"><%= (typeof usersMap !== 'undefined' && usersMap && usersMap[r.uid]) ? usersMap[r.uid].username : 'user' %></div>
+      </div>
+      <div class="body">
+        <div class="when"><%= new Date(r.at).toLocaleString() %></div>
+        <div class="text"><%= r.body %></div>
+      </div>
+    </div>
+  <% }) %>
+
+  <div style="margin-top:28px">
+    <% if (user) { %>
+      <div class="card">
+        <h3>Reply</h3>
+        <form method="POST" action="/forum/thread/<%= post.id %>/reply">
+          <div class="form-row"><textarea name="body" placeholder="Write your reply…"></textarea></div>
+          <button class="btn btn-accent">Post reply</button>
+        </form>
+      </div>
+    <% } else { %>
+      <p class="muted"><a href="/login">Log in</a> to reply.</p>
+    <% } %>
+  </div>
+</div>
+<%- include('partials/foot') %>

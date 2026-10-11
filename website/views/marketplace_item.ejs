@@ -1,0 +1,21 @@
+<%- include('partials/head') %>
+<div class="mp-hero">
+  <% var pics = { car: '🚗', script: '📜', map: '🗺', weapon: '🔫', clothing: '👕', misc: '📦' }; %>
+  <div class="mp-pic p<%= (Number(asset.id) % 6) + 1 %>" style="font-size:90px;border-radius:4px"><%= pics[asset.cat] || '📦' %></div>
+  <div>
+    <p style="margin-bottom:16px"><a href="/marketplace" class="muted">← Marketplace</a></p>
+    <h1 class="section-title" style="margin-bottom:6px"><%= asset.title %> <span class="vf" style="color:#3ddc84">✔</span></h1>
+    <p class="muted" style="margin-bottom:16px">by <%= author ? author.username : 'Creator' %> · <span class="tag"><%= asset.cat %></span></p>
+    <p style="line-height:1.7;color:var(--color-text);margin-bottom:24px"><%= asset.desc %></p>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px">
+      <span class="<%= asset.price > 0 ? 'mp-price' : 'mp-price free' %>" style="font-size:var(--fs4)"><%= asset.price > 0 ? '$' + Number(asset.price).toFixed(2) : 'FREE' %></span>
+      <span class="mp-dl">⬇ <%= asset.downloads || 0 %> downloads</span>
+    </div>
+    <% if (user) { %>
+      <a href="/keymaster" class="btn btn-accent btn-lg">Add to Keymaster</a>
+    <% } else { %>
+      <a href="/login" class="btn btn-ghost btn-lg">Log in to get this asset</a>
+    <% } %>
+  </div>
+</div>
+<%- include('partials/foot') %>
