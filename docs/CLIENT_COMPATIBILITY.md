@@ -1,7 +1,10 @@
 # Client-side compatibility: investigation, options, decision
 
 **Status:** alternative runtime IMPLEMENTED and integration-tested in-sandbox (70/70 client-runtime
-checks on the shipping VM); on-device verification pending. This document is the Prompt-4
+checks on the shipping VM, plus 36/36 multiplayer integration: two full
+client runtimes running the real qb-core + mp-demo client scripts through
+the real server transport and a real MariaDB); on-device verification
+pending. This document is the Prompt-4
 deliverable required by the owner directive (2026-10): *investigate the client-side blocker in
 depth, determine exactly what the alt client can and cannot support, present the architectural
 options with limitations, implement the most suitable viable approach, and do not claim
@@ -203,6 +206,25 @@ the resource still runs.
     error isolation — **on fengari (what ships) and wasmoon (cross-validation)**.
   - Part C (6): NUI page shim — message events, callback fetch + token-routed response,
     foreign-URL passthrough, `GetParentResourceName`.
+- `node test/multiplayer.test.mjs` → **36/36** — the capstone: real server
+  (`index.js`), real MariaDB, real qb-core + mp-demo, TWO fengari client
+  runtimes connected as players 1 and 7. Verified across the wire:
+  handshakes, Login rows, targeted/broadcast events (no leak),
+  client→server DB writes with source identity, OnPlayerLoaded →
+  isLoggedIn statebag, replicated client statebag writes visible to the
+  other player and the authoritative server store, server statebag writes,
+  ExecuteCommand, disconnect save, reconnect character load, full client
+  script loading for qb-core's real client code, zero unexpected errors.
+- `node test/qbcore-client.test.mjs` → **19/19** — qb-core's real client
+  behavior: PlayerData sync applied client-side after Login/AddMoney/SetJob,
+  qb-core's own OnJobUpdate/SetPlayerData local events, TriggerCallback both
+  forms (promise + Citizen.Await, callback) against a real server
+  CreateCallback, Notify → SendNUIMessage.
+- `node test/selftest.test.mjs` → **11/11** — the on-device selftest resource
+  (§7 automated, see WINDOWS_ONBOARDING.md) runs green in-sandbox incl. the
+  full NUI cycle through the real shim + real page.
+- `node test/db-integration.test.mjs` → **20/20** — oxmysql API surface on
+  real MariaDB + qb-core persistence across a full runtime restart.
 - `node test/run-tests.js` → **102/102** (server suite, unchanged behavior)
 - transform gate 62/62, live-exports 17/17, qb-core loads — unchanged.
 - `node tools/build-client-bundle.mjs` → deploys `resources/fivem-client/` (bundle parses as
@@ -211,6 +233,22 @@ the resource still runs.
 ---
 
 ## 6. Known limitations & deviations (honest list)
+
+Fix log from the qb-core client behavior round (2026-10-11, all regression-tested):
+client prelude gained `promise`/`Citizen.Await` (qb-core client TriggerCallback
+needs them; same contract as the server prelude; resolve is self-aware for
+`p:resolve(v)` method syntax and exposes FiveM's `.value`), the `json`/`msgpack`
+engine globals, and `ExecuteCommand` now dispatches local commands first
+(unknown commands still go through the chat/server path); the mock transport
+now delivers net events asynchronously like a real network.
+
+Fix log from the multiplayer bring-up (2026-10-11, all regression-tested):
+fengari `lua_pushinteger` is int32-checked → large unsigned hashes (joaat ≥ 2^31) now
+fall back to `lua_pushnumber` (prints as `3741913354.0` — value-correct, cosmetic);
+Lua 5.4 `<const>`/`<close>` attributes are stripped by the transform (`<close>`
+semantics lost); statebag `:set`/`:get` use Lua method-call `self` semantics (dot-call
+`state.set(k,v)` without the bag argument is not supported, same as FiveM C-side);
+empty Lua tables encode as `[]` (FiveM `json.encode` behavior).
 
 1. **No real-client verification yet.** Everything through §5 is logic-level. See §7 checklist.
 2. **Lua 5.3 (fengari) vs FiveM Lua 5.4:** no to-be-closed vars (`<close>`), no 5.4 integer/float
@@ -257,10 +295,19 @@ the resource still runs.
 7. Benchmark a `Wait(0)` draw loop (fengari) to quantify §6.4.
 8. Test with qb-core's real client scripts (not just the demo) and enumerate the delta.
 
-## 8. Server-side wiring still to build (integration step, next unit)
+## 8. Server-side wiring — BUILT AND INTEGRATION-TESTED (2026-10-11)
 
-- Route server-Lua `TriggerClientEvent` → `alt.emitClient(player, '__fivem:net', name, json)`
-  (the mock adapter path is tested; the real js-module v1 adapter path needs the same bridge).
-- Push statebag changes to `__fivem:state`.
-- Client `__fivem:cmd` → server command/chat bridge (already conversational in index.js).
-- Player id mapping (alt player id ↔ FiveM server id) for `Player(serverId).state`.
+All four items below are implemented on the real server module path and verified by the
+multiplayer suite (36/36, two client runtimes through the real transport + real MariaDB):
+
+- Server-Lua `TriggerClientEvent` → `alt.emitClient(player, '__fivem:net', name, json)`
+  (targeted — verified no leak to non-targets; broadcast via `emitAllClients`).
+- Statebag changes pushed to `__fivem:state` BOTH directions: server→client writes,
+  client replicated `state:set(k, v, true)` writes visible to the other player AND stored
+  in the authoritative server-side synced-meta store.
+- Client `__fivem:cmd` → server command bridge (ExecuteCommand round-trip verified).
+- Player id mapping (alt player id ↔ FiveM server id) for `Player(serverId).state`
+  (players 1 and 7 verified, incl. reconnect re-handshake).
+
+Remaining for the real deployment: run the same paths on the actual alt:V client
+(§7 checklist) — the logic-level bridge is done and green.

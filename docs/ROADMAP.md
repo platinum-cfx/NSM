@@ -65,10 +65,15 @@
 - Evidence: **client-runtime suite 70/70** (both VMs; real server pipeline
   with mock game/transport); server suite 102/102, transform 62/62,
   live-exports 17/17, qb-core load — all green after the changes.
-- Honest status: **logic verified in-sandbox only**. On-device checklist
+- Honest status: **verified in-sandbox end-to-end at the logic level,
+  including two-client multiplayer through the real transport (36/36)**.
+  On-device checklist
   (§7 of the doc): natives module resolution, WASM availability, webview
   rendering/focus, keybind path, real event transport, perf benchmark,
-  qb-core real client scripts. Remaining build-outs: server→client event
+  (natives module resolution, WASM availability, webview rendering/focus,
+  keybind path, real event transport, perf benchmark). qb-core's real
+  client scripts ARE verified in-sandbox (all load + the OnPlayerLoaded /
+  isLoggedIn flow in the multiplayer suite). Remaining build-outs: server→client event
   wiring on the real js-module adapter, voice replacement (pma-voice),
   networked-entity broker, dlc conversion tooling, KVP persistence.
 - Still impossible (any approach): escrowed client scripts; DUI; FiveM
@@ -82,11 +87,23 @@
   written yet — the runtime has the data (stubs warn once by name), the doc
   needs generating.
 
-### Prompt 6 — QBCore 🔶 CORE LOADS; BEHAVIOR UNTESTED
+### Prompt 6 — QBCore 🔶 SERVER+CLIENT BEHAVIOR TESTED (REAL DB); DOCS PENDING
 - qb-core (12 shared + 7 server scripts) loads with zero errors; live
   `GetCoreObject()` works across resources (17/17 acceptance checks).
-- Not yet done: pinned commit, player lifecycle with real DB, jobs/money/
-  inventory behavior tests, `docs/QBCORE_COMPATIBILITY.md`.
+- NEW (2026-10-11): full player lifecycle on REAL MariaDB — Login creates
+  the row (license from alt identifiers), AddMoney/SetJob persist, Save on
+  disconnect writes money+job, reconnect loads the existing character,
+  money survives a FULL RUNTIME RESTART (db-integration 20/20). Client
+  side: all qb-core client scripts execute in the fengari client runtime;
+  the OnPlayerLoaded → isLoggedIn statebag flow works over the real
+  transport (multiplayer 36/36).
+- NEW (2026-10-11, round 2): qb-core CLIENT behavior verified 19/19 —
+  PlayerData sync applied client-side (Login/AddMoney/SetJob), qb-core's own
+  OnJobUpdate/SetPlayerData local events, TriggerCallback both forms against
+  real server CreateCallbacks, Notify. On-device selftest resource built and
+  verified in-sandbox (11/11 incl. full NUI cycle).
+- Not yet done: pinned commit, inventory/gang/tuner behavior, multichar,
+  `docs/QBCORE_COMPATIBILITY.md`.
 
 ### Prompt 7 — ESX 🔶 CORE LOADS; BEHAVIOR UNTESTED
 - esx_lib + es_extended (27 scripts) load clean; live `getSharedObject()`
@@ -96,8 +113,12 @@
   qb-core in the same server — upstream guard; test frameworks separately.)
 
 ### Prompt 8 — DB / NUI / common deps / voice 🔶 EARLY
-- MySQL API implemented (callback + await + oxmysql-style callables) and
-  tested against a mock; real-DB pool behavior untested; no transactions.
+- MySQL API implemented (callback + await + oxmysql-style callables).
+  NEW: verified against REAL MariaDB (db-integration 20/20) — named and
+  positional params, prepare/scalar/single/execute semantics
+  (affectedRows/insertId), transactions incl. verified ROLLBACK and
+  cb(false) on failure, SQL errors raise in Lua, await works inside MySQL
+  callbacks. Long-run pool behavior (limits/timeouts) still untested.
 - NUI: not started (client-runtime dependent, see Prompt 4 note).
 - Common deps (ox_lib etc.): not started; priority list to be derived from
   framework dependency graphs.
@@ -108,18 +129,18 @@
 ## Next concrete tasks (priority order)
 
 1. **Client runtime on-device verification + server wiring** (Prompt 4
-   continuation): run the §7 checklist on the Windows GTAMP host; wire
+   continuation — needs the owner's Windows machine): run the §7 checklist on the Windows GTAMP host; wire
    `TriggerClientEvent` → `alt.emitClient('__fivem:net', ...)` +
    statebag pushes on the real js-module adapter; benchmark fengari vs
-   wasmoon in a `Wait(0)` loop; run qb-core's real client scripts.
+   wasmoon in a `Wait(0)` loop. (In-sandbox: qb-core's real client scripts already run —
+   multiplayer suite 36/36.) Produce the exact Windows commands/config for
+   NSM + friends (owner's step 6).
 2. **`COMPATIBILITY_MATRIX.md` + `LUA_RUNTIME.md` + `RESOURCE_DEVELOPMENT.md`**
    (now including the client-side matrix from unit 1).
-3. **DB integration environment**: real MariaDB (dockerized or native) +
-   schema from esx-legacy `[SQL]`, run framework SQL flows for real (player
-   load/save round-trip = persistence evidence); then write
-   `QBCORE_COMPATIBILITY.md` / `ESX_COMPATIBILITY.md` with pinned commits.
-   Multiplayer behavior: simulated multi-player event/state tests through
-   the real runtime (real GTA clients cannot run in this sandbox).
+3. **Compatibility docs**: `QBCORE_COMPATIBILITY.md` /
+   `ESX_COMPATIBILITY.md` with pinned commits (the DB + multiplayer
+   evidence they cite now exists — see TESTING.md). esx-legacy `[SQL]`
+   schema import for ESX DB flows.
 4. **Wrapper rebuild checklist for the Windows machine**: bind 7799/7899 to
    loopback (S5), compile-verify the `.cfg` fix, flip `debug = false` (S14).
 5. **Presence/report protocol (S7/S8)**: sign presence with the server key;

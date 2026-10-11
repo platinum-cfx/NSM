@@ -1,9 +1,0 @@
-type = 'js'
-main = 'index.js'
-client-main = 'client.js'
-client-files = [
-    'client.js',
-    'cef/vmenu.html',
-    'cef/vmenu.css',
-    'cef/vmenu.js'
-]

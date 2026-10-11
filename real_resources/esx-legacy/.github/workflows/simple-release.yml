@@ -1,0 +1,42 @@
+name: Simple Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      versionNumber:
+        description: 'Version Number'
+        required: false
+        default: ''
+      zipName:
+        description: 'Zip Name'
+        required: true
+        default: 'esx_core'
+      web:
+        description: 'Web'
+        required: false
+        default: 'false'
+      excludeOptions:
+          type: string
+          description: Separate the files or folders that you do not want to see in the release with a comma. 
+          required: false
+          default: 'node_modules,package.json,package-lock.json'
+      neededNewBranch:
+          type: string
+          description: Specify true or false if you want to create a new branch.
+          required: false
+      fxmanifestPath:
+          type: string
+          description: Specify fxmanifest path if fxmanifest is not in the root folder.
+          required: false
+          default: 'fxmanifest.lua'
+
+jobs:
+  simple-create-release:
+    uses: esx-framework/.github/.github/workflows/simple-release.yml@main
+    with:
+      zipName: ${{ github.event.inputs.zipName }}
+      web: ${{ github.event.inputs.web }}
+      versionNumber: ${{ github.event.inputs.versionNumber }}
+      excludeOptions: ${{ github.event.inputs.excludeOptions }}
+      neededNewBranch: ${{ github.event.inputs.neededNewBranch }}
+      fxmanifestPath: ${{ github.events.inputs.fxmanifestPath }}

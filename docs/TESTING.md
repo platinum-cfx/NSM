@@ -10,6 +10,10 @@
 |---|---|---|---|
 | cfx-compat unit/integration | `node test/run-tests.js` (server/resources/fivem-compat) | **102/102** | manifest parsing, shared+server scripts, events (local/net/lifecycle), commands, `source` semantics, threads/Wait, JSON round-trip, convars, joaat, MySQL (mock), entity natives, statebags, promises/Await, HTTP (mock), 6423 native stubs, one-VM env isolation, per-env `load()`, live exports (functions/identity/mutations/source), manifest diagnostics, dependency ordering + cycle handling, resource lifecycle (stop/start/restart cleanup, `onResourceStart`/`onResourceStop`, failed-status semantics, `GetResourceState` FiveM vocabulary, `res` command interface, fail-fast + missing-script/`@import` failure) |
 | fivem-client runtime (2 VMs + NUI shim) | `node test/client-runtime.test.mjs` (server/resources/fivem-compat) | **70/70** | client-side FiveM API hosted in an alt:V client JS resource: real manifest→transform→payload pipeline (Part A); threads/Wait, natives marshalling (vector3 + multireturn + warn-once missing), net events both directions, statebags, commands + key mapping, NUI messages/callbacks/focus incl. the in-page fetch shim (Part B, run on fengari — the VM that ships — and wasmoon for cross-validation; Part C shim unit tests). Game-facing behavior (rendering, streaming, real natives) is on the on-device checklist in CLIENT_COMPATIBILITY.md §7 |
+| multiplayer integration (2 clients + real server + real DB) | `node test/multiplayer.test.mjs` (server/resources/fivem-compat; needs MariaDB on :3307 — `bash tools/setup-db.sh`) | **36/36** | boots the REAL server (`index.js` main) with real MariaDB, real qb-core + mp-demo resources, then connects TWO full fengari client runtimes through the real transport: join handshakes (server ids 1 and 7), qb-core Login for both players (real rows in MariaDB: license from alt identifiers, money JSON, AddMoney/SetJob), UpdateClient envelopes, targeted vs broadcast net events (no leak to the non-target), client→server ping recorded in DB with source identity, qb-core client flow (OnPlayerLoaded → `isLoggedIn` statebag), replicated client statebag writes visible to the other player AND the authoritative server store, server statebag writes to both players, client ExecuteCommand → server command, playerDropped → money/job saved to MariaDB (cash=3000, job=trucker), reconnect (handshake again, existing character loaded by citizenid, money survives a real DB round-trip), player 2 unaffected throughout, ALL qb-core + mp-demo client scripts loaded in both client runtimes, full client boot, no unexpected client errors |
+| DB persistence integration | `node test/db-integration.test.mjs` (same preconditions) | **20/20** | (1) the oxmysql Lua API surface against REAL MariaDB: named `:` and positional `?` params, `prepare.await` row + single-column unwrap, `scalar`, `single`, `execute.await` affectedRows/insertId (oxmysql `parseResponse` semantics), transaction commit, failing transaction → real ROLLBACK verified in-DB + `cb(false)`, `MySQL.Async.*` callback form, SQL errors raise in Lua (no fake results); (2) qb-core player persistence across a FULL RUNTIME RESTART: runtime A logs in, earns money, gets a job, saves (no graceful shutdown); a brand-new runtime B with a fresh qb-core instance loads the same character from MariaDB and sees the persisted money AND job |
+| qb-core CLIENT behavior | `node test/qbcore-client.test.mjs` (needs MariaDB) | **19/19** | qb-core's REAL client scripts behave, not just load: Login → `QBCore:Client:OnPlayerUpdated` → client-side `QBCore.PlayerData` applied + `'QBCore:Player:SetPlayerData'` local event re-fired; AddMoney/SetJob reflected in client PlayerData; qb-core's own `'QBCore:Client:OnJobUpdate'` fires; `QBCore.Functions.TriggerCallback` BOTH forms (promise + `Citizen.Await`, and callback) round-trip to a real server `CreateCallback`; `QBCore.Functions.Notify` → SendNUIMessage. Requires client prelude `promise`/`Citizen.Await` (same contract as the server prelude) |
+| on-device selftest resource (in-sandbox run) | `node test/selftest.test.mjs` (needs MariaDB) | **11/11** | `fivem_resources/nsm-selftest` — the resource the owner runs on the real Windows client — is itself verified here against a real server + fengari client + a page-running webview stub that executes the REAL injected NUI shim and the REAL page script, so the NUI round-trip (page fetch → Lua `RegisterNUICallback` → page response) is exercised end-to-end. Report must arrive server-side with 0 failed, 0 skipped, all 12 checks present |
 | qb-core fork-syntax compile gate | `node tools/lua-fork-transform.test.mjs` | **62/62** (with qb-core clone) | every qb-core `.lua` file compiles after the backtick/`?.`/`+=` transform |
 | real framework load | `node tools/load-real.mjs qb-core` and `... "esx-legacy/[core]/esx_lib,esx-legacy/[core]/es_extended"` | **both LOADED OK** | complete server-side code of qb-core (12 shared + 7 server scripts) and esx_lib+es_extended (27 scripts) execute with zero errors |
 | live exports acceptance | `node tools/live-exports-check.mjs` | **17/17** (with clones) | `exports['qb-core']:GetCoreObject()` / `getSharedObject()` return live tables: functions callable, identity preserved, cross-resource mutations, `source` propagation, dependency/@import ordering, single-VM proof |
@@ -34,25 +38,33 @@ stay green; CI clones the frameworks explicitly.
   checklist for the server owner: launch `NSM.exe`, pick the server from the
   browser, confirm spawn at Legion Square (gtamp-online), F8/chat command
   round-trip, vMenu vehicle spawn.
-- **Client-side FiveM Lua / NUI**: not run and **not possible by design** —
-  the GTAMP client is the alt:V client (no CFX Lua VM, no NUI sandbox).
-  Standing decision recorded in `RUNTIME_DECISION.md`; do not re-litigate
-  without new evidence.
-- **Real MariaDB/MySQL**: the MySQL API is tested against an in-memory mock
-  only. Pooling, `mysql2` behavior against a real server, and framework SQL
-  flows are untested. Needs a DB host (planned: dockerized integration env).
+- **Client-side FiveM Lua / NUI — in-sandbox covered, on-device pending**:
+  the alternative client runtime (see `CLIENT_COMPATIBILITY.md`) passes
+  70/70 client-runtime checks AND the full 36/36 multiplayer integration
+  (real qb-core + mp-demo client scripts executing in two client VMs through
+  the real transport). NOT yet verified: the same runtime on the actual
+  alt:V/GTAMP client on Windows (natives module, webview, real network).
+- **Real MariaDB/MySQL — now covered**: the two integration suites above run
+  against a real MariaDB (mysql2 on :3307) with real framework SQL flows
+  (qb-core player save/load, transactions with verified ROLLBACK). Remaining
+  gap: long-run pool behavior (connection limits, timeouts) — not tested.
 - **Windows builds**: wrapper (`server.cpp`), launcher (`connect.cpp`), and
   pkg packaging (`masterlist.exe`, `NSMwebsite.exe`) are not compiled in this
   sandbox. The `.cfg` `#`-comment fix (2026-10-11) is source-only and must be
   compile-verified on Windows.
-- **Multi-client behavior** (two simultaneous players, entity sync, voice):
-  requires game clients; not run.
+- **Multi-client behavior — simulated level covered** (two full client
+  runtimes through the real server transport, 36/36). NOT run: real GTA
+  clients (rendering, entity sync, voice) — requires the Windows host.
 - **Load/performance**: no benchmarks yet (Phase 16 of the master plan).
 
 ## Conventions
 
 - Suites are self-contained Node scripts (no framework), print `PASS:/FAIL:`
   lines, and exit non-zero on any failure — CI-friendly and grep-able.
+- The mock alt:V transport (test/mock-alt-server.js) delivers NET events
+  asynchronously (queueMicrotask) — matching real alt:V/FiveM network hops —
+  while LOCAL events stay synchronous (also FiveM semantics). qb-core's
+  `TriggerCallback` depends on this ordering; don't "simplify" it back.
 - Security suites boot the real servers as child processes on random free
   ports with temp `DATA_DIR`s and drive them over real HTTP.
 - New fixes require a regression check in the matching suite before the
