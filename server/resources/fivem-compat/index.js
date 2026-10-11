@@ -179,6 +179,8 @@ async function main() {
 
   // Chat command bridge — have your chat UI emit 'cfx:command' with the raw text
   alt.onClient('cfx:command', (player, text) => {
+    // resource management first: res list|status|stop|start|restart
+    if (runtime.handleAdminCommand(player, text)) return;
     if (!runtime.runCommand(player, text)) {
       alt.emitClient(player, 'cfx:commandResult', false, String(text).split(' ')[0]);
     }

@@ -25,27 +25,45 @@
   S7/S8 (presence/report spoofing — protocol change in launcher/wrapper),
   S14 (`debug = true` in shipped server.toml — flip before public package).
 
-### Prompt 3 — Resource pipeline 🔶 MOSTLY DELIVERED (by v3 runtime)
-- Delivered + tested: discovery (`[category]` folders), controlled manifest
-  parsing (sandboxed env with unknown-directive diagnostics), dependency
-  graph + cycle detection + deterministic order, per-resource env isolation,
-  error isolation with resource-attributed traces, live exports, commands,
+### Prompt 3 — Resource pipeline ✅ DELIVERED
+- Discovery (`[category]` folders), controlled manifest parsing (sandboxed
+  env with unknown-directive diagnostics), dependency graph + cycle
+  detection + deterministic order, per-resource env isolation, error
+  isolation with resource-attributed traces, live exports, commands,
   logging that distinguishes loaded/failed scripts.
-- **Missing** (next implementation unit): stop/restart lifecycle with cleanup
-  of handlers/timers/exports/state, `onResourceStart/Stop` events, explicit
-  resource status tracking (`running` vs `failed` — currently a resource with
-  a failed script still reports loaded), `res list|stop|start|restart`
-  command interface, and `docs/COMPATIBILITY_MATRIX.md`,
-  `docs/LUA_RUNTIME.md`, `docs/RESOURCE_DEVELOPMENT.md`.
+- Lifecycle (this unit): `stopResource`/`startResource`/`restartResource`
+  with full cleanup (event handlers, commands, state handlers, exports,
+  pending timers, coroutine kill-switch), `onResourceStart`/`onResourceStop`
+  semantics, status tracking (`running` / `failed` — failed resources fire no
+  `onResourceStart` and are fully cleaned up), fail-fast on first script
+  error with `res restart <name>` hint, missing-script / missing-`@import`
+  now fail the resource, Lua-facing `GetResourceState` in FiveM vocabulary
+  (`started`/`starting`/`stopped`/`missing`), `res list|status|stop|start|
+  restart` command (console or `isAdmin(src)` only). 102/102 incl. 33
+  lifecycle checks; qb-core load + 62/62 transform + 17/17 live-exports
+  gates re-run green after the change.
+- Deferred to the compatibility-matrix unit: `COMPATIBILITY_MATRIX.md`,
+  `LUA_RUNTIME.md`, `RESOURCE_DEVELOPMENT.md` (now scoped to include the
+  client-side matrix — see Prompt 4).
 
-### Prompt 4 — Client-side execution 🛑 BLOCKED BY DESIGN (documented)
-- The GTAMP client is the alt:V client: no CFX Lua VM, no NUI sandbox.
-  FiveM client-Lua resources cannot execute there — standing decision,
-  recorded three times, evidence in `RUNTIME_DECISION.md`.
-- What IS possible and not yet built: alt:V-native client JS resources (the
-  pattern vmenu's client side already uses) and CEF UI served by the client.
-  That is the honest substitute for "client-side compatibility" and belongs
-  to the Phase-9/NUI work, not to FiveM-Lua compat.
+### Prompt 4 — Client-side execution 🔶 ACTIVE (re-scoped by owner directive)
+- Owner directive (2026-10): the primary goal is running the existing custom
+  FiveM QBCore server — including its **client-side Lua resources** — on
+  NSM. Do not silently abandon client-side compatibility. Investigate the
+  blocker in depth, enumerate exactly which FiveM client APIs / GTA natives
+  the alt:V client can support, present architectural options with real
+  limitations, and implement the most suitable viable approach.
+- Facts that still hold: the GTAMP client is the alt:V client — it embeds no
+  CFX Lua VM and no FiveM NUI sandbox. The earlier "blocked by design"
+  conclusion only ruled out the *FiveM client binary*; an **alternative
+  runtime** (FiveM-compatible Lua VM + API shim hosted in an alt:V
+  client-side JS resource) is technically plausible and is now the
+  investigation subject. Escrowed (encrypted) FiveM client scripts remain
+  impossible for any approach — they only decrypt inside the FiveM client.
+- Evidence rules: no compatibility claims beyond what integration tests
+  demonstrate; client-side, DB-persistence and multiplayer behavior must be
+  shown with real tests wherever this environment permits, and the rest
+  explicitly labeled as unverified.
 
 ### Prompt 5 — Events / players / entities / API registry 🔶 PARTIAL
 - Events (local/net/lifecycle, source semantics): implemented + tested.
@@ -80,16 +98,21 @@
 
 ## Next concrete tasks (priority order)
 
-1. **Resource lifecycle (Prompt 3 completion)**: stop/restart with full
-   cleanup (handlers, commands, state handlers, exports, pending timers),
-   `onResourceStart`/`onResourceStop`, status tracking (`failed` must not
-   report as running), `res` command interface, lifecycle tests. Design is
-   already compatible with the v3 one-VM architecture.
+1. **Client-side compatibility investigation + alternative runtime**
+   (Prompt 4, owner directive): inventory the FiveM client API surface
+   against alt:V client capabilities (natives bridge, events, NUI/CEF,
+   keybinds, statebags, voice), write `docs/CLIENT_COMPATIBILITY.md` with
+   the option analysis, implement the chosen runtime (Lua VM in a
+   client-side JS resource) with a Node-side mock harness, and demonstrate
+   with honest labels what can/cannot be verified without a real client.
 2. **`COMPATIBILITY_MATRIX.md` + `LUA_RUNTIME.md` + `RESOURCE_DEVELOPMENT.md`**
-   (much of the content exists in audit/runtime docs; consolidate).
-3. **DB integration environment**: dockerized MariaDB + schema from
-   esx-legacy `[SQL]`, run framework SQL flows for real; then write
+   (now including the client-side matrix from unit 1).
+3. **DB integration environment**: real MariaDB (dockerized or native) +
+   schema from esx-legacy `[SQL]`, run framework SQL flows for real (player
+   load/save round-trip = persistence evidence); then write
    `QBCORE_COMPATIBILITY.md` / `ESX_COMPATIBILITY.md` with pinned commits.
+   Multiplayer behavior: simulated multi-player event/state tests through
+   the real runtime (real GTA clients cannot run in this sandbox).
 4. **Wrapper rebuild checklist for the Windows machine**: bind 7799/7899 to
    loopback (S5), compile-verify the `.cfg` fix, flip `debug = false` (S14).
 5. **Presence/report protocol (S7/S8)**: sign presence with the server key;

@@ -1,6 +1,6 @@
 // End-to-end test of the NSM cfx-compat runtime (v3: one VM, live exports)
 // against a mock alt:V server.
-import { CfxCompatRuntime, joaat } from '../cfx/runtime.js';
+import { CfxCompatRuntime, joaat } from '../resources/fivem-compat/cfx/runtime.js';
 import { makeMockAlt } from './mock-alt.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -268,6 +268,123 @@ check('cycle detected and reported', mock.errors.some((l) => l.includes('depende
 check('cycle fallback still runs both resources', mock.logs.some((l) => l.includes('cyc-a ran')) && mock.logs.some((l) => l.includes('cyc-b ran')));
 fs.rmSync(depRoot, { recursive: true, force: true });
 fs.rmSync(cycRoot, { recursive: true, force: true });
+
+console.log('== resource lifecycle: stop / restart / status ==');
+const lcRoot = path.join(__dirname, '..', 'fivem_resources', '__tmp_lc');
+fs.rmSync(lcRoot, { recursive: true, force: true });
+const mkres = (name, manifest, script) => {
+  const d = path.join(lcRoot, name);
+  fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(d, 'fxmanifest.lua'), manifest);
+  fs.writeFileSync(path.join(d, 'server.lua'), script);
+  return d;
+};
+const lcAlpha = mkres('lc-alpha', "fx_version 'cerulean'\ngame 'gta5'\nserver_scripts { 'server.lua' }\n", `
+RegisterCommand('lccmd', function(src, args, raw) print('lccmd ran: ' .. table.concat(args, ' ')) end, false)
+AddEventHandler('lc:ping', function(msg) print('lc-alpha ping: ' .. tostring(msg)) end)
+exports('lcval', function() return 42 end)
+AddEventHandler('onResourceStop', function(res) print('lc-alpha saw onResourceStop: ' .. tostring(res)) end)
+AddEventHandler('onResourceStart', function(res) if res == 'lc-alpha' then __sawOwnStart = true end end)
+local ticks = 0
+CreateThread(function()
+  while true do
+    Citizen.Wait(60)
+    ticks = ticks + 1
+    print('lc tick ' .. ticks)
+  end
+end)
+`);
+await rt.loadResource('lc-alpha', lcAlpha);
+check('resource reports running after clean load', rt.getResourceState('lc-alpha') === 'running');
+await sleep(250);
+const ticksBefore = mock.logs.filter((l) => l.includes('lc tick ')).length;
+check('attributed thread is ticking', ticksBefore >= 2, `ticks=${ticksBefore}`);
+await rt.runLua('example-caller', `__lcStart = exports['lc-alpha']:lcval()`);
+check('export works before stop', rt.envGet('example-caller', '__lcStart') === 42);
+await rt.runLua('example-hello', `__alphaState = GetResourceState('lc-alpha')`);
+check("GetResourceState says 'started' while running", rt.envGet('example-hello', '__alphaState') === 'started');
+
+check('onResourceStart fired for clean load (own handler)', rt.envGet('lc-alpha', '__sawOwnStart') === true);
+
+// stop it
+rt.stopResource('lc-alpha');
+check("stopResource -> status 'stopped'", rt.getResourceState('lc-alpha') === 'stopped');
+check('onResourceStop fired (own handler saw it)', mock.logs.some((l) => l.includes('lc-alpha saw onResourceStop: lc-alpha')));
+check('command removed on stop', !rt.commands.has('lccmd') && rt.runCommand(mock.players[1], '/lccmd x') === false);
+rt.dispatchLocal('lc:ping', ['after-stop']);
+await sleep(50);
+check('event handlers removed on stop', !mock.logs.some((l) => l.includes('lc-alpha ping: after-stop')));
+let expGone = null;
+try { await rt.runLua('example-caller', `exports['lc-alpha']:lcval()`); } catch (e) { expGone = e; }
+check('exports removed on stop (clear error)', !!expGone && /not loaded/.test(String(expGone && expGone.message)));
+await rt.runLua('example-hello', `__alphaState2 = GetResourceState('lc-alpha')`);
+check("GetResourceState says 'stopped' after stop", rt.envGet('example-hello', '__alphaState2') === 'stopped');
+await sleep(250);
+const ticksAfter = mock.logs.filter((l) => l.includes('lc tick ')).length;
+check('pending timers cancelled on stop', ticksAfter === ticksBefore, `before=${ticksBefore} after=${ticksAfter}`);
+
+// restart it
+await rt.restartResource('lc-alpha');
+check('restart -> running again', rt.getResourceState('lc-alpha') === 'running');
+await sleep(200);
+const ticksResumed = mock.logs.filter((l) => l.includes('lc tick ')).length;
+check('thread runs again after restart', ticksResumed > ticksAfter, `after=${ticksAfter} resumed=${ticksResumed}`);
+await rt.runLua('example-caller', `__lcStart2 = exports['lc-alpha']:lcval()`);
+check('export re-registered after restart', rt.envGet('example-caller', '__lcStart2') === 42);
+
+console.log('== failed resources are never marked running ==');
+// watch from another resource whether onResourceStart fires for the broken one
+await rt.runLua('example-hello', `
+AddEventHandler('onResourceStart', function(res) if res == 'lc-broken' then __brokenStartFired = true end end)
+AddEventHandler('onResourceStop', function(res) if res == 'lc-broken' then __brokenStopFired = true end end)
+`);
+const lcBroken = mkres('lc-broken', "fx_version 'cerulean'\ngame 'gta5'\nserver_scripts { 'server.lua' }\n", `
+AddEventHandler('lc:broken', function() print('lc-broken handler alive') end)
+RegisterCommand('broken', function() print('broken cmd') end, false)
+error('boom: intentional failure')
+`);
+await rt.loadResource('lc-broken', lcBroken);
+check('runtime-error resource reports failed', rt.getResourceState('lc-broken') === 'failed');
+rt.dispatchLocal('lc:broken', []);
+await sleep(50);
+check('failed resource handlers are cleaned up', !mock.logs.some((l) => l.includes('lc-broken handler alive')));
+check('failed resource commands are cleaned up', !rt.commands.has('broken'));
+check('onResourceStart NOT fired for failed resource', rt.envGet('example-hello', '__brokenStartFired') !== true);
+check('error is clearly logged', mock.errors.some((l) => l.includes("resource 'lc-broken' FAILED to start")));
+
+const lcSyntax = mkres('lc-syntax', "fx_version 'cerulean'\ngame 'gta5'\nserver_scripts { 'server.lua' }\n", `local x = = 5\n`);
+await rt.loadResource('lc-syntax', lcSyntax);
+check('compile-error resource reports failed', rt.getResourceState('lc-syntax') === 'failed');
+
+const lcMissing = mkres('lc-missing', "fx_version 'cerulean'\ngame 'gta5'\nserver_scripts { 'nope.lua' }\n", `print('never runs')`);
+await rt.loadResource('lc-missing', lcMissing);
+check('missing-script resource reports failed', rt.getResourceState('lc-missing') === 'failed');
+check('missing script is clearly reported', mock.errors.some((l) => l.includes('missing script: nope.lua')));
+
+// failed -> fix -> start works (res start path)
+fs.writeFileSync(path.join(lcBroken, 'server.lua'), `AddEventHandler('lc:broken', function() print('lc-broken fixed and alive') end)\n`);
+await rt.startResource('lc-broken');
+check('fixed resource can be started again', rt.getResourceState('lc-broken') === 'running');
+rt.dispatchLocal('lc:broken', []);
+await sleep(50);
+check('restarted resource works', mock.logs.some((l) => l.includes('lc-broken fixed and alive')));
+
+console.log('== res command interface ==');
+check("non-res command isn't intercepted", rt.handleAdminCommand(mock.players[1], '/helloworld') === false);
+check('res list works from console', rt.handleAdminCommand({ id: 0 }, 'res list') === true
+  && mock.logs.some((l) => l.includes('resources (') && l.includes('lc-alpha[running]')));
+check('res list rejected from a player (no isAdmin)', rt.handleAdminCommand(mock.players[1], 'res list') === true
+  && mock.errors.some((l) => l.includes('res\' commands require console or admin')));
+check('res status reports state', rt.handleAdminCommand({ id: 0 }, 'res status lc-alpha') === true
+  && mock.logs.some((l) => l.includes("resource 'lc-alpha': running")));
+check('res stop works', rt.handleAdminCommand({ id: 0 }, 'res stop lc-alpha') === true
+  && rt.getResourceState('lc-alpha') === 'stopped');
+check('res start works', rt.handleAdminCommand({ id: 0 }, 'res start lc-alpha') === true);
+await sleep(100);
+check('res start actually started it', rt.getResourceState('lc-alpha') === 'running');
+check('unknown res subcommand prints usage', rt.handleAdminCommand({ id: 0 }, 'res bogus') === true
+  && mock.logs.some((l) => l.includes('usage: res')));
+fs.rmSync(lcRoot, { recursive: true, force: true });
 
 console.log(`\n==== RESULTS: ${passed} passed, ${failed} failed ====`);
 process.exit(failed > 0 ? 1 : 0);

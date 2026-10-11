@@ -242,6 +242,9 @@ msgpack.unpack = function(s) return __jsonDecode(s) end
 -- ---------- thread scheduler with async await support ----------
 __coroutines = {}
 __nextCoId = __nextCoId or 0
+-- coroutine -> resource name (attribution for stopResource cleanup).
+-- false = the resource was stopped; pending resumes for it are dropped.
+__coResources = {}
 
 local __schedule
 local function __handleYield(co, yielded)
@@ -249,6 +252,7 @@ local function __handleYield(co, yielded)
   if yielded == '__cfx_await__' then return end
   if type(yielded) == 'table' and rawget(yielded, '__nsmPromise') ~= nil then
     yielded.__wait(function(...)
+      if __coResources[co] == false then return end
       local ok2, y2 = coroutine.resume(co, ...)
       if not ok2 then __logError('[thread] ' .. tostring(y2)) return end
       __handleYield(co, y2)
@@ -259,7 +263,9 @@ local function __handleYield(co, yielded)
 end
 
 __schedule = function(co, delay)
-  __setTimeout(function()
+  -- attributed timers let stopResource cancel pending work; nil = internal
+  __setTimeoutRes(__coResources[co], function()
+    if __coResources[co] == false then return end
     local ok, yielded = coroutine.resume(co)
     if not ok then
       __logError('[thread] ' .. tostring(yielded))
@@ -306,6 +312,7 @@ function __asyncResume(id, payload)
   local co = __coroutines[id]
   if not co then return end
   __coroutines[id] = nil
+  if __coResources[co] == false then return end
   local ok, yielded = coroutine.resume(co, payload)
   if not ok then
     __logError('[async] ' .. tostring(yielded))
@@ -423,7 +430,7 @@ end
 __commandEntries = {}
 function __registerCommandEntry(cmdName, fn, restricted, resName)
   __commandEntries[cmdName] = { fn = fn, env = __envs[resName], res = resName }
-  __registerCommand(cmdName)
+  __registerCommand(cmdName, resName)
 end
 function __dispatchCommand(name, src, argString)
   local entry = __commandEntries[name]
@@ -503,8 +510,8 @@ __envs = {}
 function __callExportJson(resName, expName, argsJson)
   local reg = __exportsRegistry[resName]
   local fn = reg and reg[expName]
-  if fn == nil then return 'null' end
   local tenv = __envs[resName]
+  if fn == nil or tenv == nil then return 'null' end
   local args = __jsonDecode(argsJson) or {}
   local prevSource = tenv.source
   tenv.source = 0
@@ -633,7 +640,7 @@ function IsDuplicityVersion() return true end
 function GetGameName() return 'fivem' end
 function GetHashKey(s) return __joaat(s) end
 function joaat(s) return __joaat(s) end
-function GetResourceState(res) if __resourceExists(res) then return 'started' end return 'missing' end
+function GetResourceState(res) return __resourceState(res) end
 function GetResourcePath(res) return __getResourcePath(res) end
 function GetResourceMetadata(res, key, idx) return nil end
 function LoadResourceFile(res, file) return __readResourceFile(res, file) end
@@ -663,6 +670,23 @@ function __makeEnv(name)
   env.load = function(chunk, chunkname, mode, envArg)
     if type(chunk) == 'string' then chunk = __transformLua(chunk) end
     return __rawload(chunk, chunkname, mode or 'bt', envArg or env)
+  end
+
+  -- attributed threads/timers: coroutines created here carry the resource
+  -- name, so stopResource can cancel their pending timers and drop late
+  -- async resumes (MySQL callbacks etc.)
+  env.CreateThread = function(fn)
+    if type(fn) ~= 'function' then return end
+    local co = coroutine.create(fn)
+    __coResources[co] = name
+    __schedule(co, 0)
+  end
+  env.SetTimeout = function(ms, fn)
+    if type(fn) ~= 'function' then return 0 end
+    local co = coroutine.create(fn)
+    __coResources[co] = name
+    __schedule(co, tonumber(ms) or 0)
+    return 0
   end
 
   -- events (register with resource identity so source and error
@@ -809,6 +833,16 @@ end
 -- into js_proxy tables); every helper below takes a resource NAME and looks
 -- the env up inside Lua.
 
+-- Tear down a stopped/failed resource's Lua-side state. Called only from JS
+-- cleanupResource() AFTER onResourceStop handlers have run.
+function __teardownResource(resName)
+  for co, rn in pairs(__coResources) do
+    if rn == resName then __coResources[co] = false end
+  end
+  __exportsRegistry[resName] = nil
+  __envs[resName] = nil
+end
+
 -- Swap a resource's source value; returns the previous value.
 function __setSource(resName, v)
   local env = __envs[resName]
@@ -929,6 +963,7 @@ export class CfxCompatRuntime {
     this.convars = new Map(Object.entries(adapter.convars || {}));
     this.wiredNet = new Set();
     this.entities = new Map();  // compat handle -> { kind, ref }
+    this.timers = new Map();    // resourceName -> Set<timeout id> (stop cancels them)
     this.nextHandle = 0x100000;
     this.stateHandlers = [];    // { keyFilter, filter, resource, fn }
     this.globalState = new Map();
@@ -963,6 +998,15 @@ export class CfxCompatRuntime {
     g.set('__print', (...a) => this.log(...a));
     g.set('__logError', (...a) => this.logError(...a));
     g.set('__setTimeout', (fn, ms) => setTimeout(() => { try { fn(); } catch (e) { this.logError('[timer]', e.message); } }, Number(ms) || 0));
+    g.set('__setTimeoutRes', (resName, fn, ms) => this.setTimeoutFor(resName, fn, Number(ms) || 0));
+    g.set('__resourceState', (n) => {
+      const r = this.engines.get(String(n));
+      if (!r) return 'missing';
+      const s = r.status || 'stopped';
+      if (s === 'running') return 'started';  // FiveM vocabulary
+      if (s === 'failed') return 'stopped';   // a failed start leaves it stopped
+      return s;                               // starting | stopped
+    });
     g.set('__registerHandler', (evName, fn, isNet, resName) => {
       const resource = this.engines.get(String(resName));
       if (!resource) { this.logError(`event handler for '${evName}' registered by unknown resource '${resName}'`); return; }
@@ -973,7 +1017,7 @@ export class CfxCompatRuntime {
     g.set('__declareNetEvent', (evName) => this.wireNet(evName));
     g.set('__triggerLocal', (evName, ...args) => this.dispatchLocal(evName, args));
     g.set('__triggerClient', (evName, target, ...args) => this.dispatchClient(evName, target, args));
-    g.set('__registerCommand', (cmdName) => { this.commands.set(String(cmdName).toLowerCase(), String(cmdName)); });
+    g.set('__registerCommand', (cmdName, resName) => { this.commands.set(String(cmdName).toLowerCase(), String(resName)); });
     g.set('__native', (nativeName, ...args) => this.callNative(nativeName, args));
     g.set('__getConvar', (k) => (this.convars.has(k) ? this.convars.get(k) : false));
     g.set('__setConvar', (k, v) => { this.convars.set(String(k), String(v)); });
@@ -983,7 +1027,6 @@ export class CfxCompatRuntime {
       if (!r) return false;
       try { return fs.readFileSync(path.join(r.dir, String(file)), 'utf8'); } catch { return false; }
     });
-    g.set('__resourceExists', (n) => this.engines.has(String(n)));
     g.set('__getResourcePath', (n) => { const r = this.engines.get(String(n)); return r ? r.dir : false; });
     g.set('__executeCommand', (cmd) => { this.log('ExecuteCommand:', String(cmd)); return true; });
     g.set('__transformLua', (src) => transformFiveMLua(String(src)));
@@ -1055,7 +1098,7 @@ export class CfxCompatRuntime {
     if (!this.lua) throw new Error('call init() first');
     const g = this.lua.global;
     g.get('__makeEnv')(name);
-    const res = { name, dir, lua: this.lua };
+    const res = { name, dir, lua: this.lua, status: 'starting' };
     this.engines.set(name, res);
 
     let manifest = { server_scripts: [], client_scripts: [], shared_scripts: [], dependencies: [] };
@@ -1083,19 +1126,152 @@ export class CfxCompatRuntime {
     }
 
     const g = this.lua.global;
+    let failed = false;
     for (const rel of [...(manifest.shared_scripts || []), ...(manifest.server_scripts || [])]) {
-      for (const p of this.resolveScripts(name, dir, rel)) {
+      if (failed) break;
+      const files = this.resolveScripts(name, dir, rel);
+      if (files === null) { failed = true; break; }   // missing script file
+      for (const p of files) {
         try {
           const code = transformFiveMLua(fs.readFileSync(p, 'utf8'));
           g.get('__runScript')(name, code, '@' + name + '/' + rel);
         } catch (e) {
+          // FiveM semantics: a script error at startup fails the resource
           this.logError(`error in ${path.relative(dir, p)}: ${e && e.message ? e.message : e}`);
+          failed = true;
+          break;
         }
       }
     }
 
+    if (failed) {
+      // A resource is NEVER reported as running when initialization failed:
+      // tear down whatever partially registered, mark it failed.
+      res.status = 'failed';
+      this.cleanupResource(name);
+      this.logError(`FiveM resource '${name}' FAILED to start — not running (fix the error above, then: res restart ${name})`);
+      return res;
+    }
+
+    res.status = 'running';
     this.log(`FiveM resource '${name}' loaded (${(manifest.shared_scripts || []).length} shared + ${(manifest.server_scripts || []).length} server script(s))`);
+    this.dispatchLocal('onResourceStart', [name]);
     return res;
+  }
+
+  // ---------- lifecycle: stop / start / restart ----------
+  // Remove everything a resource registered. Used by stopResource and by the
+  // failed-start path. onResourceStop handlers must run BEFORE this.
+  cleanupResource(name) {
+    const set = this.timers.get(name);
+    if (set) { for (const t of set) clearTimeout(t); this.timers.delete(name); }
+    for (const [ev, list] of [...this.handlers]) {
+      const keep = list.filter((h) => h.resource && h.resource.name !== name);
+      if (keep.length) this.handlers.set(ev, keep);
+      else this.handlers.delete(ev);
+    }
+    for (const [cmd, rn] of [...this.commands]) if (rn === name) this.commands.delete(cmd);
+    this.stateHandlers = this.stateHandlers.filter((h) => !h.resource || h.resource.name !== name);
+    try { this.lua.global.get('__teardownResource')(name); } catch (e) { this.logError('teardown:', e.message); }
+  }
+
+  stopResource(name) {
+    const res = this.engines.get(name);
+    if (!res || res.status === 'stopped' || res.status === 'failed') return false;
+    // the resource's own (and others') onResourceStop handlers run while the
+    // resource is still fully alive
+    this.dispatchLocal('onResourceStop', [name]);
+    this.cleanupResource(name);
+    res.status = 'stopped';
+    this.log(`FiveM resource '${name}' stopped`);
+    return true;
+  }
+
+  async startResource(name) {
+    const res = this.engines.get(name);
+    if (!res) throw new Error(`startResource: unknown resource '${name}'`);
+    if (res.status === 'running' || res.status === 'starting') return res;
+    const fresh = await this.prepareResource(name, res.dir);
+    return this.runResource(fresh);
+  }
+
+  async restartResource(name) {
+    const res = this.engines.get(name);
+    if (!res) throw new Error(`restartResource: unknown resource '${name}'`);
+    if (res.status === 'running' || res.status === 'starting') this.stopResource(name);
+    return this.startResource(name);
+  }
+
+  listResources() {
+    return [...this.engines.values()].map((r) => ({ name: r.name, status: r.status || 'stopped', dir: r.dir }));
+  }
+
+  getResourceState(name) {
+    const r = this.engines.get(name);
+    return r ? (r.status || 'stopped') : 'missing';
+  }
+
+  // Resource-management console command: res [list|status|stop|start|restart]
+  // Permission model: console (src 0) or adapter.isAdmin(src) — never a
+  // client-supplied flag.
+  handleAdminCommand(player, text) {
+    const stripped = String(text || '').replace(/^\//, '').trim();
+    if ((stripped.split(/\s+/)[0] || '').toLowerCase() !== 'res') return false;
+    const src = player && player.id !== undefined ? player.id : 0;
+    const isAdmin = src === 0 || (typeof this.adapter.isAdmin === 'function' && !!this.adapter.isAdmin(src));
+    if (!isAdmin) {
+      this.logError(`'res' commands require console or admin (src ${src})`);
+      return true;
+    }
+    const parts = stripped.split(/\s+/);
+    const sub = (parts[1] || 'list').toLowerCase();
+    const arg = parts[2];
+    if (sub === 'list') {
+      const list = this.listResources();
+      this.log(`resources (${list.length}): ` + (list.map((r) => `${r.name}[${r.status}]`).join(' ') || '(none)'));
+      return true;
+    }
+    if (sub === 'status') {
+      if (!arg) { this.log('usage: res status <name>'); return true; }
+      this.log(`resource '${arg}': ${this.getResourceState(arg)}`);
+      return true;
+    }
+    if (sub === 'stop') {
+      if (!arg) { this.log('usage: res stop <name>'); return true; }
+      const ok = this.stopResource(String(arg));
+      this.log(ok ? `stopped '${arg}'` : `could not stop '${arg}' (${this.getResourceState(arg)})`);
+      return true;
+    }
+    if (sub === 'start' || sub === 'restart') {
+      if (!arg) { this.log(`usage: res ${sub} <name>`); return true; }
+      const op = sub === 'start' ? this.startResource(String(arg)) : this.restartResource(String(arg));
+      op.catch((e) => this.logError(`${sub} '${arg}' failed: ${e && e.message ? e.message : e}`));
+      return true;
+    }
+    this.log('usage: res [list|status <name>|stop <name>|start <name>|restart <name>]');
+    return true;
+  }
+
+  // Timer that knows its resource: cancelled by stopResource; fires only
+  // while the resource is live (backstop for races).
+  setTimeoutFor(resName, fn, ms) {
+    if (resName === null || resName === undefined) {
+      return setTimeout(() => { try { fn(); } catch (e) { this.logError('[timer]', e.message); } }, ms);
+    }
+    const rn = String(resName);
+    const t = setTimeout(() => {
+      const set = this.timers.get(rn);
+      if (set) { set.delete(t); if (!set.size) this.timers.delete(rn); }
+      const res = this.engines.get(rn);
+      if (!res || res.status !== 'running' && res.status !== 'starting') {
+        this.log(`[timer] dropped for stopped resource '${rn}'`);
+        return;
+      }
+      try { fn(); } catch (e) { this.logError('[timer]', e.message); }
+    }, ms);
+    if (!this.timers.has(rn)) this.timers.set(rn, new Set());
+    this.timers.get(rn).add(t);
+    return t;
   }
 
   // Load a single resource (prepare + run). Order is the caller's
@@ -1119,16 +1295,19 @@ export class CfxCompatRuntime {
       }
     }
     const ordered = this.orderResources(prepared);
-    let loaded = 0;
+    let running = 0, failedCount = 0;
     for (const res of ordered) {
       try {
         await this.runResource(res);
-        loaded++;
+        if (res.status === 'running') running++;
+        else failedCount++;
       } catch (e) {
+        res.status = 'failed';
         this.logError(`failed to run FiveM resource '${res.name}': ${e && e.message ? e.message : e}`);
+        failedCount++;
       }
     }
-    this.log(`${loaded}/${prepared.length} FiveM resource(s) running`);
+    this.log(`${running}/${prepared.length} FiveM resource(s) running` + (failedCount ? `, ${failedCount} FAILED` : ''));
     return ordered;
   }
 
@@ -1202,9 +1381,9 @@ export class CfxCompatRuntime {
         return [];
       }
       const r = this.engines.get(targetRes);
-      if (!r) { this.log(`@import '${rel}' skipped — resource '${targetRes}' is not loaded`); return []; }
+      if (!r) { this.logError(`@import '${rel}' failed — resource '${targetRes}' is not loaded`); return null; }
       const p = path.join(r.dir, targetPath);
-      if (!fs.existsSync(p)) { this.log(`@import '${rel}' not found`); return []; }
+      if (!fs.existsSync(p)) { this.logError(`@import '${rel}' failed — file not found`); return null; }
       return [p];
     }
     // glob expansion (single-segment *)
@@ -1225,7 +1404,7 @@ export class CfxCompatRuntime {
       }
     }
     const p = path.join(dir, rel);
-    if (!fs.existsSync(p)) { this.logError(`missing script: ${rel}`); return []; }
+    if (!fs.existsSync(p)) { this.logError(`missing script: ${rel}`); return null; }
     return [p];
   }
 
