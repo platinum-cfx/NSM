@@ -98,7 +98,14 @@ export function createFengariVM() {
   function jsToLua(Ls, v, depth = 0) {
     if (v === null || v === undefined) { lua.lua_pushnil(Ls); return; }
     const t = typeof v;
-    if (t === 'number') { lua.lua_pushnumber(Ls, v); return; }
+    // Lua 5.3 integer subtype: push whole numbers as integers so ids/counts
+    // behave like FiveM (tostring(7) == '7', not '7.0')
+    if (t === 'number') {
+      // fengari's lua_pushinteger is int32-checked; only small ints are safe.
+      if (Number.isInteger(v) && Math.abs(v) <= 0x7fffffff) lua.lua_pushinteger(Ls, v);
+      else lua.lua_pushnumber(Ls, v);
+      return;
+    }
     if (t === 'boolean') { lua.lua_pushboolean(Ls, v); return; }
     if (t === 'string') { lua.lua_pushliteral(Ls, v); return; }
     if (t === 'function') { lua.lua_pushcfunction(Ls, v); return; }

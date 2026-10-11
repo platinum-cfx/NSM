@@ -90,7 +90,8 @@ local function jisArray(t)
     count = count + 1
     if k > maxk then maxk = k end
   end
-  return count == maxk and count > 0
+  -- empty tables encode as [] (FiveM json.encode behavior)
+  return count == maxk
 end
 
 local function jenc(v)
@@ -157,6 +158,8 @@ local function parseString(s, i)
   error('unterminated json string')
 end
 
+__JSONNULL = {}  -- sentinel: JSON null inside arrays (Lua can't store nil)
+
 parseValue = function(s, i)
   i = skipws(s, i)
   local c = s:sub(i, i)
@@ -186,7 +189,10 @@ parseValue = function(s, i)
     while true do
       local v
       v, i = parseValue(s, i)
-      if v ~= nil then n = n + 1; t[n] = v end
+      -- null array elements must NOT compact the array (arg positions matter)
+      if v == nil then v = __JSONNULL end
+      n = n + 1
+      t[n] = v
       i = skipws(s, i)
       local d = s:sub(i, i)
       if d == ',' then i = i + 1
@@ -213,6 +219,16 @@ __jsonDecode = function(s)
   if s == nil or s == false or s == 'null' then return nil end
   local v = parseValue(tostring(s), 1)
   return v
+end
+
+-- expand a decoded args array (with __JSONNULL sentinels) back into varargs,
+-- preserving explicit nil positions: [null, 5] -> (nil, 5)
+local function __argsToVarargs(t)
+  local n = #t
+  for i = 1, n do
+    if t[i] == __JSONNULL then t[i] = nil end
+  end
+  return table.unpack(t, 1, n)
 end
 
 -- ---------- fork-syntax-safe load() (_G context) ----------
@@ -283,6 +299,55 @@ end
 function CitizenWait(ms) return coroutine.yield(ms or 0) end
 Wait = CitizenWait
 Citizen = { Wait = CitizenWait, CreateThread = CreateThread }
+
+-- FiveM runs every event handler inside its own coroutine, so handlers may
+-- Wait() / await. JS-side event dispatch enters Lua through here.
+-- IMPORTANT: handler functions are NEVER passed through JS (wasmoon would
+-- wrap them in a JS-mediated proxy whose C-call boundary breaks yields);
+-- they live in __handlerIds and JS dispatches by integer id.
+__handlerIds = {}
+__nextHandlerId = 0
+
+function __registerHandlerEntry(evName, fn, isNet, resName)
+  __nextHandlerId = __nextHandlerId + 1
+  local id = __nextHandlerId
+  __handlerIds[id] = { fn = fn, resource = resName, eventName = evName }
+  __registerHandlerJs(evName, id, isNet, resName)
+  return id
+end
+
+-- Resource stop/restart cleanup: drop its handler registry entries.
+function __dropHandlersForResource(resName)
+  for id, h in pairs(__handlerIds) do
+    if h.resource == resName then __handlerIds[id] = nil end
+  end
+end
+
+function __dispatchHandlerById(id, source, ...)
+  local h = __handlerIds[id]
+  if not h then return end
+  local env = __envs[h.resource]
+  local co = coroutine.create(function(...)
+    local prev = env and env.source or nil
+    if env then env.source = source or 0 end
+    local results = table.pack(pcall(h.fn, ...))
+    if env then env.source = prev end
+    if not results[1] then error(tostring(results[2]), 0) end
+    return table.unpack(results, 2, results.n)
+  end)
+  local ok, yielded = coroutine.resume(co, ...)
+  if not ok then error(tostring(yielded), 0) end
+  __handleYield(co, yielded)
+end
+
+-- JS -> Lua callbacks (MySQL callback form, etc.) get the same coroutine
+-- treatment so they may Wait/await too.
+function __runJsCallback(fn, ...)
+  local co = coroutine.create(fn)
+  local ok, yielded = coroutine.resume(co, ...)
+  if not ok then error(yielded, 0) end
+  __handleYield(co, yielded)
+end
 
 function SetTimeout(ms, fn)
   local co = coroutine.create(fn)
@@ -358,18 +423,22 @@ promise = {}
 function promise.new()
   local p = { state = 'pending', waiters = {} }
   rawset(p, '__nsmPromise', true)
-  p.resolve = function(...)
+  -- self-aware: callable as p:resolve(v) (qb-core/FiveM method syntax, self
+  -- arrives as arg 1) AND as p.resolve(v) / resolve(v) (dot/callback style)
+  p.resolve = function(a, ...)
     if p.state ~= 'pending' then return end
     p.state = 'resolved'
-    local vals = table.pack(...)
+    local vals = (a == p) and table.pack(...) or table.pack(a, ...)
     p.values = vals
+    p.value = vals.n >= 1 and vals[1] or nil   -- FiveM promise: .value = first
     local ws = p.waiters
     p.waiters = {}
     for i = 1, #ws do ws[i](table.unpack(vals, 1, vals.n)) end
   end
-  p.reject = function(err)
+  p.reject = function(a, ...)
     if p.state ~= 'pending' then return end
     p.state = 'rejected'
+    local err = (a == p) and select(1, ...) or a
     p.err = err
     local ws = p.waiters
     p.waiters = {}
@@ -394,11 +463,36 @@ function Citizen.Await(p)
   return table.unpack(vals, 1, vals.n)
 end
 
+-- JS-side callbacks are registered LUA-side by id and delivered through
+-- __deliverJsCallback — Lua functions are NEVER passed through JS (wasmoon
+-- would wrap them in a JS-mediated proxy whose C boundary breaks yields).
+__jsCallbacks = {}
+local function __registerJsCallback(fn)
+  __nextCoId = __nextCoId + 1
+  local id = __nextCoId
+  __jsCallbacks[id] = fn
+  return id
+end
+
+function __deliverJsCallback(id, ...)
+  local fn = __jsCallbacks[id]
+  if not fn then return end
+  __jsCallbacks[id] = nil
+  local co = coroutine.create(fn)
+  local ok, yielded = coroutine.resume(co, ...)
+  if not ok then
+    __logError('[js callback] ' .. tostring(yielded))
+    return
+  end
+  __handleYield(co, yielded)
+end
+
 -- ---------- HTTP (PerformHttpRequest) ----------
 function PerformHttpRequest(url, cb, method, data, headers)
-  __httpRequest(function(status, body, headersJson)
+  local id = __registerJsCallback(function(status, body, headersJson)
     cb(status, body, __jsonDecode(headersJson) or {})
-  end, url, method or 'GET', data, jenc(headers or {}))
+  end)
+  __httpRequest(id, url, method or 'GET', data, jenc(headers or {}))
 end
 
 -- ---------- auto-stubs for the full Cfx native set ----------
@@ -458,17 +552,22 @@ local function qAwait(kind, query, params)
 end
 
 local function qCb(kind, query, params, cb)
-  __asyncCallCallback(function(payload)
+  local id = __registerJsCallback(function(payload)
     local decoded = __jsonDecode(payload)
     if type(decoded) == 'table' and decoded.__cfxError then
       __logError('MySQL: ' .. tostring(decoded.message))
+      -- oxmysql: on error, transaction callbacks get false, others get nil
+      if kind == 'transaction' then cb(false) else cb(nil) end
+      return true
     end
     cb(decoded)
     return true
-  end, 'mysql:' .. kind, query, jenc(params or {}))
+  end)
+  __asyncCallCallbackId(id, 'mysql:' .. kind, query, jenc(params or {}))
 end
 
-MySQL.ready = function(cb) __mysqlReady(cb) end
+-- ready callbacks run in their own thread (they may .await — FiveM semantics)
+MySQL.ready = function(cb) __mysqlReady(function() CreateThread(cb) end) end
 
 -- each op is a callable table (like oxmysql): MySQL.query(...) or MySQL.query.await(...)
 local function makeOp(kind)
@@ -487,12 +586,34 @@ MySQL.scalar = makeOp('scalar')
 MySQL.single = makeOp('single')
 MySQL.insert = makeOp('insert')
 MySQL.update = MySQL.execute
-for _, k in ipairs({ 'query', 'execute', 'scalar', 'single', 'insert' }) do
+-- oxmysql prepared statements (qb-core player load path uses MySQL.prepare.await)
+MySQL.prepare = makeOp('prepare')
+for _, k in ipairs({ 'query', 'execute', 'scalar', 'single', 'insert', 'prepare' }) do
   MySQL[k].sync = MySQL[k].await
 end
 
+-- MySQL.transaction(queries, cb?) / MySQL.transaction.await(queries) —
+-- oxmysql bulk transaction; returns boolean. queries: array of
+-- { query = '...', params/values = ... } (or plain strings)
+MySQL.transaction = {
+  await = function(queries)
+    return qAwait('transaction', jenc(queries or {}), nil)
+  end,
+}
+MySQL.transaction.sync = MySQL.transaction.await
+setmetatable(MySQL.transaction, {
+  __call = function(_, queries, cb)
+    local payload = jenc(queries or {})
+    if cb then
+      qCb('transaction', payload, nil, cb)
+    else
+      return qAwait('transaction', payload, nil)
+    end
+  end,
+})
+
 MySQL.Async = {}
-for _, k in ipairs({ 'query', 'execute', 'scalar', 'single', 'insert', 'update' }) do
+for _, k in ipairs({ 'query', 'execute', 'scalar', 'single', 'insert', 'update', 'prepare' }) do
   MySQL.Async[k] = function(query, params, cb) qCb(k, query, params, cb or function() end) end
 end
 MySQL.Async.fetchAll = MySQL.Async.query
@@ -515,7 +636,7 @@ function __callExportJson(resName, expName, argsJson)
   local args = __jsonDecode(argsJson) or {}
   local prevSource = tenv.source
   tenv.source = 0
-  local results = table.pack(pcall(fn, table.unpack(args, 1, #args)))
+  local results = table.pack(pcall(fn, __argsToVarargs(args)))
   tenv.source = prevSource
   if not results[1] then
     __logError("export '" .. resName .. '.' .. expName .. "' failed: " .. tostring(results[2]))
@@ -526,12 +647,45 @@ function __callExportJson(resName, expName, argsJson)
   return jenc(out)
 end
 
+-- Same as __callExportJson, but the export runs in its own coroutine so it may
+-- Wait()/MySQL.await; the JSON result is delivered to JS via __exportDone(id).
+function __callExportJsonCo(resName, expName, argsJson, cbId)
+  local reg = __exportsRegistry[resName]
+  local fn = reg and reg[expName]
+  local tenv = __envs[resName]
+  if fn == nil or tenv == nil then __exportDone(cbId, false, '[]') return end
+  local args = __jsonDecode(argsJson) or {}
+  local prevSource = tenv.source
+  tenv.source = 0
+  local co = coroutine.create(function()
+    local results = table.pack(pcall(fn, __argsToVarargs(args)))
+    local out = {}
+    for i = 2, results.n do out[#out + 1] = results[i] end
+    __exportDone(cbId, results[1], jenc(out))
+  end)
+  local ok, yielded = coroutine.resume(co)
+  tenv.source = prevSource
+  if not ok then
+    __logError("export '" .. resName .. '.' .. expName .. "' failed: " .. tostring(yielded))
+    __exportDone(cbId, false, '[]')
+    return
+  end
+  __handleYield(co, yielded)
+end
+
 -- ---------- statebags (players + compat entities, via synced meta) ----------
 local function stateProxy(getFn, setFn)
-  return setmetatable({}, {
-    __index = function(_, key) return __jsonDecode(getFn(key)) end,
+  local proxy = {}
+  setmetatable(proxy, {
+    __index = function(_, key)
+      -- FiveM statebag method API: state:set(key, value, replicated)
+      if key == 'set' then return function(_, k, v, _) setFn(k, jenc(v)) end end
+      if key == 'get' then return function(_, k) return __jsonDecode(getFn(k)) end end
+      return __jsonDecode(getFn(key))
+    end,
     __newindex = function(_, key, value) setFn(key, jenc(value)) end,
   })
+  return proxy
 end
 
 Player = function(src)
@@ -590,8 +744,34 @@ function GetPlayerIdentifiers(src)
   return t
 end
 
+function GetPlayerIdentifierByType(src, idtype)
+  local prefix = tostring(idtype or '') .. ':'
+  local idens = GetPlayerIdentifiers(src)
+  for i = 1, #idens do
+    if tostring(idens[i]):sub(1, #prefix) == prefix then return idens[i] end
+  end
+  return false
+end
+
 GetPlayerPed = function() return 0 end
 GetPlayerFromServerId = function(src) return src end
+-- FiveM artifact 10188+ native; es_extended's boot guard checks for it.
+-- Entity ownership is the server module's job on alt:V — no-op here.
+SetEntityOrphanMode = function() return true end
+-- ms since epoch is a fine stand-in for FiveM's uptime timer (esx_lib seeds
+-- math.randomseed with it)
+GetGameTimer = function() return math.floor(os.time() * 1000) end
+
+function GetConvarInt(k, default)
+  local v = tonumber(__getConvar(k))
+  if v == nil then return tonumber(default) or 0 end
+  return v
+end
+function GetConvarBool(k, default)
+  local v = __getConvar(k)
+  if v == false or v == nil then return default and true or false end
+  return v == true or v == 'true' or v == '1'
+end
 
 -- OneSync-style entity natives (compat handles, backed by alt:V entities)
 CreateVehicle = function(model, x, y, z, heading, isNetwork, netMission, p7)
@@ -637,12 +817,29 @@ GetConvarReplicated = GetConvar
 
 -- ---------- misc / identity ----------
 function IsDuplicityVersion() return true end
-function GetGameName() return 'fivem' end
+function GetGameName() return 'fxserver' end
 function GetHashKey(s) return __joaat(s) end
 function joaat(s) return __joaat(s) end
 function GetResourceState(res) return __resourceState(res) end
 function GetResourcePath(res) return __getResourcePath(res) end
-function GetResourceMetadata(res, key, idx) return nil end
+function GetNumResources() return __numResources() end
+function GetResourceByIndex(i) return __resourceByIndex(i) end
+function GetResourceByFindIndex(i) return __resourceByIndex(i) end
+-- manifest metadata (version/author/description/... — scalar manifest fields)
+function GetNumResourceMetadata(res, key) return __resourceMetadataScalar(res, key) ~= false and 1 or 0 end
+function GetResourceMetadata(res, key, idx)
+  if idx ~= nil and tonumber(idx) > 0 then return nil end
+  return __resourceMetadataScalar(res, key)
+end
+-- server-side resource KVPs (file-backed — migration flags survive restarts)
+function GetResourceKvpString(k) return __kvpGet(k) end
+function GetResourceKvpInt(k) local v = __kvpGet(k) if v == false then return 0 end return math.floor(tonumber(v) or 0) end
+function GetResourceKvpFloat(k) local v = __kvpGet(k) if v == false then return 0.0 end return tonumber(v) or 0.0 end
+function SetResourceKvp(k, v) __kvpSet(k, tostring(v)) end
+function SetResourceKvpInt(k, v) __kvpSet(k, tostring(math.floor(tonumber(v) or 0))) end
+function SetResourceKvpFloat(k, v) __kvpSet(k, tostring(tonumber(v) or 0.0)) end
+function DeleteResourceKvp(k) __kvpDelete(k) end
+function SetConvarServerInfo(k, v) __setConvar('serverinfo_' .. tostring(k), tostring(v)) end
 function LoadResourceFile(res, file) return __readResourceFile(res, file) end
 -- GetCurrentResourceName / GetInvokingResource are PER-ENV (see __makeEnv)
 
@@ -692,7 +889,7 @@ function __makeEnv(name)
   -- events (register with resource identity so source and error
   -- attribution land in the right env)
   local function reg(evName, fn, isNet)
-    __registerHandler(evName, fn, isNet, name)
+    __registerHandlerEntry(evName, fn, isNet, name)
   end
   env.AddEventHandler = function(n, f) reg(n, f, false) end
   env.on = function(n, f) reg(n, f, true) end
@@ -855,6 +1052,7 @@ function __teardownResource(resName)
   for co, rn in pairs(__coResources) do
     if rn == resName then __coResources[co] = false end
   end
+  __dropHandlersForResource(resName)
   __exportsRegistry[resName] = nil
   __envs[resName] = nil
 end
@@ -888,8 +1086,16 @@ function __runScript(resName, code, chunkname)
   if env == nil then error("runScript: resource '" .. tostring(resName) .. "' has no environment", 0) end
   local fn, err = __rawload(code, chunkname, 't', env)
   if fn == nil then error(tostring(err), 0) end
-  local ok, rerr = pcall(fn)
-  if not ok then error(tostring(rerr), 0) end
+  -- Run the chunk in a coroutine (NOT pcall): resource scripts may yield
+  -- while loading (MySQL .await in esx migrations, Wait) — a pcall inside
+  -- the JS->Lua call frame turns that into "yield across a C-call boundary".
+  -- Errors still surface: the synchronous raise below for immediate ones,
+  -- __handleYield / __asyncResume log the deferred ones.
+  local co = coroutine.create(fn)
+  __coResources[co] = resName
+  local ok, yielded = coroutine.resume(co)
+  if not ok then error(tostring(yielded), 0) end
+  __handleYield(co, yielded)
   return true
 end
 
@@ -983,6 +1189,12 @@ export class CfxCompatRuntime {
     this.nextHandle = 0x100000;
     this.stateHandlers = [];    // { keyFilter, filter, resource, fn }
     this.globalState = new Map();
+    this._exportCbs = new Map();
+    this._exportCbNext = 0;
+    // server-side resource KVPs (esx migration flags etc.) — file-backed so
+    // they survive restarts, exactly like FiveM's server resource storage
+    this.kvp = new Map();
+    this.kvpPath = (adapter && adapter.kvpPath) || path.join(process.cwd(), 'fivem-compat-kvp.json');
   }
 
   async init() {
@@ -990,6 +1202,12 @@ export class CfxCompatRuntime {
     this.factory = new LuaFactory();
     this.lua = await this.factory.createEngine();
     this.installBridges();
+
+    // hydrate the persistent KVP store (missing/corrupt file = fresh store)
+    try {
+      const raw = JSON.parse(fs.readFileSync(this.kvpPath, 'utf8'));
+      if (raw && typeof raw === 'object') for (const [k, v] of Object.entries(raw)) this.kvp.set(String(k), v);
+    } catch { /* fresh store */ }
 
     await this.lua.doString(PRELUDE);
 
@@ -1023,11 +1241,11 @@ export class CfxCompatRuntime {
       if (s === 'failed') return 'stopped';   // a failed start leaves it stopped
       return s;                               // starting | stopped
     });
-    g.set('__registerHandler', (evName, fn, isNet, resName) => {
+    g.set('__registerHandlerJs', (evName, handlerId, isNet, resName) => {
       const resource = this.engines.get(String(resName));
       if (!resource) { this.logError(`event handler for '${evName}' registered by unknown resource '${resName}'`); return; }
       if (!this.handlers.has(evName)) this.handlers.set(evName, []);
-      this.handlers.get(evName).push({ resource, fn, isNet: !!isNet });
+      this.handlers.get(evName).push({ resource, handlerId, isNet: !!isNet });
       if (isNet) this.wireNet(evName);
     });
     g.set('__declareNetEvent', (evName) => this.wireNet(evName));
@@ -1035,6 +1253,14 @@ export class CfxCompatRuntime {
     g.set('__triggerClient', (evName, target, ...args) => this.dispatchClient(evName, target, args));
     g.set('__registerCommand', (cmdName, resName) => { this.commands.set(String(cmdName).toLowerCase(), String(resName)); });
     g.set('__native', (nativeName, ...args) => this.callNative(nativeName, args));
+    g.set('__exportDone', (cbId, ok, json) => {
+      const cb = this._exportCbs.get(Number(cbId));
+      if (!cb) return;
+      this._exportCbs.delete(Number(cbId));
+      let value = null;
+      try { value = JSON.parse(String(json || '[]')); } catch {}
+      cb({ ok: !!ok, value: Array.isArray(value) ? value : [], error: ok ? null : String(json) });
+    });
     g.set('__getConvar', (k) => (this.convars.has(k) ? this.convars.get(k) : false));
     g.set('__setConvar', (k, v) => { this.convars.set(String(k), String(v)); });
     g.set('__joaat', joaat);
@@ -1044,6 +1270,27 @@ export class CfxCompatRuntime {
       try { return fs.readFileSync(path.join(r.dir, String(file)), 'utf8'); } catch { return false; }
     });
     g.set('__getResourcePath', (n) => { const r = this.engines.get(String(n)); return r ? r.dir : false; });
+    g.set('__numResources', () => this.engines.size);
+    g.set('__resourceByIndex', (i) => {
+      const names = [...this.engines.keys()].sort();
+      return names[Number(i)] ?? false;
+    });
+    g.set('__resourceMetadataScalar', (n, key) => {
+      const r = this.engines.get(String(n));
+      const m = r && r.manifest;
+      if (!m) return false;
+      const v = m[String(key)];
+      return v === undefined || v === null ? false : String(v);
+    });
+    const kvpSave = () => {
+      try {
+        const o = {}; for (const [k, v] of this.kvp) o[k] = v;
+        fs.writeFileSync(this.kvpPath, JSON.stringify(o, null, 2));
+      } catch (e) { this.logError(`kvp persist failed: ${e && e.message ? e.message : e}`); }
+    };
+    g.set('__kvpGet', (k) => (this.kvp.has(String(k)) ? this.kvp.get(String(k)) : false));
+    g.set('__kvpSet', (k, v) => { this.kvp.set(String(k), v); kvpSave(); });
+    g.set('__kvpDelete', (k) => { this.kvp.delete(String(k)); kvpSave(); });
     g.set('__executeCommand', (cmd) => { this.log('ExecuteCommand:', String(cmd)); return true; });
     g.set('__transformLua', (src) => transformFiveMLua(String(src)));
     g.set('__globalStateGet', (k) => { const v = this.globalState.get(String(k)); return v === undefined ? false : v; });
@@ -1051,7 +1298,11 @@ export class CfxCompatRuntime {
       this.globalState.set(String(k), String(json));
       this.dispatchStateChange('global', String(k), String(json));
     });
-    g.set('__httpRequest', (cb, url, method, data, headersJson) => {
+    g.set('__httpRequest', (cbId, url, method, data, headersJson) => {
+      const cb = (status, body, headersJson) => {
+        try { this.lua.global.get('__deliverJsCallback')(Number(cbId), String(status), String(body), String(headersJson)); }
+        catch (e) { this.logError('http callback:', e.message); }
+      };
       let headers = {};
       try { headers = JSON.parse(String(headersJson || '{}')); } catch {}
       const doHttp = this.adapter.http || ((u, o) => fetch(u, o));
@@ -1074,7 +1325,9 @@ export class CfxCompatRuntime {
 
     // async ops (MySQL etc.) — resume target is the single engine now
     g.set('__asyncCall', (id, callName, ...args) => this.asyncCall(id, callName, args, null));
-    g.set('__asyncCallCallback', (cb, callName, ...args) => { this.asyncCall(0, callName, args, cb); });
+    g.set('__asyncCallCallbackId', (cbId, callName, ...args) => {
+      this.asyncCall(0, callName, args, { __luaCallbackId: Number(cbId) });
+    });
     g.set('__mysqlReady', (cb) => {
       if (this.adapter.mysql) setTimeout(() => { try { cb(); } catch (e) { this.logError('MySQL.ready cb:', e.message); } }, 0);
       else setTimeout(() => { this.log('MySQL.ready fired but no database is configured (see mysql.json)'); try { cb(); } catch (e) { this.logError('MySQL.ready cb:', e.message); } }, 0);
@@ -1407,17 +1660,75 @@ export class CfxCompatRuntime {
   // alt:V-side fivem-client resource needs to host this server's FiveM
   // resources client-side (transformed scripts, ui_page, files list).
   buildClientPayload() {
+    // `files` entries can be globs (esx_lib: 'imports/**/client.lua'), so the
+    // concrete file list is expanded here AND small textual files are inlined
+    // into fileContents — that is what LoadResourceFile() reads client-side.
+    const MAX_FILE = 512 * 1024;
+    const TEXTUAL = /\.(lua|js|json|txt|csv|xml|html?|css|yml|yaml)$/i;
     const resources = [];
     for (const [name, res] of this.engines) {
       if (res.status !== 'running') continue;
+      const fileContents = {};
+      for (const pat of (res.manifest && res.manifest.files) || []) {
+        for (const rel of this.expandGlob(res.dir, pat)) {
+          try {
+            const p = path.join(res.dir, rel);
+            const st = fs.statSync(p);
+            if (!st.isFile() || st.size > MAX_FILE || !TEXTUAL.test(rel)) continue;
+            fileContents[rel] = fs.readFileSync(p, 'utf8');
+          } catch { /* unreadable — skip */ }
+        }
+      }
       resources.push({
         name,
         scripts: res.clientScripts || [],
         uiPage: (res.manifest && res.manifest.ui_page) || null,
         files: (res.manifest && res.manifest.files) || [],
+        fileContents,
       });
     }
     return { resources };
+  }
+
+  // Expand a manifest `files`/script pattern to concrete RELATIVE paths:
+  // `*` matches within one segment, `**` matches any number of directories
+  // (FiveM fxmanifest semantics). Missing paths yield nothing.
+  expandGlob(dir, rel) {
+    rel = String(rel).trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    const segs = rel.split('/');
+    const out = [];
+    const walk = (base, i, acc) => {
+      if (i >= segs.length) { out.push(acc); return; }
+      const seg = segs[i];
+      const isLast = i === segs.length - 1;
+      if (seg === '**') {
+        walk(base, i + 1, acc); // ** can match zero directories
+        let subs = [];
+        try { subs = fs.readdirSync(base, { withFileTypes: true }); } catch { return; }
+        for (const e of subs) {
+          if (e.isDirectory()) walk(path.join(base, e.name), i, acc ? acc + '/' + e.name : e.name);
+        }
+        return;
+      }
+      if (seg.includes('*')) {
+        const rx = new RegExp('^' + seg.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + '$');
+        let entries = [];
+        try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return; }
+        for (const e of entries) {
+          if (isLast ? (e.isFile() && rx.test(e.name)) : (e.isDirectory() && rx.test(e.name))) {
+            walk(path.join(base, e.name), i + 1, acc + '/' + e.name);
+          }
+        }
+        return;
+      }
+      const full = path.join(base, seg);
+      try {
+        const st = fs.statSync(full);
+        if (isLast ? st.isFile() : st.isDirectory()) walk(full, i + 1, acc ? acc + '/' + seg : seg);
+      } catch { /* missing — contributes nothing */ }
+    };
+    walk(dir, 0, '');
+    return out.sort();
   }
 
   // Resolve a manifest script entry to actual files: expands * globs and
@@ -1439,12 +1750,15 @@ export class CfxCompatRuntime {
       if (!fs.existsSync(p)) { this.logError(`@import '${rel}' failed — file not found`); return null; }
       return [p];
     }
-    // glob expansion (single-segment *)
+    // glob expansion (* within a segment; ** across segments — e.g. es_extended
+    // ships 'server/bridge/**/*.lua')
     if (rel.includes('*')) {
+      if (rel.includes('**')) {
+        return this.expandGlob(dir, rel).map((r) => path.join(dir, r));
+      }
       const idx = rel.lastIndexOf('/');
       const dirPart = idx >= 0 ? rel.slice(0, idx) : '';
       const filePart = idx >= 0 ? rel.slice(idx + 1) : rel;
-      if (filePart.includes('**')) return [];
       const rx = new RegExp('^' + filePart.replace(/[.+^${}()|[\]]/g, '\\$&').replace(/\*/g, '[^/]*') + '$');
       const base = path.join(dir, dirPart);
       try {
@@ -1464,9 +1778,20 @@ export class CfxCompatRuntime {
   // ---------- async (MySQL) ----------
   asyncCall(id, callName, args, luaCallback) {
     const complete = (value) => {
+      // ALWAYS defer: a synchronous adapter failure would otherwise resume a
+      // coroutine while it is still running (and cross the JS C-boundary).
+      // FiveM semantics: completions are always asynchronous.
+      queueMicrotask(() => deliver(value));
+    };
+    const deliver = (value) => {
       const json = JSON.stringify(value === undefined ? null : value);
       if (luaCallback) {
-        try { luaCallback(json); } catch (e) { this.logError('mysql callback:', e.message); }
+        if (luaCallback.__luaCallbackId !== undefined) {
+          try { this.lua.global.get('__deliverJsCallback')(luaCallback.__luaCallbackId, json); }
+          catch (e) { this.logError('mysql callback:', e.message); }
+        } else {
+          try { luaCallback(json); } catch (e) { this.logError('mysql callback:', e.message); }
+        }
         return;
       }
       try {
@@ -1482,11 +1807,51 @@ export class CfxCompatRuntime {
     let values;
     try { values = JSON.parse(String(args[1] || '{}')); } catch { values = {}; }
 
+    if (kind === 'prepare') {
+      // oxmysql MySQL.prepare: prepared path + documented unpacking —
+      // "the SELECT statement will return a column, row, or array of rows
+      //  depending on the number of columns and rows selected"
+      // INSERT -> insertId, UPDATE/DELETE -> affectedRows.
+      this.adapter.mysql.execute(sql, values)
+        .then((result) => {
+          const first = String(sql).trim().split(/\s+/)[0].toUpperCase();
+          if (first === 'INSERT') return complete(result && result.insertId !== undefined ? result.insertId : null);
+          if (first === 'UPDATE' || first === 'DELETE') return complete(result && result.affectedRows !== undefined ? result.affectedRows : null);
+          if (Array.isArray(result) && result.length > 1) return complete(result); // array of rows
+          const row = Array.isArray(result) ? result[0] : result;                  // 0 or 1 rows
+          if (row && typeof row === 'object' && !Array.isArray(row)) {
+            const keys = Object.keys(row);
+            if (keys.length === 1) return complete(row[keys[0]]);                  // single column -> value
+          }
+          return complete(row === undefined ? null : row);
+        })
+        .catch((e) => fail(e && e.message ? e.message : String(e)));
+      return;
+    }
+    if (kind === 'transaction') {
+      let queries = null;
+      try { queries = JSON.parse(sql); } catch { queries = null; }
+      if (!Array.isArray(queries)) return fail('transaction expects an array of queries');
+      if (typeof this.adapter.mysql.transaction !== 'function') {
+        return fail('database adapter does not support transactions');
+      }
+      this.adapter.mysql.transaction(queries)
+        .then((ok) => complete(ok === false ? false : true))
+        .catch((e) => fail(e && e.message ? e.message : String(e)));
+      return;
+    }
     const op = kind === 'execute' ? 'execute' : 'query';
     this.adapter.mysql[op](sql, values)
       .then((result) => {
         if (kind === 'query') return complete(result);
-        if (kind === 'execute') return complete(result);
+        if (kind === 'execute') {
+          // oxmysql parseResponse semantics for MySQL.execute:
+          // INSERT -> insertId, UPDATE/DELETE -> affectedRows, else raw rows
+          const first = String(sql).trim().split(/\s+/)[0].toUpperCase();
+          if (first === 'INSERT') return complete(result && result.insertId !== undefined ? result.insertId : null);
+          if (first === 'UPDATE' || first === 'DELETE') return complete(result && result.affectedRows !== undefined ? result.affectedRows : null);
+          return complete(result);
+        }
         if (kind === 'insert') return complete(result && result.insertId !== undefined ? result.insertId : 0);
         if (kind === 'scalar') {
           const row = Array.isArray(result) ? result[0] : null;
@@ -1507,6 +1872,21 @@ export class CfxCompatRuntime {
     return this.lua.global.get('__callExportJson')(String(resName), String(expName), JSON.stringify(args || []));
   }
 
+  // Await-capable export call: the export runs in its own Lua coroutine, so it
+  // may MySQL.await / Wait; resolves with { ok, value, error } when done.
+  callExportJsonAsync(resName, expName, args) {
+    return new Promise((resolve) => {
+      const id = ++this._exportCbNext;
+      this._exportCbs.set(id, resolve);
+      try {
+        this.lua.global.get('__callExportJsonCo')(String(resName), String(expName), JSON.stringify(args || []), id);
+      } catch (e) {
+        this._exportCbs.delete(id);
+        resolve({ ok: false, value: null, error: e && e.message ? e.message : String(e) });
+      }
+    });
+  }
+
   // ---------- statebags ----------
   dispatchStateChange(target, key, valueJson) {
     for (const h of this.stateHandlers) {
@@ -1524,16 +1904,13 @@ export class CfxCompatRuntime {
   }
 
   invoke(h, args, sourceId) {
-    const g = this.lua.global;
-    const name = h.resource.name;
-    let prev = 0;
-    try { prev = g.get('__setSource')(name, (sourceId === null || sourceId === undefined) ? 0 : sourceId) || 0; } catch {}
+    // Dispatch by integer id: the Lua-side registry owns the function (never
+    // marshalled through JS), so handler coroutines can Wait/await freely.
+    const src = (sourceId === null || sourceId === undefined) ? 0 : sourceId;
     try {
-      h.fn(...args);
+      this.lua.global.get('__dispatchHandlerById')(h.handlerId, src, ...args);
     } catch (e) {
       this.logError(`handler '${h.eventName || ''}' in '${h.resource.name}' failed: ${e && e.message ? e.message : e}`);
-    } finally {
-      try { g.get('__setSource')(name, prev); } catch {}
     }
   }
 

@@ -16034,6 +16034,172 @@ var require_fengari = __commonJS({
 import * as alt from "alt-client";
 import * as natives from "natives";
 
+// cfx/lua-transform.js
+function segmentLua(src) {
+  const segs = [];
+  let i = 0, n = src.length, buf = "";
+  const pushCode = () => {
+    if (buf) {
+      segs.push({ text: buf, code: true });
+      buf = "";
+    }
+  };
+  while (i < n) {
+    const c = src[i], c2 = src[i + 1];
+    if (c === "-" && c2 === "-") {
+      const m = /^--\[(=*)\[/.exec(src.slice(i));
+      if (m) {
+        const close = "]" + m[1] + "]";
+        const end2 = src.indexOf(close, i + m[0].length);
+        const stop2 = end2 === -1 ? n : end2 + close.length;
+        pushCode();
+        segs.push({ text: src.slice(i, stop2), code: false });
+        i = stop2;
+        continue;
+      }
+      const end = src.indexOf("\n", i);
+      const stop = end === -1 ? n : end;
+      pushCode();
+      segs.push({ text: src.slice(i, stop), code: false });
+      i = stop;
+      continue;
+    }
+    if (c === "[" && (c2 === "[" || c2 === "=")) {
+      const m = /^\[(=*)\[/.exec(src.slice(i));
+      if (m) {
+        const close = "]" + m[1] + "]";
+        const end = src.indexOf(close, i + m[0].length);
+        const stop = end === -1 ? n : end + close.length;
+        pushCode();
+        segs.push({ text: src.slice(i, stop), code: false });
+        i = stop;
+        continue;
+      }
+    }
+    if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < n) {
+        if (src[j] === "\\") j += 2;
+        else if (src[j] === c || src[j] === "\n") {
+          j++;
+          break;
+        } else j++;
+      }
+      pushCode();
+      segs.push({ text: src.slice(i, j), code: false });
+      i = j;
+      continue;
+    }
+    buf += c;
+    i++;
+  }
+  pushCode();
+  return segs;
+}
+function rewriteBackticks(code) {
+  code = code.replace(/\[`([A-Za-z_][A-Za-z0-9_]*)`\]/g, "['$1']");
+  code = code.replace(/`([A-Za-z_][A-Za-z0-9_]*)`/g, "_cfxbt_$1");
+  return code;
+}
+function rewriteSafeNavFull(src) {
+  let code = src;
+  for (let pass = 0; pass < 100; pass++) {
+    const segs = segmentLua(code);
+    let q = -1;
+    let off = 0;
+    for (const s of segs) {
+      if (s.code) {
+        const k = s.text.indexOf("?.");
+        if (k !== -1) {
+          q = off + k;
+          break;
+        }
+      }
+      off += s.text.length;
+    }
+    if (q === -1) break;
+    let i = q - 1, depth = 0;
+    while (i >= 0) {
+      const c = code[i];
+      if (c === ")" || c === "]") {
+        depth++;
+        i--;
+        continue;
+      }
+      if (c === "(" || c === "[") {
+        if (depth === 0) break;
+        depth--;
+        i--;
+        continue;
+      }
+      if (depth > 0) {
+        i--;
+        continue;
+      }
+      if (/[A-Za-z0-9_]/.test(c)) {
+        i--;
+        continue;
+      }
+      if (c === ".") {
+        i--;
+        continue;
+      }
+      break;
+    }
+    const lhsStart = i + 1;
+    const m = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*/.exec(code.slice(q + 2));
+    if (!m || !m[0] || lhsStart >= q) {
+      code = code.slice(0, q) + ". " + code.slice(q + 2);
+      continue;
+    }
+    const tail = m[0];
+    const lhs = code.slice(lhsStart, q);
+    code = code.slice(0, lhsStart) + `(${lhs} and ${lhs}.${tail})` + code.slice(q + 2 + tail.length);
+  }
+  return code;
+}
+function rewriteCompoundLines(code) {
+  const lines = code.split("\n");
+  const fixed = lines.map((line) => {
+    let res = line;
+    for (const opRaw of ["..", "+", "-", "*", "/", "%", "//"]) {
+      const opRx = new RegExp(`(^|[;\\{\\}]\\s*|[\\s\\)])([A-Za-z_][A-Za-z0-9_.\\[\\]'"() ]*?)\\s*` + opRaw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=\\s*(.+)$");
+      const m = opRx.exec(res);
+      if (!m) continue;
+      const lead = m[1] || "";
+      const lhs = m[2];
+      const rhs = m[3];
+      if (!lhs.trim()) continue;
+      if (!/^[A-Za-z_][A-Za-z0-9_]*\s*([.:\[][\s\S]*)?$/.test(lhs.trim())) continue;
+      const comment = (rhs.match(/\s+--.*$/) || [""])[0];
+      const rhsBody = rhs.replace(/\s+--.*$/, "");
+      res = `${lead}${lhs} = ${lhs} ${opRaw} (${rhsBody})${comment}`;
+      break;
+    }
+    return res;
+  });
+  return fixed.join("\n");
+}
+function rewriteAttributes(src) {
+  return src.replace(/(\blocal\s+[A-Za-z_][A-Za-z0-9_.\s,]*?[A-Za-z0-9_])\s*<\s*(const|close)\s*>/g, "$1");
+}
+function transformFiveMLua(src) {
+  let code = rewriteAttributes(src);
+  code = rewriteSafeNavFull(code);
+  const segs = segmentLua(code);
+  let out = "";
+  for (const s of segs) {
+    if (!s.code) {
+      out += s.text;
+      continue;
+    }
+    let c = rewriteBackticks(s.text);
+    c = rewriteCompoundLines(c);
+    out += c;
+  }
+  return out;
+}
+
 // client/core.mjs
 function joaat(s) {
   s = String(s).toLowerCase();
@@ -16239,6 +16405,11 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
     vm2.setGlobalFn("__netEmitServer", (evName, argsJson) => {
       alt2.emitServer("__fivem:net", String(evName), String(argsJson || "[]"));
     });
+    vm2.setGlobalFn("__stateEmitServer", (key, valueJson) => {
+      if (typeof alt2.emitServer === "function") {
+        alt2.emitServer("__fivem:stateSet", String(key), String(valueJson));
+      }
+    });
     vm2.setGlobalFn("__nuiSend", (resName, json) => {
       getWebview(resName).emit("fivem:nui", String(json));
     });
@@ -16300,7 +16471,14 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
       const known = (payload.resources || []).some((r) => r.name === String(n));
       return known ? "started" : "missing";
     });
-    vm2.setGlobalFn("__readResourceFile", () => null);
+    vm2.setGlobalFn("__readResourceFile", (resName, rel) => {
+      const r = (payload.resources || []).find((x) => x.name === String(resName));
+      const fc = r && r.fileContents;
+      if (!fc) return null;
+      const key = String(rel).replace(/\\/g, "/").replace(/^\/+/, "");
+      return Object.prototype.hasOwnProperty.call(fc, key) ? fc[key] : null;
+    });
+    vm2.setGlobalFn("__transformLua", (src) => transformFiveMLua(String(src)));
   }
   async function boot() {
     if (state.booted) throw new Error("already booted");
@@ -16323,6 +16501,22 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
           logError2(`[fivem-client] state dispatch failed: ${e && e.message || e}`);
         }
       });
+      alt2.onServer("__fivem:init", (serverId, globalStateJson) => {
+        try {
+          vm2.callGlobal("__setOwnServerId", Number(serverId));
+          let gs = {};
+          try {
+            gs = JSON.parse(String(globalStateJson || "{}")) || {};
+          } catch {
+          }
+          for (const [k, v] of Object.entries(gs)) {
+            vm2.callGlobal("__stateChange", "global", String(k), JSON.stringify(v));
+          }
+          log2(`[fivem-client] handshake complete (server id ${serverId})`);
+        } catch (e) {
+          logError2(`[fivem-client] init failed: ${e && e.message || e}`);
+        }
+      });
     }
     const resources = payload.resources || [];
     log2(`[fivem-client] booting with ${resources.length} resource(s) on ${vm2.name} (Lua ${vm2.luaVersion})`);
@@ -16335,6 +16529,12 @@ function createFiveMClientRuntime({ vm: vm2, alt: alt2, natives: natives2, paylo
       okCount++;
     }
     log2(`[fivem-client] boot complete: ${okCount}/${resources.length} resources running`);
+    if (typeof alt2.emitServer === "function") {
+      try {
+        alt2.emitServer("__fivem:ready", true);
+      } catch {
+      }
+    }
   }
   return {
     boot,
@@ -16415,7 +16615,8 @@ function createFengariVM() {
     }
     const t = typeof v;
     if (t === "number") {
-      lua.lua_pushnumber(Ls, v);
+      if (Number.isInteger(v) && Math.abs(v) <= 2147483647) lua.lua_pushinteger(Ls, v);
+      else lua.lua_pushnumber(Ls, v);
       return;
     }
     if (t === "boolean") {
@@ -16539,40 +16740,2633 @@ function createFengariVM() {
 var PAYLOAD = {
   "resources": [
     {
-      "name": "client-demo",
+      "name": "esx_lib",
       "scripts": [
         {
-          "path": "client/main.lua",
-          "source": "-- NSM client-compat acceptance demo. Deliberately uses FiveM-fork syntax\n-- (backtick table keys, compound assignment) to prove the transform runs\n-- on client scripts too, plus the standard client API surface:\n-- CreateThread/Wait, natives, net events, commands + key mapping,\n-- NUI messages + callbacks, statebags, convars, exports.\nlocal state = { ticks = 0, hudOpen = false }\n\n-- backtick keys are the qb-core idiom (see qb-core shared/weapons.lua)\nlocal cfg = { ['hud_title'] = 'NSM demo HUD', ['scale'] = 1.25 }\nstate.title = cfg.hud_title\nstate.scale = cfg.scale\n\nlocal vec = vector3(10.5, 20.25, 30.125)\nstate.vecLen = #vec\nstate.convar = GetConvar('demo_convar', 'fallback')\n\nAddEventHandler('onResourceStart', function(res)\n  if res == GetCurrentResourceName() then\n    state.sawOwnStart = true\n  end\nend)\n\nCreateThread(function()\n  while state.ticks < 6 do\n    Wait(120)\n state.ticks = state.ticks + (1)\n    local ped = PlayerPedId()\n    local pos = GetEntityCoords(ped)\n    if pos ~= nil then\n      state.lastX = pos.x\n      state.lastZ = pos.z\n    end\n  end\nend)\n\nCreateThread(function()\n  -- multireturn native (bool + float), FiveM underscore spelling\n  local ok, groundZ = GetGroundZFor_3dCoord(10.0, 20.0, 30.0, false)\n  state.groundOk = ok\n  state.groundZ = groundZ\n  -- a native that exists on FiveM but is absent from the mock/alt module:\n  -- must warn once and yield nil instead of crashing the resource\n  state.sessionStarted = NetworkIsSessionStarted()\nend)\n\nRegisterNetEvent('client-demo:notify', function(msg)\n  state.lastNotify = msg\n  TriggerServerEvent('client-demo:ack', msg)\nend)\n\nRegisterCommand('demo_hud', function()\n  state.hudOpen = not state.hudOpen\n  SendNUIMessage({\n    action = 'setVisible',\n    visible = state.hudOpen,\n    ticks = state.ticks,\n    title = cfg.hud_title,\n    pos = { x = vec.x, y = vec.y, z = vec.z },\n  })\n  SetNuiFocus(state.hudOpen, state.hudOpen)\nend, false)\n\nRegisterKeyMapping('demo_hud', 'Toggle the demo HUD', 'keyboard', 'F5')\n\nRegisterNUICallback('nuiClosed', function(data, cb)\n  state.hudOpen = false\n  SetNuiFocus(false, false)\n  state.libNotes = exports['client-demo-lib']:note('nui closed: ' .. tostring(data and data.reason))\n  cb({ ok = true })\nend)\n\nAddStateBagChangeHandler('dead', nil, function(bag, key, value)\n  state.sawDead = value\n  state.sawDeadBag = bag\nend)\n\nexports('getState', function() return state end)\n-- JSON view of the state for the acceptance harness (VM-agnostic channel)\nexports('getStateJson', function() return __jsonEncode(state) end)\n"
+          "path": "config.lua",
+          "source": "Config = {}\n\n---@class MedalClipOptions\n---@field duration integer\n---@field captureDelayMs integer\n---@field alertType 'Default'|'Disabled'|'SoundOnly'|'OverlayOnly'\n\n---@class MedalConfig\n---@field enabled boolean\n---@field publicKey string\n---@field eventName string\n---@field clipOptions MedalClipOptions\n\n---@type MedalConfig\nConfig.Medal = {\n	enabled = true,\n	publicKey = 'pub_82qkpMKV77AkpqLSgWsxLlDyfzpPI7Vw',\n	eventName = 'Death',\n	clipOptions = {\n		duration = 30,\n		captureDelayMs = 0,\n		alertType = 'Default'\n	}\n}"
+        },
+        {
+          "path": "resource/init.lua",
+          "source": "---@diagnostic disable: lowercase-global\nxLib = setmetatable({\n    name = 'esx_lib',\n    side = IsDuplicityVersion() and 'server' or 'client'\n}, {\n    __newindex = function(self, key, fn)\n        rawset(self, key, fn)\n\n        if debug.getinfo(2, 'S').short_src:find('@esx_lib/resource') then\n            exports(key, fn)\n        end\n    end,\n\n    __index = function(self, key)\n        local dir = ('imports/%s'):format(key)\n        local chunk = LoadResourceFile(self.name, ('%s/%s.lua'):format(dir, self.side))\n\n        local shared = LoadResourceFile(self.name, ('%s/shared.lua'):format(dir))\n\n        if shared then\n            chunk = (chunk and ('%s\\n%s'):format(shared, chunk)) or shared\n        end\n\n        if chunk then\n            local fn, err = load(chunk, ('@@esx_lib/%s/%s.lua'):format(key, self.side))\n\n            if not fn or err then\n                return error(('\\n^1Error importing module (%s): %s^0'):format(dir, err), 3)\n            end\n\n            rawset(self, key, fn() or Noop)\n\n            return self[key]\n        end\n    end\n})\n\nrequire = xLib.require"
+        },
+        {
+          "path": "resource/callback/shared.lua",
+          "source": `--[[
+    https://github.com/overextended/ox_lib
+
+    This file is licensed under LGPL-3.0 or higher <https://www.gnu.org/licenses/lgpl-3.0.en.html>
+
+    Copyright \xA9 2025 Linden <https://github.com/thelindat>
+]]
+
+local registeredCallbacks = {}
+local resource_name = GetCurrentResourceName() --TODO: Add cache
+local IS_DEBUG = GetConvar("xLib:debug", "false") == "true"
+local VALIDATION_GRACE_MS = GetConvarInt("xLib:callbackValidationGrace", 15000)
+
+
+AddEventHandler('onResourceStop', function(resourceName)
+    if resource_name == resourceName then return end
+
+    for callbackName, resource in pairs(registeredCallbacks) do
+        if resource == resourceName then
+            registeredCallbacks[callbackName] = nil
+        end
+    end
+end)
+
+---For internal use only.
+---Sets a callback event as registered to a specific resource, preventing it from
+---being overwritten. Any unknown callbacks will return an error to the caller.
+---@param callbackName string
+---@param isValid boolean
+function xLib.setValidCallback(callbackName, isValid)
+    local resourceName = GetInvokingResource() or resource_name
+    local callbackResource = registeredCallbacks[callbackName]
+
+    if not isValid then
+        if callbackResource == resourceName then
+            registeredCallbacks[callbackName] = nil
+        end
+        return
+    end
+
+    if callbackResource then
+        if callbackResource == resourceName then return end
+
+        if IS_DEBUG then
+            local errMessage = ("^1resource '%s' attempted to overwrite callback '%s' owned by resource '%s'^0"):format(resourceName, callbackName, callbackResource)
+
+            print(('^1SCRIPT ERROR: %s^0\\n%s'):format(errMessage,
+                Citizen.InvokeNative(_cfxbt_FORMAT_STACK_TRACE & 0xFFFFFFFF, nil, 0, Citizen.ResultAsString()) or ''))
+        end
+
+        return
+    end
+
+    if IS_DEBUG then
+        print(("set valid callback '%s' for resource '%s'"):format(callbackName, resourceName))
+    end
+
+    registeredCallbacks[callbackName] = resourceName
+end
+
+function xLib.isCallbackValid(callbackName)
+    return registeredCallbacks[callbackName] ~= nil
+end
+
+local cbEvent = '__xLib_cb_%s'
+
+RegisterNetEvent('xLib:validateCallback', function(callbackName, invokingResource, key)
+    if registeredCallbacks[callbackName] then return end
+
+    local source = source
+
+    local function rejectInvalidCallback()
+        if registeredCallbacks[callbackName] then return end
+
+        local event = cbEvent:format(invokingResource)
+
+        if GetGameName() == 'fxserver' then
+            return TriggerClientEvent(event, source, key, 'cb_invalid')
+        end
+
+        TriggerServerEvent(event, key, 'cb_invalid')
+    end
+
+    if VALIDATION_GRACE_MS > 0 then
+        SetTimeout(VALIDATION_GRACE_MS, rejectInvalidCallback)
+        return
+    end
+
+    rejectInvalidCallback()
+end)
+`
+        },
+        {
+          "path": "resource/medal/client.lua",
+          "source": "xLib.getMedalConfig = function()\n    return Config.Medal\nend\n\nxLib.triggerMedalClip = function(publicKey, eventName, clipOptions)\n    if not publicKey or publicKey == '' then return end\n\n    SendNUIMessage({\n        action = 'medalClip',\n        publicKey = publicKey,\n        payload = {\n            eventId = ('esx-clip-%s-%s'):format(GetPlayerServerId(PlayerId()), GetGameTimer()),\n            eventName = eventName or 'Event',\n            triggerActions = { 'SaveClip' },\n            clipOptions = clipOptions or {\n                duration = 30,\n                captureDelayMs = 0,\n                alertType = 'Default'\n            }\n        }\n    })\nend"
+        },
+        {
+          "path": "resource/test/client.lua",
+          "source": ""
         }
       ],
-      "uiPage": "html/index.html",
+      "uiPage": "html/medal.html",
       "files": [
-        "html/index.html"
-      ]
-    },
-    {
-      "name": "client-demo-lib",
-      "scripts": [
-        {
-          "path": "client/main.lua",
-          "source": "-- Cross-resource client export target for the client-demo acceptance test.\nlocal notes = 0\n\nexports('note', function(msg)\n  notes = notes + 1\n  return notes\nend)\n\nexports('getNotes', function()\n  return notes\nend)\n"
-        }
+        "imports.lua",
+        "imports/**/client.lua",
+        "imports/**/shared.lua",
+        "html/medal.html",
+        "html/medal.js"
       ],
-      "uiPage": null,
-      "files": []
+      "fileContents": {
+        "imports.lua": `--! DISCLAIMER
+--[[
+    https://github.com/overextended/ox_lib
+
+    This file is licensed under LGPL-3.0 or higher <https://www.gnu.org/licenses/lgpl-3.0.en.html>
+
+    Copyright \xA9 2025 Linden <https://github.com/thelindat>
+]]
+
+-- Const Variables
+local CONTEXT<const> = IsDuplicityVersion() and 'server' or 'client'
+local LIB_NAME <const> = 'esx_lib'
+local IS_DEBUG <const> = GetConvar('xLib:debug', 'false') == 'true'
+
+
+---@alias Module table | function
+---@class xLib
+---@field name string
+---@field side 'server' | 'client'
+
+-------------------------------------------------
+--- Core functions for modules
+-------------------------------------------------
+
+--- Function that returns nothing
+--- Used as a "shortcut"
+function Noop() end
+
+---Loads a module into memory
+---@param self xLib
+---@param name string -- module name
+---@return Module | nil
+local function loadModule(self, name)
+    local directory = ('imports/%s'):format(name)
+    local chunk = LoadResourceFile(LIB_NAME, ('%s/%s.lua'):format(directory, CONTEXT))
+    local shared_chunk = LoadResourceFile(LIB_NAME, ('%s/shared.lua'):format(directory))
+
+    if shared_chunk then
+        chunk = chunk and ('%s\\n%s'):format(shared_chunk, chunk) or shared_chunk 
+    end
+
+    if not chunk then
+        return
+    end
+
+    -- Second argument is a chunk name
+    local fn, err = load(chunk, ('@@%s/imports/%s/%s.lua'):format(LIB_NAME, name, CONTEXT))
+
+    if not fn or err then
+        if shared_chunk then
+            print(('[%s] Found an error while importing - %s! Try updating %s to the latest version!'):format(LIB_NAME,
+                name, LIB_NAME))
+
+            -- Tries to load only shared.lua
+            fn, err = load(shared_chunk, ('@@%s/imports/%s/%s.lua'):format(LIB_NAME, name, 'shared'))
+        end
+
+        if not fn or err then
+            return error(('Completly failed importing module - %s; error - %s'):format(name, err))
+        end
+    end
+
+    local result = fn()
+    self[name] = result or Noop
+
+    return self[name]
+end
+
+---Function that is responsible for lazy loading
+---@param self xLib
+---@param index string -- name of the function/key that is called
+---@param ... unknown -- function params
+---@return Module
+local function call(self, index, ...)
+    local module = rawget(self, index) -- uses rawget not to trigger any metamethods
+
+    -- Module Loading
+    if not module then
+        self[index] = Noop -- to prevent module from loading again if doesn't exists.
+
+        module = loadModule(self, index)
+
+        if not module then
+            local function method(...)
+               return exports[LIB_NAME][index](nil, ...)
+            end
+                
+            if not ... then
+                self[index] = method
+            end
+
+            return method
+        end
+    end
+
+    return module
+end
+
+
+-------------------------------------------------
+--- Environment Setup
+-------------------------------------------------
+
+-- Creation of xLib object
+---@diagnostic disable-next-line: lowercase-global
+local xLib = setmetatable({
+    name = LIB_NAME,
+    side = CONTEXT,
+    debug = IS_DEBUG
+}, {
+    -- Lazy Loading - loads module only when accessed
+    __index = call,
+    __call = call,
+})
+
+-- Allows to xLib to be accessible in resource that imports a lib
+_ENV.xLib = xLib
+_ENV.require = xLib.require
+`,
+        "imports/addKeybind/client.lua": `--[[
+    https://github.com/overextended/ox_lib
+
+    This file is licensed under LGPL-3.0 or higher <https://www.gnu.org/licenses/lgpl-3.0.en.html>
+
+    Copyright \xA9 2025 Linden <https://github.com/thelindat>
+]]
+
+---@class KeybindProps
+---@field name string
+---@field description string
+---@field defaultMapper? string (see: https://docs.fivem.net/docs/game-references/input-mapper-parameter-ids/)
+---@field defaultKey? string
+---@field disabled? boolean
+---@field disable? fun(self: CKeybind, toggle: boolean)
+---@field onPressed? fun(self: CKeybind)
+---@field onReleased? fun(self: CKeybind)
+---@field remove? fun(self: CKeybind)
+---@field [string] any
+
+---@class CKeybind : KeybindProps
+---@field currentKey string
+---@field disabled boolean
+---@field isPressed boolean
+---@field hash number
+---@field getCurrentKey fun(): string
+---@field isControlPressed fun(): boolean
+
+local keybinds = {}
+
+local IsPauseMenuActive = IsPauseMenuActive
+local GetControlInstructionalButton = GetControlInstructionalButton
+
+local keybind_mt = {
+    disabled = false,
+    isPressed = false,
+    defaultKey = '',
+    defaultMapper = 'keyboard',
+}
+
+function keybind_mt:__index(index)
+    return index == 'currentKey' and self:getCurrentKey() or keybind_mt[index]
+end
+
+function keybind_mt:getCurrentKey()
+    return GetControlInstructionalButton(0, self.hash, true):sub(3)
+end
+
+function keybind_mt:isControlPressed()
+    return self.isPressed
+end
+
+function keybind_mt:disable(toggle)
+    self.disabled = toggle
+end
+
+function keybind_mt:remove()
+    if not keybinds[self.name] then return end
+    keybinds[self.name] = nil
+end
+
+---@param data KeybindProps
+---@return CKeybind
+function xLib.addKeybind(data)
+    data.hash = joaat("+" .. data.name) | 0x80000000
+    keybinds[data.name] = setmetatable(data, keybind_mt)
+
+    RegisterCommand('+' .. data.name, function()
+        if not keybinds[data.name] then return end
+        if data.disabled or IsPauseMenuActive() then return end
+        data.isPressed = true
+        if data.onPressed then data:onPressed() end
+    end)
+
+    RegisterCommand('-' .. data.name, function()
+        if not keybinds[data.name] then return end
+        if data.disabled or IsPauseMenuActive() then return end
+        data.isPressed = false
+        if data.onReleased then data:onReleased() end
+    end)
+
+    RegisterKeyMapping('+' .. data.name, data.description, data.defaultMapper, data.defaultKey)
+
+    SetTimeout(500, function()
+        TriggerEvent('chat:removeSuggestion', ('/+%s'):format(data.name))
+        TriggerEvent('chat:removeSuggestion', ('/-%s'):format(data.name))
+    end)
+
+    return data
+end
+
+return xLib.addKeybind`,
+        "imports/cache/client.lua": '--[[\n    Generic client-side player state cache, modelled on ox_lib cache.\n    Framework agnostic: natives only, no ESX coupling.\n\n    Loaded per-resource VM through the lazy loader. PlayerPedId() and friends\n    return the same value in every client VM, so the cached values are correct\n    in each resource that requires it.\n\n    Exposes the live values as xLib.cache and emits `xLib:cache:<key>` (value, previous)\n    whenever a tracked value changes. `coords` is read on demand from the live ped\n    and never stored.\n]]\n\nlocal playerId = PlayerId()\n\nlocal cache = setmetatable({\n    playerId = playerId,\n    ped = PlayerPedId(),\n    vehicle = false,\n    seat = false,\n    weapon = false,\n}, {\n    __index = function(self, key)\n        if key == "coords" then\n            return GetEntityCoords(self.ped)\n        elseif key == "serverId" then\n            -- resolved lazily: GetPlayerServerId can return -1 before the network\n            -- session is ready, so only cache it once it is valid.\n            local id = GetPlayerServerId(playerId)\n            if id and id ~= -1 then\n                rawset(self, "serverId", id)\n            end\n            return id\n        end\n    end,\n})\n\nlocal function set(key, value)\n    if cache[key] == value then\n        return\n    end\n\n    local previous = cache[key]\n    rawset(cache, key, value)\n    TriggerEvent(("xLib:cache:%s"):format(key), value, previous)\nend\n\nlocal function getSeat(ped, vehicle)\n    for seat = -1, 16 do\n        if GetPedInVehicleSeat(vehicle, seat) == ped then\n            return seat\n        end\n    end\n    return false\nend\n\nCreateThread(function()\n    while true do\n        local ped = PlayerPedId()\n        if ped ~= cache.ped then\n            set("ped", ped)\n        end\n\n        ---@type integer|false\n        local vehicle = GetVehiclePedIsIn(ped, false)\n        vehicle = vehicle ~= 0 and vehicle or false\n\n        if vehicle ~= cache.vehicle then\n            set("vehicle", vehicle)\n            set("seat", vehicle and getSeat(ped, vehicle) or false)\n        elseif vehicle then\n            local seat = getSeat(ped, vehicle)\n            if seat ~= cache.seat then\n                set("seat", seat)\n            end\n        end\n\n        ---@type integer|false\n        local weapon = GetSelectedPedWeapon(ped)\n        weapon = weapon ~= `WEAPON_UNARMED` and weapon or false\n        if weapon ~= cache.weapon then\n            set("weapon", weapon)\n        end\n\n        Wait(100)\n    end\nend)\n\nreturn cache\n',
+        "imports/callback/client.lua": `--[[
+    https://github.com/overextended/ox_lib
+
+    This file is licensed under LGPL-3.0 or higher <https://www.gnu.org/licenses/lgpl-3.0.en.html>
+
+    Copyright \xA9 2025 Linden <https://github.com/thelindat>
+]]
+
+local pendingCallbacks = {}
+local registeredCallbackNames = {}
+local compatCallbacks = {}
+local timers = {}
+local cbEvent = '__xLib_cb_%s'
+local callbackTimeout = GetConvarInt('xLib:callbackTimeout', 300000)
+local resource_name = GetCurrentResourceName() --TODO: Add cache
+
+local function publishValidCallback(name)
+    local ok = pcall(function()
+        xLib.setValidCallback(name, true)
+    end)
+
+    if not ok then
+        SetTimeout(1000, function()
+            if registeredCallbackNames[name] then
+                publishValidCallback(name)
+            end
+        end)
+    end
+end
+
+local function republishValidCallbacks()
+    for name in pairs(registeredCallbackNames) do
+        publishValidCallback(name)
+    end
+end
+
+AddEventHandler('onClientResourceStart', function(resource)
+    if resource == 'esx_lib' then
+        SetTimeout(0, republishValidCallbacks)
+    end
+end)
+
+-- Compat callbacks (via ESX.Register*) belong to another resource while their
+-- handlers live here, so they must be removed manually when that resource stops.
+AddEventHandler('onClientResourceStop', function(resource)
+    for name, registration in pairs(compatCallbacks) do
+        if registration.owner == resource then
+            RemoveEventHandler(registration.handler)
+
+            compatCallbacks[name] = nil
+            registeredCallbackNames[name] = nil
+
+            if GetResourceState('esx_lib') == 'started' then
+                xLib.setValidCallback(name, false)
+            end
+        end
+    end
+end)
+
+RegisterNetEvent(cbEvent:format(resource_name), function(key, ...)
+    if source == '' then return end
+
+    local cb = pendingCallbacks[key]
+
+    if not cb then return end
+
+    pendingCallbacks[key] = nil
+
+    cb(...)
+end)
+
+---@param event string
+---@param delay? number | false prevent the event from being called for the given time
+local function eventTimer(event, delay)
+    if xLib.verify(delay, 'number') then
+        if delay > 0 then
+            local time = GetGameTimer()
+
+            if (timers[event] or 0) > time then
+                return false
+            end
+
+            timers[event] = time + delay
+        end
+    end
+
+    return true
+end
+
+---@param _ any
+---@param event string
+---@param delay number | false | nil
+---@param cb function | false
+---@param ... any
+---@return ...
+local function triggerServerCallback(_, event, delay, cb, ...)
+    if not eventTimer(event, delay) then return end
+
+    local key
+
+    repeat
+        key = ('%s:%s'):format(event, math.random(0, 100000))
+    until not pendingCallbacks[key]
+
+    ---@type promise | false
+    local promise = not cb and promise.new()
+
+    pendingCallbacks[key] = function(response, ...)
+        if response == 'cb_invalid' then
+            response = ("callback '%s' does not exist"):format(event)
+
+            return promise and promise:reject(response) or error(response)
+        end
+
+        response = { response, ... }
+
+        if promise then
+            return promise:resolve(response)
+        end
+
+        if cb then
+            cb(table.unpack(response))
+        end
+    end
+
+    TriggerServerEvent('xLib:validateCallback', event, resource_name, key)
+    TriggerServerEvent(cbEvent:format(event), resource_name, key, ...)
+
+    if promise then
+        SetTimeout(callbackTimeout, function() promise:reject(("callback event '%s' timed out"):format(key)) end)
+
+        return table.unpack(Citizen.Await(promise))
+    end
+end
+
+---@overload fun(event: string, delay: number | false, cb: function, ...)
+xLib.callback = setmetatable({}, {
+    __call = function(_, event, delay, cb, ...)
+        if not cb then
+            warn(("callback event '%s' does not have a function to callback to and will instead await\\nuse xLib.callback.await or a regular event to remove this warning")
+                :format(event))
+        else
+            local cbType = type(cb)
+
+            if cbType == 'table' and getmetatable(cb)?.__call then
+                cbType = 'function'
+            end
+
+            xLib.verify(cb, 'function', true)
+        end
+
+        return triggerServerCallback(_, event, delay, cb, ...)
+    end
+})
+
+---@param event string
+---@param delay? number | false prevent the event from being called for the given time.
+---Sends an event to the server and halts the current thread until a response is returned.
+---@diagnostic disable-next-line: duplicate-set-field
+function xLib.callback.await(event, delay, ...)
+    return triggerServerCallback(nil, event, delay, false, ...)
+end
+
+local function callbackResponse(success, result, ...)
+    if not success then
+        if result then
+            return print(('^1SCRIPT ERROR: %s^0\\n%s'):format(result,
+                Citizen.InvokeNative(\`FORMAT_STACK_TRACE\` & 0xFFFFFFFF, nil, 0, Citizen.ResultAsString()) or ''))
+        end
+
+        return false
+    end
+
+    return result, ...
+end
+
+local pcall = pcall
+
+---@param name string
+---@param cb function
+---Registers an event handler and callback function to respond to server requests.
+---The handler is owned by the importing resource's runtime, so FiveM removes
+---it automatically when that resource stops.
+---@diagnostic disable-next-line: duplicate-set-field
+function xLib.callback.register(name, cb)
+    local event = cbEvent:format(name)
+
+    registeredCallbackNames[name] = true
+    publishValidCallback(name)
+
+    RegisterNetEvent(event, function(resource, key, ...)
+        TriggerServerEvent(cbEvent:format(resource), key, callbackResponse(pcall(cb, ...)))
+    end)
+end
+
+---@param name string
+---@param cb function
+---@param owner? string Resource whose lifetime owns the callback.
+---Registers a callback using the old ESX client callback signature: function(cb, ...).
+---The handler is created here so it can be removed when the owner resource stops.
+function xLib.callback.registerCompat(name, cb, owner)
+    local event = cbEvent:format(name)
+
+    local function compatCb(...)
+        local response = promise.new()
+        local responded = false
+
+        local function reply(...)
+            local values = { ... }
+
+            if not responded then
+                responded = true
+                response:resolve(values)
+            end
+
+            return table.unpack(values)
+        end
+
+        cb(reply, ...)
+
+        return table.unpack(Citizen.Await(response))
+    end
+
+    local previous = compatCallbacks[name]
+    if previous then
+        RemoveEventHandler(previous.handler)
+    end
+
+    RegisterNetEvent(event)
+    local handler = AddEventHandler(event, function(resource, key, ...)
+        TriggerServerEvent(cbEvent:format(resource), key, callbackResponse(pcall(compatCb, ...)))
+    end)
+
+    registeredCallbackNames[name] = true
+    compatCallbacks[name] = {
+        owner = owner or resource_name,
+        handler = handler
+    }
+    publishValidCallback(name)
+end
+
+return xLib.callback
+`,
+        "imports/colors/client.lua": 'xLib.colors = {} \n    \nxLib.colors.brand = GetConvar("esx:brand-color", "#FB9B04")\nxLib.colors.darkest = GetConvar("esx:darkest-color", "#161616")\nxLib.colors.dark = GetConvar("esx:dark-color", "#252525")\nxLib.colors.mid = GetConvar("esx:mid-color", "#383838")\nxLib.colors.light = GetConvar("esx:light-color", "#969696")\nxLib.colors.lightest = GetConvar("esx:lightest-color", "#F2F2F2")\n\nreturn xLib.colors\n',
+        "imports/dui/client.lua": '--[[\n    https://github.com/overextended/ox_lib\n\n    This file is licensed under LGPL-3.0 or higher <https://www.gnu.org/licenses/lgpl-3.0.en.html>\n\n    Copyright \xA9 2025 Linden <https://github.com/thelindat>\n]]\n\n---@class DuiProperties\n---@field url string\n---@field width number\n---@field height number\n---@field debug? boolean\n\n---@class Dui\n---@field private_id string\n---@field private_debug boolean\n---@field url string\n---@field duiObject number\n---@field duiHandle string\n---@field runtimeTxd number\n---@field txdObject number\n---@field dictName string\n---@field txtName string\nxLib.dui = xLib.class()\n\nlocal resource<const> = GetCurrentResourceName()\n\n---@type table<string, Dui>\nlocal Duis = {}\n\nlocal currentId = 0\n\n---@param data DuiProperties\nfunction xLib.dui:constructor(data)\n	local time = GetGameTimer()\n	local id = ("%s_%s_%s"):format(resource, time, currentId)\n	currentId = currentId + 1\n	local dictName = ("%s_dui_dict_%s"):format(resource, id)\n	local txtName = ("%s_lib_dui_txt_%s"):format(resource, id)\n	local duiObject = CreateDui(data.url, data.width, data.height)\n	local duiHandle = GetDuiHandle(duiObject)\n	local runtimeTxd = CreateRuntimeTxd(dictName)\n	local txdObject = CreateRuntimeTextureFromDuiHandle(runtimeTxd, txtName, duiHandle)\n	self.private_id = id\n	self.private_debug = data.debug or false\n	self.url = data.url\n	self.duiObject = duiObject\n	self.duiHandle = duiHandle\n	self.runtimeTxd = runtimeTxd\n	self.txdObject = txdObject\n	self.dictName = dictName\n	self.txtName = txtName\n	Duis[id] = self\n\n	if self.private_debug then\n		print(("Dui %s created"):format(id))\n	end\nend\n\nfunction xLib.dui:remove()\n	SetDuiUrl(self.duiObject, "about:blank")\n	DestroyDui(self.duiObject)\n	Duis[self.private_id] = nil\n\n	if self.private_debug then\n		print(("Dui %s removed"):format(self.private_id))\n	end\nend\n\n---@param url string\nfunction xLib.dui:setUrl(url)\n	self.url = url\n	SetDuiUrl(self.duiObject, url)\n\n	if self.private_debug then\n		print(("Dui %s url set to %s"):format(self.private_id, url))\n	end\nend\n\n---@param message table\nfunction xLib.dui:sendMessage(message)\n	SendDuiMessage(self.duiObject, json.encode(message))\n\n	if self.private_debug then\n		print(("Dui %s message sent with data :"):format(self.private_id), json.encode(message, { indent = true }))\n	end\nend\n\n---@param x number\n---@param y number\nfunction xLib.dui:sendMouseMove(x, y)\n	SendDuiMouseMove(self.duiObject, x, y)\nend\n\n---@param button "left" | "middle" | "right"\nfunction xLib.dui:sendMouseDown(button)\n	SendDuiMouseDown(self.duiObject, button)\nend\n\n---@param button "left" | "middle" | "right"\nfunction xLib.dui:sendMouseUp(button)\n	SendDuiMouseUp(self.duiObject, button)\nend\n\n---@param deltaX number\n---@param deltaY number\nfunction xLib.dui:sendMouseWheel(deltaX, deltaY)\n	SendDuiMouseWheel(self.duiObject, deltaY, deltaX)\nend\n\nAddEventHandler("onResourceStop", function(resourceName)\n	if resource ~= resourceName then return end\n\n	for id in next, Duis do\n        Duis[id]:remove()\n    end\nend)\n\nreturn xLib.dui',
+        "imports/entity/client.lua": "xLib.entity = {}\n\n---@param entities table The entities to search through\n---@param isPlayerEntities boolean Whether the entities are players\n---@param coords? table | vector3 The coords to search from\n---@param modelFilter? table The model filter\n---@return integer, integer\nfunction xLib.entity.closest(entities, isPlayerEntities, coords, modelFilter)\n    local closestEntity, closestEntityDistance, filteredEntities = -1, -1, nil\n\n    if coords then\n        coords = vector3(coords.x, coords.y, coords.z)\n    else\n        local playerPed = PlayerPedId()\n        coords = GetEntityCoords(playerPed)\n    end\n\n    if modelFilter then\n        filteredEntities = {}\n\n        for currentEntityIndex = 1, #entities do\n            if modelFilter[GetEntityModel(entities[currentEntityIndex])] then\n                filteredEntities[#filteredEntities + 1] = entities[currentEntityIndex]\n            end\n        end\n    end\n\n    for k, entity in pairs(filteredEntities or entities) do\n        local distance = #(coords - GetEntityCoords(entity))\n\n        if closestEntityDistance == -1 or distance < closestEntityDistance then\n            closestEntity, closestEntityDistance = isPlayerEntities and k or entity, distance\n        end\n    end\n\n    return closestEntity, closestEntityDistance\nend\n\n---@param entities table The entities to search through\n---@param isPlayerEntities boolean Whether the entities are players\n---@param coords? table | vector3 The coords to search from\n---@param maxDistance number The maximum distance\n---@return table\nfunction xLib.entity.EnumerateWithinDistance(entities, isPlayerEntities, coords, maxDistance)\n    local nearbyEntities = {}\n\n    if coords then\n        coords = vector3(coords.x, coords.y, coords.z)\n    else\n        local playerPed = PlayerPedId()\n        coords = GetEntityCoords(playerPed)\n    end\n\n    for k, entity in pairs(entities) do\n        local distance = #(coords - GetEntityCoords(entity))\n\n        if distance <= maxDistance then\n            nearbyEntities[#nearbyEntities + 1] = isPlayerEntities and k or entity\n        end\n    end\n\n    return nearbyEntities\nend\n\n---@param entity integer The entity to get the coords of\n---@param coords table | vector3 | vector4 The coords to teleport the entity to\n---@param cb? function The callback function\nfunction xLib.entity.Teleport(entity, coords, cb)\n\n    if DoesEntityExist(entity) then\n        RequestCollisionAtCoord(coords.x, coords.y, coords.z)\n        while not HasCollisionLoadedAroundEntity(entity) do\n            Wait(0)\n        end\n\n        SetEntityCoords(entity, coords.x, coords.y, coords.z, false, false, false, false)\n        SetEntityHeading(entity, coords.w or coords.heading or 0.0)\n    end\n\n    if cb then\n        cb()\n    end\nend\n\nreturn xLib.entity",
+        "imports/game/client.lua": '---@class gamelib\nxLib.game = {}\n\nlocal function isCallable(val)\n    local valType = type(val)\n    local mt = getmetatable(val)\n    return valType == "function" or (valType == "table" and mt ~= nil and type(mt.__call) == "function")\nend\n\n---@param ped integer The ped to get the mugshot of\n---@param transparent? boolean Whether the mugshot should be transparent\nfunction xLib.game.getPedMugshot(ped, transparent)\n    if not DoesEntityExist(ped) then\n        return\n    end\n\n    local mugshot = transparent and RegisterPedheadshotTransparent(ped) or RegisterPedheadshot(ped)\n\n    while not IsPedheadshotReady(mugshot) do\n        Wait(0)\n    end\n\n    return mugshot, GetPedheadshotTxdString(mugshot)\nend\n\n---@param object integer | string The object to spawn\n---@param coords table | vector3 The coords to spawn the object at\n---@param cb? function The callback function\n---@param networked? boolean Whether the object should be networked\n---@return integer | nil\nfunction xLib.game.spawnObject(object, coords, cb, networked)\n    local model = type(object) == "number" and object or joaat(object)\n\n    xLib.streaming.requestModel(model)\n\n    local obj = CreateObject(model, coords.x, coords.y, coords.z, networked == nil or networked, false, true)\n    return cb and cb(obj) or obj\nend\n\n---@param object integer | string The object to spawn\n---@param coords table | vector3 The coords to spawn the object at\n---@param cb? function The callback function\n---@return nil\nfunction xLib.game.spawnLocalObject(object, coords, cb)\n    xLib.game.spawnObject(object, coords, cb, false)\nend\n\n---@param vehicle integer The vehicle to delete\n---@return nil\nfunction xLib.game.deleteVehicle(vehicle)\n    SetEntityAsMissionEntity(vehicle, true, true)\n    DeleteVehicle(vehicle)\nend\n\n---@param object integer The object to delete\n---@return nil\nfunction xLib.game.deleteObject(object)\n    SetEntityAsMissionEntity(object, false, true)\n    DeleteObject(object)\nend\n\n---@param vehicleModel integer | string The vehicle to spawn\n---@param coords table | vector3 The coords to spawn the vehicle at\n---@param heading number The heading of the vehicle\n---@param cb? fun(vehicle: number) The callback function\n---@param networked? boolean Whether the vehicle should be networked\n---@return number? vehicle\nfunction xLib.game.spawnVehicle(vehicleModel, coords, heading, cb, networked)\n    if cb and not isCallable(cb) then\n        error("Invalid callback function")\n    end\n\n    local model = type(vehicleModel) == "number" and vehicleModel or joaat(vehicleModel)\n    local vector = type(coords) == "vector3" and coords or vec(coords.x, coords.y, coords.z)\n    local isNetworked = networked == nil or networked\n\n    local playerCoords = GetEntityCoords(PlayerPedId())\n    if not vector or not playerCoords then\n        return\n    end\n\n    local dist = #(playerCoords - vector)\n    if dist > 424 then -- Onesync infinity Range (https://docs.fivem.net/docs/scripting-reference/onesync/)\n        local executingResource = GetInvokingResource() or "Unknown"\n        return error(("Resource ^5%s^1 Tried to spawn vehicle on the client but the position is too far away (Out of onesync range)."):format(executingResource))\n    end\n\n    local promise = not cb and promise.new()\n    CreateThread(function()\n        local modelHash = xLib.streaming.requestModel(model)\n        if not modelHash then\n            if promise then\n                promise:reject(("Tried to spawn invalid vehicle - ^5%s^7!"):format(model))\n                return\n            end\n            error(("Tried to spawn invalid vehicle - ^5%s^7!"):format(model))\n        end\n\n        local vehicle = CreateVehicle(model, vector.x, vector.y, vector.z, heading, isNetworked, true)\n\n        if networked then\n            local id = NetworkGetNetworkIdFromEntity(vehicle)\n            SetNetworkIdCanMigrate(id, true)\n            SetEntityAsMissionEntity(vehicle, true, true)\n        end\n        SetVehicleHasBeenOwnedByPlayer(vehicle, true)\n        SetVehicleNeedsToBeHotwired(vehicle, false)\n        SetModelAsNoLongerNeeded(model)\n        SetVehRadioStation(vehicle, "OFF")\n\n        RequestCollisionAtCoord(vector.x, vector.y, vector.z)\n        while not HasCollisionLoadedAroundEntity(vehicle) do\n            Wait(0)\n        end\n\n        if promise then\n            promise:resolve(vehicle)\n        elseif cb then\n            cb(vehicle)\n        end\n    end)\n\n    if promise then\n        return Citizen.Await(promise)\n    end\nend\n\n---@param vehicle integer The vehicle to spawn\n---@param coords table | vector3 The coords to spawn the vehicle at\n---@param heading number The heading of the vehicle\n---@param cb? function The callback function\n---@return nil\nfunction xLib.game.spawnLocalVehicle(vehicle, coords, heading, cb)\n    xLib.game.spawnVehicle(vehicle, coords, heading, cb, false)\nend\n\n---@param vehicle integer The vehicle to check\n---@return boolean\nfunction xLib.game.isVehicleEmpty(vehicle)\n    return GetVehicleNumberOfPassengers(vehicle) == 0 and IsVehicleSeatFree(vehicle, -1)\nend\n\n---@return table\nfunction xLib.game.getObjects() -- Leave the function for compatibility\n    return GetGamePool("CObject")\nend\n\n---@param onlyOtherPeds? boolean Whether to exlude the player ped\n---@return table\nfunction xLib.game.getPeds(onlyOtherPeds)\n    local pool = GetGamePool("CPed")\n\n    if onlyOtherPeds then\n        local myPed = PlayerPedId()\n        for i = 1, #pool do\n            if pool[i] == myPed then\n                table.remove(pool, i)\n                break\n            end\n        end\n    end\n\n    return pool\nend\n\n---@return table\nfunction xLib.game.getVehicles() -- Leave the function for compatibility\n    return GetGamePool("CVehicle")\nend\n\n---@param onlyOtherPlayers? boolean Whether to exclude the player\n---@param returnKeyValue? boolean Whether to return the key value pair\n---@param returnPeds? boolean Whether to return the peds\n---@return table\nfunction xLib.game.getPlayers(onlyOtherPlayers, returnKeyValue, returnPeds)\n    local players = {}\n    local active = GetActivePlayers()\n\n    for i = 1, #active do\n        local currentPlayer = active[i]\n        local ped = GetPlayerPed(currentPlayer)\n\n        if DoesEntityExist(ped) and ((onlyOtherPlayers and currentPlayer ~= PlayerId()) or not onlyOtherPlayers) then\n            if returnKeyValue then\n                players[currentPlayer] = ped\n            else\n                players[#players + 1] = returnPeds and ped or currentPlayer\n            end\n        end\n    end\n\n    return players\nend\n\n---@param coords? table | vector3 The coords to get the closest object to\n---@param modelFilter? table The model filter\n---@return integer, integer\nfunction xLib.game.getClosestObject(coords, modelFilter)\n    return xLib.entity.closest(xLib.game.getObjects(), false, coords, modelFilter)\nend\n\n---@param coords? table | vector3 The coords to get the closest ped to\n---@param modelFilter? table The model filter\n---@return integer, integer\nfunction xLib.game.getClosestPed(coords, modelFilter)\n    return xLib.entity.closest(xLib.game.getPeds(true), false, coords, modelFilter)\nend\n\n---@param coords? table | vector3 The coords to get the closest player to\n---@return integer, integer\nfunction xLib.game.getClosestPlayer(coords)\n    return xLib.entity.closest(xLib.game.getPlayers(true, true), true, coords, nil)\nend\n\n---@param coords? table | vector3 The coords to get the closest vehicle to\n---@param modelFilter? table The model filter\n---@return integer, integer\nfunction xLib.game.getClosestVehicle(coords, modelFilter)\n    return xLib.entity.closest(xLib.game.getVehicles(), false, coords, modelFilter)\nend\n\n---@param coords table | vector3 The coords to search from\n---@param maxDistance number The max distance to search within\n---@return table\nfunction xLib.game.getPlayersInArea(coords, maxDistance)\n    return xLib.entity.EnumerateWithinDistance(xLib.game.getPlayers(true, true), true, coords, maxDistance)\nend\n\n---@param coords table | vector3 The coords to search from\n---@param maxDistance number The max distance to search within\n---@return table\nfunction xLib.game.getVehiclesInArea(coords, maxDistance)\n    return xLib.entity.EnumerateWithinDistance(xLib.game.getVehicles(), false, coords, maxDistance)\nend\n\n---@param coords table | vector3 The coords to search from\n---@param maxDistance number The max distance to search within\n---@return boolean\nfunction xLib.game.isSpawnPointClear(coords, maxDistance)\n    return #xLib.game.getVehiclesInArea(coords, maxDistance) == 0\nend\n\n---@return integer | nil, vector3 | nil\nfunction xLib.game.getVehicleInDirection()\n    local _, hit, coords, _, _, entity = xLib.Raycast.FromScreen(5, 10, PlayerPedId())\n    if hit and IsEntityAVehicle(entity) then\n        return entity, coords\n    end\nend\n\nlocal function round(value, numDecimalPlaces)\n    if numDecimalPlaces then\n        local power = 10 ^ numDecimalPlaces\n        return math.floor((value * power) + 0.5) / power\n    else\n        return math.floor(value + 0.5)\n    end\nend\n\nlocal function trim(value)\n    value = tostring(value)\n    return (string.gsub(value, "^%s*(.-)%s*$", "%1"))\nend\n\n---@param vehicle integer The vehicle to get the properties of\n---@return table | nil\nfunction xLib.game.getVehicleProperties(vehicle)\n    if not DoesEntityExist(vehicle) then\n        return\n    end\n\n    ---@type number | number[], number | number[]\n    local colorPrimary, colorSecondary = GetVehicleColours(vehicle)\n    local pearlescentColor, wheelColor = GetVehicleExtraColours(vehicle)\n    local dashboardColor = GetVehicleDashboardColor(vehicle)\n    local interiorColor = GetVehicleInteriorColour(vehicle)\n\n    if GetIsVehiclePrimaryColourCustom(vehicle) then\n        colorPrimary = { GetVehicleCustomPrimaryColour(vehicle) }\n    end\n\n    if GetIsVehicleSecondaryColourCustom(vehicle) then\n        colorSecondary = { GetVehicleCustomSecondaryColour(vehicle) }\n    end\n\n    local hasCustomXenonColor, customXenonColorR, customXenonColorG, customXenonColorB = GetVehicleXenonLightsCustomColor(vehicle)\n    local customXenonColor = nil\n    if hasCustomXenonColor then\n        customXenonColor = { customXenonColorR, customXenonColorG, customXenonColorB }\n    end\n\n    local extras = {}\n    for extraId = 0, 20 do\n        if DoesExtraExist(vehicle, extraId) then\n            extras[tostring(extraId)] = IsVehicleExtraTurnedOn(vehicle, extraId)\n        end\n    end\n\n    local doorsBroken, windowsBroken, tyreBurst = {}, {}, {}\n    local numWheels = tostring(GetVehicleNumberOfWheels(vehicle))\n\n    local TyresIndex = { -- Wheel index list according to the number of vehicle wheels.\n        ["2"] = { 0, 4 }, -- Bike and cycle.\n        ["3"] = { 0, 1, 4, 5 }, -- Vehicle with 3 wheels (get for wheels because some 3 wheels vehicles have 2 wheels on front and one rear or the reverse).\n        ["4"] = { 0, 1, 4, 5 }, -- Vehicle with 4 wheels.\n        ["6"] = { 0, 1, 2, 3, 4, 5 }, -- Vehicle with 6 wheels.\n    }\n\n    if TyresIndex[numWheels] then\n        for _, idx in pairs(TyresIndex[numWheels]) do\n            tyreBurst[tostring(idx)] = IsVehicleTyreBurst(vehicle, idx, false)\n        end\n    end\n\n    for windowId = 0, 7 do -- 13\n        RollUpWindow(vehicle, windowId) --fix when you put the car away with the window down\n        windowsBroken[tostring(windowId)] = not IsVehicleWindowIntact(vehicle, windowId)\n    end\n\n    local numDoors = GetNumberOfVehicleDoors(vehicle)\n    if numDoors and numDoors > 0 then\n        for doorsId = 0, numDoors do\n            doorsBroken[tostring(doorsId)] = IsVehicleDoorDamaged(vehicle, doorsId)\n        end\n    end\n\n    return {\n        model = GetEntityModel(vehicle),\n        doorsBroken = doorsBroken,\n        windowsBroken = windowsBroken,\n        tyreBurst = tyreBurst,\n        tyresCanBurst = GetVehicleTyresCanBurst(vehicle),\n        plate = trim(GetVehicleNumberPlateText(vehicle)),\n        plateIndex = GetVehicleNumberPlateTextIndex(vehicle),\n\n        bodyHealth = round(GetVehicleBodyHealth(vehicle), 1),\n        engineHealth = round(GetVehicleEngineHealth(vehicle), 1),\n        tankHealth = round(GetVehiclePetrolTankHealth(vehicle), 1),\n\n        fuelLevel = round(GetVehicleFuelLevel(vehicle), 1),\n        dirtLevel = round(GetVehicleDirtLevel(vehicle), 1),\n        color1 = colorPrimary,\n        color2 = colorSecondary,\n\n        pearlescentColor = pearlescentColor,\n        wheelColor = wheelColor,\n\n        dashboardColor = dashboardColor,\n        interiorColor = interiorColor,\n\n        wheels = GetVehicleWheelType(vehicle),\n        windowTint = GetVehicleWindowTint(vehicle),\n        xenonColor = GetVehicleXenonLightsColor(vehicle),\n        customXenonColor = customXenonColor,\n\n        neonEnabled = { IsVehicleNeonLightEnabled(vehicle, 0), IsVehicleNeonLightEnabled(vehicle, 1), IsVehicleNeonLightEnabled(vehicle, 2), IsVehicleNeonLightEnabled(vehicle, 3) },\n\n        neonColor = table.pack(GetVehicleNeonLightsColour(vehicle)),\n        extras = extras,\n        tyreSmokeColor = table.pack(GetVehicleTyreSmokeColor(vehicle)),\n\n        modSpoilers = GetVehicleMod(vehicle, 0),\n        modFrontBumper = GetVehicleMod(vehicle, 1),\n        modRearBumper = GetVehicleMod(vehicle, 2),\n        modSideSkirt = GetVehicleMod(vehicle, 3),\n        modExhaust = GetVehicleMod(vehicle, 4),\n        modFrame = GetVehicleMod(vehicle, 5),\n        modGrille = GetVehicleMod(vehicle, 6),\n        modHood = GetVehicleMod(vehicle, 7),\n        modFender = GetVehicleMod(vehicle, 8),\n        modRightFender = GetVehicleMod(vehicle, 9),\n        modRoof = GetVehicleMod(vehicle, 10),\n        modRoofLivery = GetVehicleRoofLivery(vehicle),\n\n        modEngine = GetVehicleMod(vehicle, 11),\n        modBrakes = GetVehicleMod(vehicle, 12),\n        modTransmission = GetVehicleMod(vehicle, 13),\n        modHorns = GetVehicleMod(vehicle, 14),\n        modSuspension = GetVehicleMod(vehicle, 15),\n        modArmor = GetVehicleMod(vehicle, 16),\n\n        modTurbo = IsToggleModOn(vehicle, 18),\n        modSmokeEnabled = IsToggleModOn(vehicle, 20),\n        modXenon = IsToggleModOn(vehicle, 22),\n\n        modFrontWheels = GetVehicleMod(vehicle, 23),\n        modCustomFrontWheels = GetVehicleModVariation(vehicle, 23),\n        modBackWheels = GetVehicleMod(vehicle, 24),\n        modCustomBackWheels = GetVehicleModVariation(vehicle, 24),\n\n        modPlateHolder = GetVehicleMod(vehicle, 25),\n        modVanityPlate = GetVehicleMod(vehicle, 26),\n        modTrimA = GetVehicleMod(vehicle, 27),\n        modOrnaments = GetVehicleMod(vehicle, 28),\n        modDashboard = GetVehicleMod(vehicle, 29),\n        modDial = GetVehicleMod(vehicle, 30),\n        modDoorSpeaker = GetVehicleMod(vehicle, 31),\n        modSeats = GetVehicleMod(vehicle, 32),\n        modSteeringWheel = GetVehicleMod(vehicle, 33),\n        modShifterLeavers = GetVehicleMod(vehicle, 34),\n        modAPlate = GetVehicleMod(vehicle, 35),\n        modSpeakers = GetVehicleMod(vehicle, 36),\n        modTrunk = GetVehicleMod(vehicle, 37),\n        modHydrolic = GetVehicleMod(vehicle, 38),\n        modEngineBlock = GetVehicleMod(vehicle, 39),\n        modAirFilter = GetVehicleMod(vehicle, 40),\n        modStruts = GetVehicleMod(vehicle, 41),\n        modArchCover = GetVehicleMod(vehicle, 42),\n        modAerials = GetVehicleMod(vehicle, 43),\n        modTrimB = GetVehicleMod(vehicle, 44),\n        modTank = GetVehicleMod(vehicle, 45),\n        modWindows = GetVehicleMod(vehicle, 46),\n        modLivery = GetVehicleMod(vehicle, 48) == -1 and GetVehicleLivery(vehicle) or GetVehicleMod(vehicle, 48),\n        modLightbar = GetVehicleMod(vehicle, 49),\n    }\nend\n\n---@param vehicle integer The vehicle to set the properties of\n---@param props table The properties to set\n---@return nil\nfunction xLib.game.setVehicleProperties(vehicle, props)\n    if not DoesEntityExist(vehicle) then\n        return\n    end\n    local colorPrimary, colorSecondary = GetVehicleColours(vehicle)\n    local pearlescentColor, wheelColor = GetVehicleExtraColours(vehicle)\n    SetVehicleModKit(vehicle, 0)\n\n    if props.tyresCanBurst ~= nil then\n        SetVehicleTyresCanBurst(vehicle, props.tyresCanBurst)\n    end\n\n    if props.plate ~= nil then\n        SetVehicleNumberPlateText(vehicle, props.plate)\n    end\n    if props.plateIndex ~= nil then\n        SetVehicleNumberPlateTextIndex(vehicle, props.plateIndex)\n    end\n    if props.bodyHealth ~= nil then\n        SetVehicleBodyHealth(vehicle, props.bodyHealth + 0.0)\n    end\n    if props.engineHealth ~= nil then\n        SetVehicleEngineHealth(vehicle, props.engineHealth + 0.0)\n    end\n    if props.tankHealth ~= nil then\n        SetVehiclePetrolTankHealth(vehicle, props.tankHealth + 0.0)\n    end\n    if props.fuelLevel ~= nil then\n        SetVehicleFuelLevel(vehicle, props.fuelLevel + 0.0)\n    end\n    if props.dirtLevel ~= nil then\n        SetVehicleDirtLevel(vehicle, props.dirtLevel + 0.0)\n    end\n    if props.color1 ~= nil then\n        if type(props.color1) == "table" then\n            SetVehicleCustomPrimaryColour(vehicle, props.color1[1], props.color1[2], props.color1[3])\n        else\n            SetVehicleColours(vehicle, props.color1, colorSecondary)\n        end\n    end\n    if props.color2 ~= nil then\n        if type(props.color2) == "table" then\n            SetVehicleCustomSecondaryColour(vehicle, props.color2[1], props.color2[2], props.color2[3])\n        else\n            SetVehicleColours(vehicle, type(props.color1) == "number" and props.color1 or colorPrimary, props.color2)\n        end\n    end\n    if props.pearlescentColor ~= nil then\n        SetVehicleExtraColours(vehicle, props.pearlescentColor, wheelColor)\n    end\n\n    if props.interiorColor ~= nil then\n        SetVehicleInteriorColor(vehicle, props.interiorColor)\n    end\n\n    if props.dashboardColor ~= nil then\n        SetVehicleDashboardColor(vehicle, props.dashboardColor)\n    end\n\n    if props.wheelColor ~= nil then\n        SetVehicleExtraColours(vehicle, props.pearlescentColor or pearlescentColor, props.wheelColor)\n    end\n    if props.wheels ~= nil then\n        SetVehicleWheelType(vehicle, props.wheels)\n    end\n    if props.windowTint ~= nil then\n        SetVehicleWindowTint(vehicle, props.windowTint)\n    end\n\n    if props.neonEnabled ~= nil then\n        SetVehicleNeonLightEnabled(vehicle, 0, props.neonEnabled[1])\n        SetVehicleNeonLightEnabled(vehicle, 1, props.neonEnabled[2])\n        SetVehicleNeonLightEnabled(vehicle, 2, props.neonEnabled[3])\n        SetVehicleNeonLightEnabled(vehicle, 3, props.neonEnabled[4])\n    end\n\n    if props.extras ~= nil then\n        for extraId, enabled in pairs(props.extras) do\n            extraId = tonumber(extraId)\n            if extraId then\n                SetVehicleExtra(vehicle, extraId, not enabled)\n            end\n        end\n    end\n\n    if props.neonColor ~= nil then\n        SetVehicleNeonLightsColour(vehicle, props.neonColor[1], props.neonColor[2], props.neonColor[3])\n    end\n    if props.xenonColor ~= nil then\n        SetVehicleXenonLightsColor(vehicle, props.xenonColor)\n    end\n    if props.customXenonColor ~= nil then\n        SetVehicleXenonLightsCustomColor(vehicle, props.customXenonColor[1], props.customXenonColor[2], props.customXenonColor[3])\n    end\n    if props.modSmokeEnabled ~= nil then\n        ToggleVehicleMod(vehicle, 20, true)\n    end\n    if props.tyreSmokeColor ~= nil then\n        SetVehicleTyreSmokeColor(vehicle, props.tyreSmokeColor[1], props.tyreSmokeColor[2], props.tyreSmokeColor[3])\n    end\n    if props.modSpoilers ~= nil then\n        SetVehicleMod(vehicle, 0, props.modSpoilers, false)\n    end\n    if props.modFrontBumper ~= nil then\n        SetVehicleMod(vehicle, 1, props.modFrontBumper, false)\n    end\n    if props.modRearBumper ~= nil then\n        SetVehicleMod(vehicle, 2, props.modRearBumper, false)\n    end\n    if props.modSideSkirt ~= nil then\n        SetVehicleMod(vehicle, 3, props.modSideSkirt, false)\n    end\n    if props.modExhaust ~= nil then\n        SetVehicleMod(vehicle, 4, props.modExhaust, false)\n    end\n    if props.modFrame ~= nil then\n        SetVehicleMod(vehicle, 5, props.modFrame, false)\n    end\n    if props.modGrille ~= nil then\n        SetVehicleMod(vehicle, 6, props.modGrille, false)\n    end\n    if props.modHood ~= nil then\n        SetVehicleMod(vehicle, 7, props.modHood, false)\n    end\n    if props.modFender ~= nil then\n        SetVehicleMod(vehicle, 8, props.modFender, false)\n    end\n    if props.modRightFender ~= nil then\n        SetVehicleMod(vehicle, 9, props.modRightFender, false)\n    end\n    if props.modRoof ~= nil then\n        SetVehicleMod(vehicle, 10, props.modRoof, false)\n    end\n\n    if props.modRoofLivery ~= nil then\n        SetVehicleRoofLivery(vehicle, props.modRoofLivery)\n    end\n\n    if props.modEngine ~= nil then\n        SetVehicleMod(vehicle, 11, props.modEngine, false)\n    end\n    if props.modBrakes ~= nil then\n        SetVehicleMod(vehicle, 12, props.modBrakes, false)\n    end\n    if props.modTransmission ~= nil then\n        SetVehicleMod(vehicle, 13, props.modTransmission, false)\n    end\n    if props.modHorns ~= nil then\n        SetVehicleMod(vehicle, 14, props.modHorns, false)\n    end\n    if props.modSuspension ~= nil then\n        SetVehicleMod(vehicle, 15, props.modSuspension, false)\n    end\n    if props.modArmor ~= nil then\n        SetVehicleMod(vehicle, 16, props.modArmor, false)\n    end\n    if props.modTurbo ~= nil then\n        ToggleVehicleMod(vehicle, 18, props.modTurbo)\n    end\n    if props.modXenon ~= nil then\n        ToggleVehicleMod(vehicle, 22, props.modXenon)\n    end\n    if props.modFrontWheels ~= nil then\n        SetVehicleMod(vehicle, 23, props.modFrontWheels, props.modCustomFrontWheels)\n    end\n    if props.modBackWheels ~= nil then\n        SetVehicleMod(vehicle, 24, props.modBackWheels, props.modCustomBackWheels)\n    end\n    if props.modPlateHolder ~= nil then\n        SetVehicleMod(vehicle, 25, props.modPlateHolder, false)\n    end\n    if props.modVanityPlate ~= nil then\n        SetVehicleMod(vehicle, 26, props.modVanityPlate, false)\n    end\n    if props.modTrimA ~= nil then\n        SetVehicleMod(vehicle, 27, props.modTrimA, false)\n    end\n    if props.modOrnaments ~= nil then\n        SetVehicleMod(vehicle, 28, props.modOrnaments, false)\n    end\n    if props.modDashboard ~= nil then\n        SetVehicleMod(vehicle, 29, props.modDashboard, false)\n    end\n    if props.modDial ~= nil then\n        SetVehicleMod(vehicle, 30, props.modDial, false)\n    end\n    if props.modDoorSpeaker ~= nil then\n        SetVehicleMod(vehicle, 31, props.modDoorSpeaker, false)\n    end\n    if props.modSeats ~= nil then\n        SetVehicleMod(vehicle, 32, props.modSeats, false)\n    end\n    if props.modSteeringWheel ~= nil then\n        SetVehicleMod(vehicle, 33, props.modSteeringWheel, false)\n    end\n    if props.modShifterLeavers ~= nil then\n        SetVehicleMod(vehicle, 34, props.modShifterLeavers, false)\n    end\n    if props.modAPlate ~= nil then\n        SetVehicleMod(vehicle, 35, props.modAPlate, false)\n    end\n    if props.modSpeakers ~= nil then\n        SetVehicleMod(vehicle, 36, props.modSpeakers, false)\n    end\n    if props.modTrunk ~= nil then\n        SetVehicleMod(vehicle, 37, props.modTrunk, false)\n    end\n    if props.modHydrolic ~= nil then\n        SetVehicleMod(vehicle, 38, props.modHydrolic, false)\n    end\n    if props.modEngineBlock ~= nil then\n        SetVehicleMod(vehicle, 39, props.modEngineBlock, false)\n    end\n    if props.modAirFilter ~= nil then\n        SetVehicleMod(vehicle, 40, props.modAirFilter, false)\n    end\n    if props.modStruts ~= nil then\n        SetVehicleMod(vehicle, 41, props.modStruts, false)\n    end\n    if props.modArchCover ~= nil then\n        SetVehicleMod(vehicle, 42, props.modArchCover, false)\n    end\n    if props.modAerials ~= nil then\n        SetVehicleMod(vehicle, 43, props.modAerials, false)\n    end\n    if props.modTrimB ~= nil then\n        SetVehicleMod(vehicle, 44, props.modTrimB, false)\n    end\n    if props.modTank ~= nil then\n        SetVehicleMod(vehicle, 45, props.modTank, false)\n    end\n    if props.modWindows ~= nil then\n        SetVehicleMod(vehicle, 46, props.modWindows, false)\n    end\n\n    if props.modLivery ~= nil then\n        SetVehicleMod(vehicle, 48, props.modLivery, false)\n        SetVehicleLivery(vehicle, props.modLivery)\n    end\n\n    if props.windowsBroken ~= nil then\n        for k, v in pairs(props.windowsBroken) do\n            if v then\n                k = tonumber(k)\n                if k then\n                    RemoveVehicleWindow(vehicle, k)\n                end\n            end\n        end\n    end\n\n    if props.doorsBroken ~= nil then\n        for k, v in pairs(props.doorsBroken) do\n            if v then\n                k = tonumber(k)\n                if k then\n                    SetVehicleDoorBroken(vehicle, k, true)\n                end\n            end\n        end\n    end\n\n    if props.tyreBurst ~= nil then\n        for k, v in pairs(props.tyreBurst) do\n            if v then\n                k = tonumber(k)\n                if k then\n                    SetVehicleTyreBurst(vehicle, k, true, 1000.0)\n                end\n            end\n        end\n    end\nend\n\nreturn xLib.game\n',
+        "imports/interactions/client.lua": '---@class interactionslib\nxLib.interactions = {}\n\nlocal interactions = {}\n\n---@param name string\nfunction xLib.interactions.remove(name)\n    if not interactions[name] then return end\n    interactions[name] = nil\nend\n\n---@param name string\n---@param onPress function\n---@param condition? function\nfunction xLib.interactions.register(name, onPress, condition)\n    interactions[name] = {\n        condition = condition or function() return true end,\n        onPress = onPress,\n        creator = GetInvokingResource() or "es_extended"\n    }\nend\n\n---@return string\nfunction xLib.interactions.getInteractKey()\n    local hash = joaat("esx_interact") | 0x80000000\n    return GetControlInstructionalButton(0, hash, true):sub(3)\nend\n\nxLib.addKeybind({\n    name = "esx_interact",\n    description = "Interact",\n    defaultMapper = "keyboard",\n    defaultKey = "e",\n    onPressed = function()\n        for _, interaction in pairs(interactions) do\n            local success, result = pcall(interaction.condition)\n            if success and result then\n                interaction.onPress()\n            end\n        end\n    end\n})\n\nAddEventHandler("onResourceStop", function(resource)\n    for name, interaction in pairs(interactions) do\n        if interaction.creator == resource then\n            interactions[name] = nil\n        end\n    end\nend)\n\nreturn xLib.interactions\n',
+        "imports/medal/client.lua": "local medal = {}\n\nfunction medal.getConfig()\n    return exports['esx_lib']:getMedalConfig()\nend\n\nfunction medal.triggerClip(publicKey, eventName, clipOptions)\n    local cfg = medal.getConfig()\n    if not cfg or not cfg.enabled then return end\n\n    exports['esx_lib']:triggerMedalClip(\n        publicKey or cfg.publicKey,\n        eventName or cfg.eventName,\n        clipOptions or cfg.clipOptions\n    )\nend\n\nreturn medal",
+        "imports/point/client.lua": "---@class xPoint\n---@field coords vector3\n---@field hidden? boolean\n---@field enter? function\n---@field leave? function\n---@field inside? function\n---@field handle integer\nxLib.point = xLib.class()\n\n---@param properties table coords, distance, hidden, enter, leave, inside\nfunction xLib.point:constructor(properties)\n    self.coords = properties.coords\n    self.hidden = properties.hidden\n    self.enter = properties.enter\n    self.leave = properties.leave\n    self.inside = properties.inside\n\n    self.handle = xLib.points.create(\n        properties.coords,\n        properties.distance,\n        properties.hidden,\n        function()\n            if self.enter then\n                self:enter()\n            end\n        end,\n        function()\n            if self.leave then\n                self:leave()\n            end\n        end,\n        properties.inside and function(dist)\n            self:inside(dist)\n        end or nil\n    )\nend\n\nfunction xLib.point:delete()\n    xLib.points.remove(self.handle)\nend\n\n---@param hidden? boolean\nfunction xLib.point:toggle(hidden)\n    if hidden == nil then\n        hidden = not self.hidden\n    end\n\n    self.hidden = hidden\n    xLib.points.hide(self.handle, hidden)\nend\n\nreturn xLib.point\n",
+        "imports/points/client.lua": '---@class pointslib\nxLib.points = {}\n\nlocal points = {}\nlocal insidePoints = {}\nlocal handleCount = 0\nlocal loopStarted = false\n\n---@param coords vector3\n---@param distance number\n---@param hidden? boolean\n---@param enter function\n---@param leave function\n---@param inside? function\n---@return integer handle\nfunction xLib.points.create(coords, distance, hidden, enter, leave, inside)\n    handleCount = handleCount + 1\n    local handle = handleCount\n\n    points[handle] = {\n        coords = coords,\n        distance = distance,\n        hidden = hidden,\n        enter = enter,\n        leave = leave,\n        inside = inside,\n        resource = GetInvokingResource()\n    }\n\n    return handle\nend\n\n---@param handle integer\nfunction xLib.points.remove(handle)\n    points[handle] = nil\n    insidePoints[handle] = nil\nend\n\n---@param handle integer\n---@param hidden boolean\nfunction xLib.points.hide(handle, hidden)\n    if points[handle] then\n        points[handle].hidden = hidden\n    end\nend\n\nfunction xLib.points.startLoop()\n    if loopStarted then\n        return\n    end\n\n    loopStarted = true\n\n    CreateThread(function()\n        local lastScan = 0\n\n        while true do\n            local coords = GetEntityCoords(PlayerPedId())\n\n            for handle, point in pairs(insidePoints) do\n                if not pcall(point.inside, #(coords - point.coords)) then\n                    insidePoints[handle] = nil\n                    print(("[^1ERROR^7] point ^5%s^7 from ^5%s^7 errored on inside"):format(handle, point.resource))\n                end\n            end\n\n            local now = GetGameTimer()\n            if now - lastScan >= 500 then\n                lastScan = now\n\n                for handle, point in pairs(points) do\n                    if not point.hidden and #(coords - point.coords) <= point.distance then\n                        if not point.nearby then\n                            point.nearby = true\n\n                            if point.enter and not pcall(point.enter) then\n                                print(("[^1ERROR^7] point ^5%s^7 from ^5%s^7 errored on enter"):format(handle, point.resource))\n                            end\n\n                            if point.inside then\n                                insidePoints[handle] = point\n                            end\n                        end\n                    elseif point.nearby then\n                        point.nearby = false\n\n                        if point.leave and not pcall(point.leave) then\n                            print(("[^1ERROR^7] point ^5%s^7 from ^5%s^7 errored on leave"):format(handle, point.resource))\n                        end\n\n                        insidePoints[handle] = nil\n                    end\n                end\n            end\n\n            Wait(next(insidePoints) and 0 or 500)\n        end\n    end)\nend\n\nAddEventHandler("onResourceStop", function(resource)\n    for handle, point in pairs(points) do\n        if point.resource == resource then\n            points[handle] = nil\n            insidePoints[handle] = nil\n        end\n    end\nend)\n\nreturn xLib.points\n',
+        "imports/pubsub/client.lua": "-- Per-VM client listener for xLib pub/sub. Routes incoming topic data to the\n-- handlers registered with xLib.pubsub.on. on() only listens; the player must be\n-- subscribed server-side to actually receive anything.\n\nlocal PUBSUB_EVENT <const> = '__xLib_pubsub' -- must match resource/pubsub/server.lua\n\n-- topic -> array of handlers\nlocal handlers = {}\n\nlocal pubsub = {}\n\n---Register a handler for a topic. Multiple handlers per topic are allowed.\n---@param topic string\n---@param handler fun(data: any, topic: string)\nfunction pubsub.on(topic, handler)\n    if type(topic) ~= 'string' or type(handler) ~= 'function' then\n        return\n    end\n\n    local list = handlers[topic]\n    if not list then\n        list = {}\n        handlers[topic] = list\n    end\n    list[#list + 1] = handler\nend\n\n---Remove handlers for a topic. Without a handler argument, removes all of them.\n---@param topic string\n---@param handler? function\nfunction pubsub.off(topic, handler)\n    if not handler then\n        handlers[topic] = nil\n        return\n    end\n\n    local list = handlers[topic]\n    if not list then\n        return\n    end\n\n    for i = #list, 1, -1 do\n        if list[i] == handler then\n            table.remove(list, i)\n        end\n    end\n\n    if list[1] == nil then\n        handlers[topic] = nil\n    end\nend\n\nRegisterNetEvent(PUBSUB_EVENT, function(topic, data)\n    local list = handlers[topic]\n    if not list then\n        return\n    end\n\n    -- fast path: a topic almost always has a single handler, so skip the copy\n    local n = #list\n    if n == 1 then\n        list[1](data, topic)\n        return\n    end\n\n    -- snapshot so a handler that calls off() mid-dispatch cannot shift the list\n    -- and skip a sibling that has not run yet\n    local snapshot = {}\n    for i = 1, n do\n        snapshot[i] = list[i]\n    end\n\n    for i = 1, n do\n        snapshot[i](data, topic)\n    end\nend)\n\nxLib.pubsub = pubsub\nreturn pubsub\n",
+        "imports/raycast/client.lua": "xLib.Raycast = {}\nxLib.Raycast.__index = xLib.Raycast\n\nlocal unpack = table.unpack\nlocal GetShapeTestResultIncludingMaterial = GetShapeTestResultIncludingMaterial\nlocal StartShapeTestLosProbe = StartShapeTestLosProbe\nlocal GetWorldCoordFromScreenCoord = GetWorldCoordFromScreenCoord\n\n---@param shape integer The shape test handle to wait for\n---@return boolean, table, table, integer, integer\nfunction xLib.Raycast.GetShapeTestResult(shape)\n    local handle, hit, coords, normal, material, entity\n\n    repeat\n        handle, hit, coords, normal, material, entity = GetShapeTestResultIncludingMaterial(shape)\n        Wait(0)\n    until handle ~= 1\n\n    return hit, coords, normal, material, entity\nend\n\n---@param depth number The raycast distance\n---@vararg any Additional arguments to pass to shape test\n---@return table, boolean, table, table, integer, integer\nfunction xLib.Raycast.FromScreen(depth, ...)\n    local worldCoords, normalVector = GetWorldCoordFromScreenCoord(0.5, 0.5)\n    local origin = worldCoords + normalVector\n    local target = worldCoords + normalVector * depth\n    return target, xLib.Raycast.GetShapeTestResult(StartShapeTestLosProbe(origin.x, origin.y, origin.z, target.x, target.y, target.z, ...))\nend\n\n-- Start continuous raycasting\n---@param depth number The raycast distance\n---@vararg any Additional arguments to pass to shape test\nfunction xLib.Raycast.Start(depth, ...)\n    local self = setmetatable({}, xLib.Raycast)\n\n    self.refreshRate = refreshRate\n    self.depth = depth\n    self.args = {...}\n\n    self.active = true\n\n    self._thread = CreateThread(function()\n        while self.active do\n            local target, hit, coords, normal, material, entity = xLib.Raycast.FromScreen(self.depth, unpack(self.args))\n            self.result = {\n                hit = hit,\n                coords = coords,\n                normal = normal,\n                material = material,\n                entity = entity,\n            }\n            Wait(1)\n        end\n    end)\n\n    return self\nend\n\n-- Stop raycasting\nfunction xLib.Raycast:Stop()\n    if not self and not self.active then return end\n    self.active = false\n    if self._thread then\n        self._thread = nil\n    end\nend\n\n-- Check if the raycating is active\n---@return boolean\nfunction xLib.Raycast:IsActive()\n    if not self and not self.active then return end\n    return self.active\nend\n\nreturn xLib.Raycast\n",
+        "imports/scaleform/client.lua": '---@class scaleformlib\nxLib.scaleform = {}\nxLib.scaleform.utils = {}\n\n---@param title string\n---@param msg string\n---@param sec number\nfunction xLib.scaleform.showFreemodeMessage(title, msg, sec)\n    local scaleform = xLib.scaleform.utils.runMethod("MP_BIG_MESSAGE_FREEMODE", "SHOW_SHARD_WASTED_MP_MESSAGE", false, title, msg)\n\n    local endTime = GetGameTimer() + (sec * 1000)\n    while GetGameTimer() < endTime do\n        Wait(0)\n        DrawScaleformMovieFullscreen(scaleform, 255, 255, 255, 255, 0)\n    end\n\n    SetScaleformMovieAsNoLongerNeeded(scaleform)\nend\n\n---@param title string\n---@param msg string\n---@param bottom string\n---@param sec number\nfunction xLib.scaleform.showBreakingNews(title, msg, bottom, sec)\n    local scaleform = xLib.scaleform.utils.runMethod("BREAKING_NEWS", "SET_TEXT", false, msg, bottom)\n    xLib.scaleform.utils.runMethod(scaleform, "SET_SCROLL_TEXT", false, 0, 0, title)\n    xLib.scaleform.utils.runMethod(scaleform, "DISPLAY_SCROLL_TEXT", false, 0, 0)\n\n    local endTime = GetGameTimer() + (sec * 1000)\n    while GetGameTimer() < endTime do\n        Wait(0)\n        DrawScaleformMovieFullscreen(scaleform, 255, 255, 255, 255, 0)\n    end\n\n    SetScaleformMovieAsNoLongerNeeded(scaleform)\nend\n\n---@param title string\n---@param msg string\n---@param bottom string\n---@param sec number\nfunction xLib.scaleform.showPopupWarning(title, msg, bottom, sec)\n    local scaleform = xLib.scaleform.utils.runMethod("POPUP_WARNING", "SHOW_POPUP_WARNING", false, 500.0, title, msg, bottom, true)\n\n    local endTime = GetGameTimer() + (sec * 1000)\n    while GetGameTimer() < endTime do\n        Wait(0)\n        DrawScaleformMovieFullscreen(scaleform, 255, 255, 255, 255, 0)\n    end\n\n    SetScaleformMovieAsNoLongerNeeded(scaleform)\nend\n\n---@param sec number\nfunction xLib.scaleform.showTrafficMovie(sec)\n    local scaleform = xLib.scaleform.utils.runMethod("TRAFFIC_CAM", "PLAY_CAM_MOVIE", false)\n\n    local endTime = GetGameTimer() + (sec * 1000)\n    while GetGameTimer() < endTime do\n        Wait(0)\n        DrawScaleformMovieFullscreen(scaleform, 255, 255, 255, 255, 0)\n    end\n\n    SetScaleformMovieAsNoLongerNeeded(scaleform)\nend\n\n---@param movie string\n---@return number\nfunction xLib.scaleform.utils.requestScaleformMovie(movie)\n    local scaleform = RequestScaleformMovie(movie)\n\n    while not HasScaleformMovieLoaded(scaleform) do\n        Wait(0)\n    end\n\n    return scaleform\nend\n\n--- Executes a method on a scaleform movie with optional arguments and return value.\n--- The caller is responsible for disposing of the scaleform using `SetScaleformMovieAsNoLongerNeeded`.\n---@param scaleform number|string # Scaleform handle or name to request the scaleform movie\n---@param methodName string # The method name to call on the scaleform\n---@param returnValue? boolean # Whether to return the value from the method\n---@param ... number|string|boolean # Arguments to pass to the method\n---@return number, number? # The scaleform handle, and the return value if `returnValue` is true\nfunction xLib.scaleform.utils.runMethod(scaleform, methodName, returnValue, ...)\n    if type(scaleform) ~= "number" then\n        scaleform = xLib.scaleform.utils.requestScaleformMovie(scaleform)\n    end\n\n    BeginScaleformMovieMethod(scaleform, methodName)\n\n    local args = { ... }\n    for _, arg in ipairs(args) do\n        local typeArg = type(arg)\n\n        if typeArg == "number" then\n            if math.type(arg) == "float" then\n                ScaleformMovieMethodAddParamFloat(arg)\n            else\n                ScaleformMovieMethodAddParamInt(arg)\n            end\n        elseif typeArg == "string" then\n            ScaleformMovieMethodAddParamTextureNameString(arg)\n        elseif typeArg == "boolean" then\n            ScaleformMovieMethodAddParamBool(arg)\n        end\n    end\n\n    if returnValue then\n        return scaleform, EndScaleformMovieMethodReturnValue()\n    end\n\n    EndScaleformMovieMethod()\n\n    return scaleform\nend\n\nreturn xLib.scaleform\n',
+        "imports/streaming/client.lua": '---@class streaminglib\nxLib.streaming = {}\n\n---@param modelHash number | string\n---@param cb? function\n---@return number | nil\nxLib.streaming.requestModel = function(modelHash, cb)\n    modelHash = type(modelHash) == "number" and modelHash or joaat(modelHash)\n\n    if not IsModelInCdimage(modelHash) then return end\n\n	RequestModel(modelHash)\n	while not HasModelLoaded(modelHash) do Wait(500) end\n\n	return cb and cb(modelHash) or modelHash\nend\n\n---@param textureDict string\n---@param cb? function\n---@return string | nil\nxLib.streaming.requestStreamedTextureDict = function(textureDict, cb)\n	RequestStreamedTextureDict(textureDict, false)\n\n	while not HasStreamedTextureDictLoaded(textureDict) do Wait(500) end\n\n	return cb and cb(textureDict) or textureDict\nend\n\n---@param assetName string\n---@param cb? function\n---@return string | nil\nxLib.streaming.requestNamedPtfxAsset = function(assetName, cb)\n	RequestNamedPtfxAsset(assetName)\n\n	while not HasNamedPtfxAssetLoaded(assetName) do Wait(500) end\n\n	return cb and cb(assetName) or assetName\nend\n\n---@param animSet string\n---@param cb? function\n---@return string | nil\nxLib.streaming.requestAnimSet = function(animSet, cb)\n	RequestAnimSet(animSet)\n\n	while not HasAnimSetLoaded(animSet) do Wait(500) end\n\n	return cb and cb(animSet) or animSet\nend\n\n---@param animDict string\n---@param cb? function\n---@return string | nil\nxLib.streaming.requestAnimDict = function(animDict, cb)\n	RequestAnimDict(animDict)\n\n	while not HasAnimDictLoaded(animDict) do Wait(500) end\n\n	return cb and cb(animDict) or animDict\nend\n\n---@param weaponHash number | string\n---@param cb? function\n---@return string | number | nil\nxLib.streaming.requestWeaponAsset = function(weaponHash, cb)\n	RequestWeaponAsset(weaponHash, 31, 0)\n\n	while not HasWeaponAssetLoaded(weaponHash) do Wait(500) end\n\n	return cb and cb(weaponHash) or weaponHash\nend\n\n---@param bankName string\n---@param cb? function\n---@return string | nil\nxLib.streaming.requestAudioBank = function(bankName, cb)\n    RequestAudioBank(bankName, false) \n\n    while not RequestScriptAudioBank(bankName, false) do Wait(500) end\n\n    return cb and cb(bankName) or bankName\nend\n\n\nreturn xLib.streaming\n',
+        "imports/class/shared.lua": "---@class xClass \n---@field new function\n---@field constructor function?\n\n---Create or register a class\n---@param copy? table\n---@return table\nfunction xLib.class(copy)\n    xLib.verify(copy, { 'table', 'nil' }, true)\n\n    local class = copy and xLib.table.deepcopy(copy) or {}\n\n    class.__index = class\n    class._isClass = true\n\n    setmetatable(class, {\n        __newindex = function (_, k,v)\n            rawset(class, k, v)\n        end\n    })\n\n    function class:new(...)\n        local obj = setmetatable({}, class)\n\n        if xLib.verify(obj.constructor, 'function') then\n            obj:constructor(...)\n        end\n\n        return obj\n    end\n\n    return class\nend\n\nreturn xLib.class",
+        "imports/isEnhanced/shared.lua": 'local ENHANCED_GAME_NAMES <const> = {\n    ["gta5enhanced"] = true,\n    ["gta5_enhanced"] = true\n}\n\nlocal isEnhanced\n\nif IsDuplicityVersion() then\n    isEnhanced = ENHANCED_GAME_NAMES[GetConvar("gamename", "gta5")] == true\nelse\n    isEnhanced = type(IsGameEnhancedVersion) == "function" and IsGameEnhancedVersion() == true\nend\n\n---@return boolean\nreturn function()\n    return isEnhanced\nend\n',
+        "imports/math/shared.lua": `xLib.math = {}
+
+local math_max = math.max
+local math_min = math.min
+local math_floor = math.floor
+local math_ceil = math.ceil
+local math_asin = math.asin
+local math_atan = math.atan 
+local math_pi = math.pi
+local string_format = string.format
+local SCALAR_PATTERN = "[-%d%.]+"
+
+-- Utility function to validate and convert to number
+local function toNumber(val, context)
+    local num = tonumber(val)
+    if not num then
+        error(("Invalid numeric input: %s in %s"):format(tostring(val), context or "operation"), 2)
+    end
+    return num
+end
+
+--- Clamps a value between optional min and max bounds.
+--- @param value number The value to clamp
+--- @param min number|nil Minimum bound
+--- @param max number|nil Maximum bound
+--- @return number The clamped value
+function xLib.math.clamp(value, min, max)
+    value = toNumber(value, "clamp")
+    if min and max then
+        min, max = toNumber(min), toNumber(max)
+        if min > max then min, max = max, min end
+        return math_max(min, math_min(max, value))
+    elseif min then
+        return math_max(toNumber(min), value)
+    elseif max then
+        return math_min(toNumber(max), value)
+    end
+    return value
+end
+
+--- Converts input to number.
+--- @param value any Input value
+--- @param min number|nil Minimum bound
+--- @param max number|nil Maximum bound
+--- @param round boolean|nil Round to nearest integer
+--- @return number
+function xLib.math.toNumber(value, min, max, round)
+    local num = toNumber(value, "toNumber")
+    
+    if round then
+        num = num >= 0 and math_floor(num + 0.5) or math_ceil(num - 0.5)
+    end
+    
+    return xLib.math.clamp(num, min, max)
+end
+
+--- Converts input string to multiple numbers.
+--- @param input string|number Input string or number (e.g., "1,2,3" or 1)
+--- @param min number|nil Minimum bound
+--- @param max number|nil Maximum bound
+--- @param round boolean|nil Round to nearest integer
+--- @return number ... Unpacked numbers
+function xLib.math.toScalars(input, min, max, round)
+    local results = {}
+    for val in tostring(input):gmatch(SCALAR_PATTERN) do
+        results[#results + 1] = xLib.math.toNumber(val, min, max, round)
+    end
+    return table.unpack(results)
+end
+
+--- Converts input to a vector (table).
+--- @param input string|number|table Input value
+--- @param min number|nil Minimum bound
+--- @param max number|nil Maximum bound
+--- @param round boolean|nil Round to nearest integer
+--- @return table Vector table
+function xLib.math.toVector(input, min, max, round)
+    xLib.verify(input, { 'table', 'string', 'number' }, true)
+
+    local results = {}
+    local inputType = type(input)
+
+    if inputType == "table" then
+        for _, val in ipairs(input) do
+            results[#results + 1] = xLib.math.toNumber(val, min, max, round)
+        end
+    else
+        for val in tostring(input):gmatch(SCALAR_PATTERN) do
+            results[#results + 1] = xLib.math.toNumber(val, min, max, round)
+        end
+    end
+
+    return results
+end
+
+--- Converts a surface normal to a rotation vector (pitch, yaw, roll).
+--- @param normal table {x, y, z} Normal vector components
+--- @return table {pitch, yaw, roll} Rotation in degrees
+function xLib.math.normalToRotation(normal)
+    xLib.verify(normal, 'table', true)
+    local x, y, z = toNumber(normal.x, "normalToRotation"), toNumber(normal.y, "normalToRotation"), toNumber(normal.z, "normalToRotation")
+    local pitch = math_asin(-z) * (180 / math_pi)
+    local yaw = math_atan(y, x) * (180 / math_pi) 
+    return { pitch = pitch, yaw = yaw, roll = 0 }
+end
+
+--- Converts input to RGBA values (0-255, rounded).
+--- @param input string|number|table Input value
+--- @return table|number RGBA table or single number
+function xLib.math.toRGBA(input)
+    return xLib.math.toVector(input, 0, 255, true)
+end
+
+--- Converts hex color string to normalized RGBA (0-1).
+--- @param hex string Hex color (e.g., "#FF0000" or "#FF0000FF")
+--- @return number r Red (0-1)
+--- @return number g Green (0-1)
+--- @return number b Blue (0-1)
+--- @return number a Alpha (0-1)
+function xLib.math.hexToRGBA(hex)
+    hex = hex:gsub("#", "")
+    local len = #hex
+    if len ~= 6 and len ~= 8 then
+        error(("Invalid hex color format: %s"):format(hex), 2)
+    end
+
+    local r = toNumber("0x" .. hex:sub(1, 2), "hexToRGBA") / 255
+    local g = toNumber("0x" .. hex:sub(3, 4), "hexToRGBA") / 255
+    local b = toNumber("0x" .. hex:sub(5, 6), "hexToRGBA") / 255
+    local a = len == 8 and toNumber("0x" .. hex:sub(7, 8), "hexToRGBA") / 255 or 1
+    return r, g, b, a
+end
+
+--- Converts RGBA (0-1) to hex color string.
+--- @param r number Red (0-1)
+--- @param g number Green (0-1)
+--- @param b number Blue (0-1)
+--- @param a number|nil Alpha (0-1)
+--- @return string Hex color string
+function xLib.math.toHex(r, g, b, a)
+    r = xLib.math.clamp(math_floor(toNumber(r, "toHex") * 255), 0, 255)
+    g = xLib.math.clamp(math_floor(toNumber(g, "toHex") * 255), 0, 255)
+    b = xLib.math.clamp(math_floor(toNumber(b, "toHex") * 255), 0, 255)
+    if a then
+        a = xLib.math.clamp(math_floor(toNumber(a, "toHex") * 255), 0, 255)
+        return string_format("#%02X%02X%02X%02X", r, g, b, a)
+    end
+    return string_format("#%02X%02X%02X", r, g, b)
+end
+
+--- Formats a number with grouped digits.
+--- @param number number Number to format
+--- @param separator string|nil Separator (default: ",")
+--- @return string Formatted string
+function xLib.math.groupDigits(number, separator)
+    separator = separator or ","
+    local formatted = tostring(toNumber(number, "groupDigits"))
+    local k
+    while true do
+        formatted, k = formatted:gsub("^(-?%d+)(%d%d%d)", "%1" .. separator .. "%2")
+        if k == 0 then break end
+    end
+    return formatted
+end
+
+--- Rounds a number to specified decimal places.
+--- @param num number Number to round
+--- @param decimalPlaces number|nil Decimal places (default: 0)
+--- @return number Rounded number
+function xLib.math.round(num, decimalPlaces)
+    local num = toNumber(num, "round")
+    local mult = 10^(decimalPlaces or 0)
+    if num < 0 then
+        return math_ceil(num * mult - 0.5) / mult
+    end
+    return math_floor(num * mult + 0.5) / mult
+end
+
+--- Linearly interpolates between two values.
+--- @param start number Start value
+--- @param goal number End value
+--- @param percent number Interpolation factor (0-1)
+--- @return number Interpolated value
+function xLib.math.interpolate(start, goal, percent)
+    start, goal, percent = toNumber(start, "interpolate"), toNumber(goal, "interpolate"), xLib.math.clamp(toNumber(percent, "interpolate"), 0, 1)
+    return start + (goal - start) * percent
+end
+
+
+--- Performs linear interpolation between two values based on t (0-1).
+--- @param a number Start value
+--- @param b number End value
+--- @param t number Interpolation factor (0-1)
+--- @return number Interpolated value
+function xLib.math.lerp(a, b, t)
+    return a + (b - a) * xLib.math.clamp(t, 0, 1)
+end
+
+--- Calculates the inverse linear interpolation factor of a value between a and b.
+--- @param a number Start value
+--- @param b number End value
+--- @param value number Value to evaluate
+--- @return number Interpolation factor (0-1)
+function xLib.math.inverseLerp(a, b, value)
+    return (value - a) / (b - a)
+end
+
+--- Remaps a value from one range to another.
+--- @param value number Value to remap
+--- @param inMin number Input range minimum
+--- @param inMax number Input range maximum
+--- @param outMin number Output range minimum
+--- @param outMax number Output range maximum
+--- @return number Remapped value
+function xLib.math.remap(value, inMin, inMax, outMin, outMax)
+    local t = xLib.math.inverseLerp(inMin, inMax, value)
+    return xLib.math.lerp(outMin, outMax, t)
+end
+
+-- Rounds a number to the nearest integer or specified decimal places.
+---@param value number
+---@param numDecimalPlaces? number
+---@return number
+function xLib.math.Round(value, numDecimalPlaces)
+    xLib.verify(value, 'number', true)
+    if numDecimalPlaces then
+        xLib.verify(numDecimalPlaces, 'number', true)
+        local power = 10 ^ numDecimalPlaces
+        return math.floor((value * power) + 0.5) / power
+    else
+        return math.floor(value + 0.5)
+    end
+end
+
+-- credit http://richard.warburton.it
+---@param value number
+---@return string
+function xLib.math.GroupDigits(value)
+    xLib.verify(value, { 'string', 'number' }, true)
+    local left, num, right = string.match(tostring(value), "^([^%d]*%d)(%d*)(.-)$")
+
+    return left .. (num:reverse():gsub("(%d%d%d)", "%1" .. TranslateCap("locale_digit_grouping_symbol")):reverse()) .. right
+end
+
+---@param value string | number
+---@return string | nil
+function xLib.math.Trim(value)
+    value = tostring(value)
+    return (string.gsub(value, "^%s*(.-)%s*$", "%1"))
+end
+
+---@param minRange number
+---@param maxRange number
+---@return number
+function xLib.math.Random(minRange, maxRange)
+    math.randomseed(GetGameTimer())
+    return math.random(minRange or 1, maxRange or 10)
+end
+
+---@param origin vector
+---@param target vector
+---@return number
+function xLib.math.GetHeadingFromCoords(origin, target)
+    xLib.verify(origin, 'table', true)
+    xLib.verify(target, 'table', true)
+    local dx = origin.x - target.x
+    local dy = origin.y - target.y
+
+    local heading = math.deg(math.atan(dy, dx)) + 90
+
+    return (heading + 360) % 360
+end
+
+return xLib.math`,
+        "imports/overload/shared.lua": "local overloads <const> = {}\n\n---@param name string\n---@param ... unknown\nlocal function getOverloadFunction(name, ...) \n    local params = {...}\n    local params_count = #params\n    local is_valid, overload, correct_type\n\n\n    for i=1, #overloads[name] do\n        overload = overloads[name][i]\n\n        if not overload then\n            goto continue\n        end\n\n        is_valid = #overload.valid_types == params_count\n\n        if is_valid then\n            for j = 1, #overload.valid_types do\n                correct_type = overload.valid_types[j]\n                if not xLib.verify(params[j], correct_type) then\n                    is_valid = false\n                    break\n                end\n            end\n\n            if is_valid then\n                return overload.cb(...)\n            end\n        end\n\n        ::continue::\n    end\n\n    error('[xLib] Couldn\\'t find a correct method to overload')\nend\n\n---Overloads a function\n---@param name string\n---@param valid_types CustomType | CustomType[]\n---@param cb function\n---@param obj? table\nfunction xLib.overload(name, valid_types, cb, obj)\n    xLib.verify(name, {'string'}, true)\n\n    if not overloads[name] then\n        overloads[name] = {}\n    end\n    \n    overloads[name][#overloads[name] + 1] = {\n        valid_types = valid_types,\n        cb = cb\n    }\n\n    local env = obj and obj or _ENV\n\n    if not env[name] then\n        env[name] = function(...)\n            return getOverloadFunction(name, ...)\n        end\n    end\nend\n\nreturn xLib.overload",
+        "imports/require/shared.lua": `--!DISCLAIMER
+--[[
+    https://github.com/overextended/ox_lib
+
+    This file is licensed under LGPL-3.0 or higher <https://www.gnu.org/licenses/lgpl-3.0.en.html>
+
+    Copyright \xA9 2025 Linden <https://github.com/thelindat>
+]]
+
+local LOADED <const> = {}
+local TEMP_DATA <const> = {}
+
+local _require = require --original lua function
+
+package = {
+    path = './?.lua;./?/init.lua',
+    preload = {},
+    loaded = setmetatable({}, {
+        __index = LOADED,
+        __newindex = Noop,
+        __metatable = false,
+    })
+}
+
+---Gets the resource name and the module's relative path
+---@param name string -- module name
+---@return string, string
+local function getModuleInfo(name)
+    local resource = name:match('^@(.-)/.+') -- if name is for example @esx_lib/imports/require/initl.lua it will capture ESX_LIB
+
+    if resource then
+        return resource, name:sub(#resource + 3) -- returns the path without script name
+    end
+
+    local idx = 4-- call stack depth (kept slightly lower than expected depth "just in case")
+    --- When indexing source of 4 it returns @@esx_lib/imports/require
+    --- When indexing source of 5 it returns for example @@esx_test/client.lua
+    --- Used for identifing resource name.
+
+    while true do
+        local src = debug.getinfo(idx, 'S')?.source
+
+        if not src then
+            error(('Couldn\\'t find a source for "%s"'):format(name))
+        end
+
+        resource = src:match('^@@([^/]+)/.+') -- returns resource name
+
+        if resource and not src:find('^@@esx_lib/imports/require') then
+            return resource, name
+        end
+
+        idx += 1
+    end
+end
+
+---Searcher for a accessable path
+---@param name string
+---@param path string
+---@return string?, string? -- filename, error message
+---@diagnostic disable-next-line: duplicate-set-field
+function package.searchpath(name, path)
+    local resource, module_name = getModuleInfo(name:gsub('%.', '/'))
+
+    local tried <const> = {}
+
+    for template in path:gmatch('[^;]+') do
+        local file_name = template:gsub('^%./', ''):gsub('?', module_name:gsub('%.', '/') or module_name)
+
+        local file = LoadResourceFile(resource, file_name)
+
+        if file then
+            TEMP_DATA[1] = file
+            TEMP_DATA[2] = resource
+
+            return file_name
+        end
+
+        tried[#tried+1] = ('no file "@%s/%s"'):format(resource, file_name)
+    end
+
+    return nil, table.concat(tried, '\\n\\t')
+end
+
+---Loads module
+---@param name string
+---@param env? unknown
+---@return function?, string?
+local function loadModule(name, env)
+    local file_name, err = package.searchpath(name, package.path)
+    
+    if file_name then
+        local file = TEMP_DATA[1]
+        local resource = TEMP_DATA[2]
+
+        table.wipe(TEMP_DATA)
+
+        return assert(load(file, ('@@%s/%s'):format(resource, file_name), 't', env or _ENV))
+    end
+
+    return nil, err or 'unknown error'
+end
+
+---@diagnostic disable-next-line: duplicate-doc-alias
+---@alias PackageSearcher
+---| fun(name: string): function loader
+---| fun(name: string): nil|false , string error message
+---| fun(name: string): function?, string?
+
+---@type PackageSearcher[]
+package.searchers = {
+    function (name)
+        local ok, result = pcall(_require, name)
+
+        if ok then
+            return result
+        end
+
+        return ok, result
+    end,
+    function (name)
+        if package.preload[name] ~= nil then
+            return package.preload[name]
+        end
+
+        return nil, ('no field package.preload["%s"]'):format(name)
+    end,
+    function(name)
+        return loadModule(name)
+    end,
+}
+
+---Loads and runs a Lua file at the given path. Unlike require, the chunk is not cached for future use.
+---@param file_path string
+---@param env? unknown
+function xLib.load(file_path, env)
+    xLib.verify(file_path, 'string', true)
+
+    local result, err = loadModule(file_path, env)
+
+    if result then
+        return result()
+    end
+
+    error(('file "%s" not found\\n\\t%s'):format(file_path, err))
+end
+
+---Loads and decodes a json file at the given path.
+---@param file_path string
+function xLib.loadJson(file_path)
+    xLib.verify(file_path, 'string', true)
+
+    local res_source, mod_path = getModuleInfo(file_path:gsub('%.', '/'))
+
+    local res_file  = LoadResourceFile(res_source, ('%s.json'):format(mod_path))
+
+    if res_file then
+        return json.decode(res_file)
+    end
+
+    error(('json file "%s" not found\\n\\tno file "%s/%s.json"'):format(file_path, res_source, mod_path))
+end
+
+---Loads the given module, returns any value returned by the seacher (\`true\` when \`nil\`).\\
+---Passing \`@resourceName.modName\` loads a module from a remote resource.
+---@param name string
+---@return unknown
+function xLib.require(name)
+    xLib.verify(name, 'string', true)
+
+    local module = LOADED[name]
+
+    if module == 'loading' then
+        error(('^1circular-dependency occurred when loading module "%s"^0'):format(name))
+    end
+
+    if module ~= nil then return module end
+
+    LOADED[name] = 'loading'
+
+    local err = {}
+
+    for i = 1, #package.searchers do
+        local result, err_msg = package.searchers[i](name)
+
+        if result then
+            if type(result) == 'function' then result = result() end
+            LOADED[name] = result or result == nil
+
+            return LOADED[name]
+        end
+
+
+        err[#err + 1] = err_msg
+    end
+
+    error(('%s'):format(table.concat(err, '\\n\\t')))
+end
+
+return xLib.require
+`,
+        "imports/string/shared.lua": `---@class stringlib
+xLib.string = string
+
+--- Normalize (trim + lowercase)
+---@param s string
+---@return string
+function xLib.string.normalize(s)
+    xLib.verify(s, 'string', true)
+
+    local res = s:match("^%s*(.-)%s*$"):lower()
+
+    return res
+end
+
+---@param s string
+---@return string
+function xLib.string.capitalize(s)
+    xLib.verify(s, 'string', true)
+
+    local res = s:gsub("^%l", string.upper)
+
+    return res
+end
+
+---@param s string
+---@return string
+function xLib.string.toSnake(s)
+    xLib.verify(s, 'string', true)
+
+    local res = s:gsub("%s+", "_"):gsub("([a-z%d])([A-Z])", "%1_%2"):lower()
+
+    return res
+end
+
+---@param s string
+---@return string
+function xLib.string.toCamel(s)
+    xLib.verify(s, 'string', true)
+
+    local res = s:lower():gsub("_%a", function(w) return w:sub(2):upper() end)
+
+    return res
+end
+
+---@param s string
+---@return string
+function xLib.string.toPascal(s)
+    xLib.verify(s, 'string', true)
+
+    local res = s:gsub("(%a)([%w]*)", function(first, rest)
+        return first:upper() .. rest:lower()
+    end):gsub("_", "")
+
+    return res
+end
+
+---@param s string
+---@return string
+function xLib.string.escapePattern(s)
+    xLib.verify(s, 'string', true)
+
+    local res = s:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+
+    return res
+end
+
+---@param s string
+---@param pattern string
+---@return boolean
+function xLib.string.matchSafe(s, pattern)
+    local ok, result = pcall(string.match, s, pattern)
+    return ok and result ~= nil
+end
+
+---@param s string
+---@param pattern string
+---@return string
+function xLib.string.before(s, pattern)
+    xLib.verify(s, 'string', true)
+    local start = s:find(pattern, 1, true)
+
+    if not start then return s end
+
+    return s:sub(1, start - 1)
+end
+
+---@param s string
+---@param pattern string
+---@return string
+function xLib.string.after(s, pattern)
+    xLib.verify(s, 'string', true)
+
+    local _, finish = s:find(pattern, 1, true)
+
+    if not finish then return s end
+
+    return s:sub(finish + 1)
+end
+
+
+---@param s string
+---@param substr string
+---@return boolean
+function xLib.string.contains(s, substr)
+    xLib.verify(s, 'string', true)
+
+    return s:find(substr, 1, true) ~= nil
+end
+
+---@param s string
+---@param old string
+---@param new string
+---@return string
+function xLib.string.replace(s, old, new)
+    xLib.verify(s, 'string', true)
+
+    if type(new) == "string" then
+        new = new:gsub("%%", "%%%%")
+    end
+
+    local result = s:gsub(xLib.string.escapePattern(old), new)
+
+    return result
+end
+
+
+---@param length number
+---@return string
+function xLib.string.randomHex(length)
+    local t = {}
+
+    for _ = 1, length do
+        t[#t + 1] = string.format("%x", math.random(0, 15))
+    end
+
+    return table.concat(t)
+end
+
+---@return string
+function xLib.string.uuid()
+    local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+
+    local uuid = template:gsub("[xy]", function(c)
+        local v = (c == "x") and math.random(0, 15) or math.random(8, 11)
+        return string.format("%x", v)
+    end)
+
+    return uuid
+end
+
+return xLib.string
+`,
+        "imports/table/shared.lua": `---@class xtable : tablelib
+xLib.table = setmetatable({}, { __index = table })
+
+---@param tbl table
+---@return boolean
+function xLib.table.isArray(tbl)
+    xLib.verify(tbl, "table", true)
+
+    local count, maxIndex = 0, 0
+
+    for k, _ in pairs(tbl) do
+        if type(k) ~= "number" or k < 1 or k % 1 ~= 0 then
+            return false
+        end
+
+        count, maxIndex = count + 1, math.max(maxIndex, k)
+    end
+
+    return count == maxIndex
+end
+
+---@param tbl table
+---@param item any
+---@return any
+function xLib.table.searchForKey(tbl, item)
+    xLib.verify(tbl, "table", true)
+
+    for k, v in pairs(tbl) do
+        if v == item then
+            return k
+        end
+    end
+
+    return nil
+end
+
+---@param tbl table
+---@param filter fun(value:any, key:any):boolean
+---@return table
+function xLib.table.filter(tbl, filter)
+    xLib.verify(tbl, "table", true)
+    xLib.verify(filter, "function", true)
+
+    local result = {}
+
+    for k, v in pairs(tbl) do
+        if filter(v, k) then
+            result[k] = v
+        end
+    end
+
+    return result
+end
+
+---@param tbl table
+---@param copies? table
+---@return table
+function xLib.table.deepcopy(tbl, copies)
+    xLib.verify(tbl, "table", true)
+
+    copies = copies or {}
+
+    if copies[tbl] then
+        return copies[tbl]
+    end
+
+    local copy = {}
+    copies[tbl] = copy
+
+    for k, v in pairs(tbl) do
+        copy[k] = type(v) == "table" and xLib.table.deepcopy(v, copies) or v
+
+        if type(v) == "table" and getmetatable(v) then
+            setmetatable(copy[k], getmetatable(v))
+        end
+    end
+
+    return copy
+end
+
+--- https://github.com/overextended/ox_lib/blob/master/imports/table/shared.lua
+---@param t1 table
+---@param t2 table
+---@param addDuplicateNumbers boolean
+---@return table
+function xLib.table.merge(t1, t2, addDuplicateNumbers)
+    xLib.verify(t1, "table", true)
+    xLib.verify(t2, "table", true)
+    xLib.verify(addDuplicateNumbers, "boolean", true)
+
+    addDuplicateNumbers = addDuplicateNumbers == nil or addDuplicateNumbers
+    for k, v2 in pairs(t2) do
+        local v1 = t1[k]
+        local type1 = type(v1)
+        local type2 = type(v2)
+
+        if type1 == 'table' and type2 == 'table' then
+            xLib.table.merge(v1, v2, addDuplicateNumbers)
+        elseif addDuplicateNumbers and (type1 == 'number' and type2 == 'number') then
+            t1[k] = v1 + v2
+        else
+            t1[k] = v2
+        end
+    end
+
+    return t1
+end
+
+function xLib.table.dump(tbl)
+    if xLib.verify(tbl, 'table') then
+        local s = '{ '
+        for k,v in pairs(tbl) do
+           if type(k) ~= 'number' then k = '"'..k..'"' end
+           s = s .. '['..k..'] = ' .. xLib.table.dump(v) .. ','
+        end
+        return s .. '} '
+     else
+        return tostring(tbl)
+     end
+end
+
+-- nil proof alternative to #table
+---@param t table
+---@return number
+function xLib.table.sizeOf(t)
+    local count = 0
+
+    for _, _ in pairs(t) do
+        count = count + 1
+    end
+
+    return count
+end
+
+---@param t table
+---@return table
+function xLib.table.set(t)
+    local set = {}
+    for _, v in ipairs(t) do
+        set[v] = true
+    end
+    return set
+end
+
+---@param t table
+---@param value any
+---@return number
+function xLib.table.indexOf(t, value)
+    for i = 1, #t, 1 do
+        if t[i] == value then
+            return i
+        end
+    end
+
+    return -1
+end
+
+---@param t table
+---@param value any
+---@return number
+function xLib.table.lastIndexOf(t, value)
+    for i = #t, 1, -1 do
+        if t[i] == value then
+            return i
+        end
+    end
+
+    return -1
+end
+
+---@param t table
+---@param cb function
+---@return any
+function xLib.table.find(t, cb)
+    for i = 1, #t, 1 do
+        if cb(t[i]) then
+            return t[i]
+        end
+    end
+
+    return nil
+end
+
+---@param t table
+---@param cb function
+---@return number
+function xLib.table.findIndex(t, cb)
+    for i = 1, #t, 1 do
+        if cb(t[i]) then
+            return i
+        end
+    end
+
+    return -1
+end
+
+---@param t table
+---@param cb function
+---@return table
+function xLib.table.map(t, cb)
+    local newTable = {}
+
+    for i = 1, #t, 1 do
+        newTable[i] = cb(t[i], i)
+    end
+
+    return newTable
+end
+
+---@param t table
+---@return table
+function xLib.table.reverse(t)
+    local newTable = {}
+
+    for i = #t, 1, -1 do
+        table.insert(newTable, t[i])
+    end
+
+    return newTable
+end
+
+---@param t table
+---@return table
+function xLib.table.clone(t)
+    if type(t) ~= "table" then
+        return t
+    end
+
+    local meta = getmetatable(t)
+    local target = {}
+
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            target[k] = xLib.table.clone(v)
+        else
+            target[k] = v
+        end
+    end
+
+    setmetatable(target, meta)
+
+    return target
+end
+
+---@param t1 table
+---@param t2 table
+---@return table
+function xLib.table.concat(t1, t2)
+    local t3 = xLib.table.clone(t1)
+
+    for i = 1, #t2, 1 do
+        table.insert(t3, t2[i])
+    end
+
+    return t3
+end
+
+---@param t table
+---@param sep string
+---@return string
+function xLib.table.join(t, sep)
+    local str = ""
+
+    for i = 1, #t, 1 do
+        if i > 1 then
+            str = str .. (sep or ",")
+        end
+
+        str = str .. t[i]
+    end
+
+    return str
+end
+
+-- Credits: https://github.com/JonasDev99/qb-garages/blob/b0335d67cb72a6b9ac60f62a87fb3946f5c2f33d/server/main.lua#L5
+---@param tab table
+---@param val any
+---@return boolean
+function xLib.table.contains(tab, val)
+    if type(val) == "table" then
+        for _, value in pairs(tab) do
+            if xLib.table.contains(val, value) then
+                return true
+            end
+        end
+        return false
+    else
+        for _, value in pairs(tab) do
+            if value == val then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Credit: https://stackoverflow.com/a/15706820
+-- Description: sort function for pairs
+---@param t table
+---@param order function
+---@return function
+function xLib.table.sort(t, order)
+    -- collect the keys
+    local keys = {}
+
+    for k, _ in pairs(t) do
+        keys[#keys + 1] = k
+    end
+
+    -- if order function given, sort by it by passing the table and keys a, b,
+    -- otherwise just sort the keys
+    if order then
+        table.sort(keys, function(a, b)
+            return order(t, a, b)
+        end)
+    else
+        table.sort(keys)
+    end
+
+    -- return the iterator function
+    local i = 0
+
+    return function()
+        i = i + 1
+        if keys[i] then
+            return keys[i], t[keys[i]]
+        end
+    end
+end
+
+---@param t table
+---@return Array
+function xLib.table.toArray(t)
+    local array = {}
+    for _, v in pairs(t) do
+        array[#array + 1] = v
+    end
+    return array
+end
+
+---@param t table
+---@return table
+function xLib.table.wipe(t)
+    return table.wipe(t)
+end
+
+
+return xLib.table
+`,
+        "imports/timeout/shared.lua": 'xLib.timeout = {}\n\nlocal TimeoutCount = 0\nlocal CancelledTimeouts = {}\n\n---@param msec number\n---@param cb function\n---@return number\nxLib.timeout.setTimeout = function(msec, cb)\n    xLib.verify(cb, "function", true)\n    \n    local id <const> = TimeoutCount + 1\n\n    SetTimeout(msec, function()\n        if CancelledTimeouts[id] then\n            CancelledTimeouts[id] = nil\n            return\n        end\n        cb()\n    end)\n\n    TimeoutCount = id\n\n    return id\nend\n\n---@param id number\n---@return nil\nxLib.timeout.clearTimeout = function(id)\n    CancelledTimeouts[id] = true\nend\n\nreturn xLib.timeout\n',
+        "imports/verify/shared.lua": `---@alias CustomType 'number' | 'boolean' | 'function' | 'table' | 'string' | 'nil' | 'array' | 'int' | 'uint' | 'float' |  'char' | 'vector3' | 'vector4' | 'ped' | 'playerId' | 'vehicle' | 'prop' | 'class' | 'model'
+
+---Checks if value is an array
+---@param value any
+---@return boolean
+local function isArray(value)
+    if type(value) ~= 'table' then
+        return false
+    end
+
+    local i = 0
+    
+    for _ in pairs(value) do
+        i = i + 1
+        if value[i] == nil then
+            return false
+        end
+    end
+
+    return true
+end
+
+---Checks if player id is correct.
+---@param value any
+---@return boolean
+local function isPlayerId(value)
+    if type(value) ~= 'number' then
+        return false
+    end
+
+    if xLib.side == 'server' then
+        return GetPlayerName(value) ~= nil
+    else
+        return NetworkIsPlayerActive(value)
+    end
+end
+
+---Checks if function is callable.
+---@param value any
+---@return boolean
+local function isCallable(value)
+    local value_type = type(value)
+
+    if value_type == 'function' then
+        return true
+    end
+    
+    if value_type == 'table' then
+        local mt = getmetatable(value)
+
+        if mt and mt.__call then
+            return true
+        end
+    end
+    
+    return false
+end
+
+xLib.callback.register('xLib:validateModel', function(model)
+    return IsModelValid(model)
+end)
+
+local function validateModel(model)
+    local players = GetPlayers()
+    local source = tonumber(players[math.random(1,#players)])
+
+    return xLib.callback.await('xLib:validateModel', source, false, model)
+end
+
+---Make sure value is a valid type
+---@param value any
+---@param valid_type CustomType
+---@return boolean
+local function verifyType(value, valid_type)
+    if valid_type == 'function' then
+        return isCallable(value)
+    elseif valid_type == 'array' then
+        return isArray(value)
+    elseif valid_type == 'int' then
+        return math.type(value) == 'integer'
+    elseif valid_type == 'float' then
+        return math.type(value) == 'float'
+    elseif valid_type == 'uint' then
+        return math.type(value) == 'integer' and value >= 0
+    elseif valid_type == 'char' then 
+        return type(value) == 'string' and #value == 1
+    elseif valid_type == 'ped' then 
+        return GetEntityType(value) == 1
+    elseif valid_type == 'vehicle' then 
+        return GetEntityType(value) == 2
+    elseif valid_type == 'prop' then 
+        return GetEntityType(value) == 3
+    elseif valid_type == 'playerId' then
+        return isPlayerId(value)
+    elseif valid_type == 'class' then
+        if type(value) ~= 'table' then
+            return false
+        end
+
+        return getmetatable(value)?._isClass == true
+    elseif valid_type == 'model' then
+        if xLib.side == "server" then 
+            return validateModel(value)
+        end
+
+        return IsModelValid(value)
+    end
+
+    return type(value) == valid_type
+end
+
+---@class VerifyTable
+---@field debug VerifyFunction
+
+---@alias VerifyFunction fun(value: any, valid_types: CustomType[] | CustomType, throw_error?: boolean): boolean
+
+---@type VerifyFunction | VerifyTable
+xLib.verify = setmetatable({
+    fn = function(value, valid_types, throw_error)
+        local match = false
+
+        if type(valid_types) == 'table' then
+            for i = 1, #valid_types do
+                if xLib.verify(value, valid_types[i]) then
+                    match = true
+                    break
+                end
+            end
+
+            if throw_error and not match then
+                error(('[xLib] Couldn\\'t match %s to types %s'):format(value, json.encode(valid_types)))
+            else
+                return match
+            end
+        end
+
+        match = verifyType(value, valid_types)
+
+        if throw_error and not match then
+            error(('[xLib] Couldn\\'t match %s to type %s'):format(value, valid_types))
+        else
+            return match
+        end
+    end
+}, {
+    __index = function(self, k)
+        if k == 'debug' and xLib.debug then
+            return rawget(self, 'fn'
+        )
+        elseif k ~= 'debug' then
+            return rawget(self, k)
+        else 
+            return Noop
+        end
+    end,
+    __call = function(self, ...)
+        return rawget(self, 'fn')(...)
+    end
+})
+
+return xLib.verify
+`,
+        "imports/waitFor/shared.lua": "---Yields the current thread until the callback returns a non-nil value.\n---@generic T\n---@param cb fun(): T?\n---@param errMessage? string\n---@param timeout? number | false Error out after `~x` ms if the callback hasn't resolved. Defaults to 1000, unless set to `false`.\n---@param interval? integer Polling interval in ms. Defaults to 0. A value above `timeout` overshoots it by one cycle.\n---@return T\n---@async\nfunction xLib.waitFor(cb, errMessage, timeout, interval)\n    xLib.verify(cb, 'function', true)\n\n    if interval then\n        xLib.verify(interval, 'int', true)\n    end\n\n    local value = cb()\n\n    if value ~= nil then\n        return value\n    end\n\n    if timeout ~= false and type(timeout) ~= 'number' then\n        timeout = 5000\n    end\n\n    local start = timeout and GetGameTimer()\n\n    while value == nil do\n        Wait(interval or 0)\n\n        value = cb()\n\n        if value == nil and timeout then\n            local elapsed = GetGameTimer() - start\n\n            if elapsed > timeout then\n                return error(('%s (waited %.1fms)'):format(errMessage or 'failed to resolve callback', elapsed), 2)\n            end\n        end\n    end\n\n    return value\nend\n\nreturn xLib.waitFor\n",
+        "html/medal.html": `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src http://localhost:12665 http://127.0.0.1:12665">
+</head>
+<body>
+    <script src="medal.js"><\/script>
+</body>
+</html>
+`,
+        "html/medal.js": "window.addEventListener('message', function (event) {\n    var data = event.data;\n    if (!data || data.action !== 'medalClip') return;\n\n    fetch('http://localhost:12665/api/v1/event/invoke', {\n        method: 'POST',\n        headers: {\n            'publicKey': data.publicKey,\n            'Content-Type': 'application/json'\n        },\n        body: JSON.stringify(data.payload)\n    }).catch(function () {});\n});\n"
+      }
     },
     {
       "name": "example-caller",
       "scripts": [],
       "uiPage": null,
-      "files": []
+      "files": [],
+      "fileContents": {}
     },
     {
       "name": "example-hello",
       "scripts": [],
       "uiPage": null,
-      "files": []
+      "files": [],
+      "fileContents": {}
+    },
+    {
+      "name": "oxmysql",
+      "scripts": [],
+      "uiPage": null,
+      "files": [
+        "lib/MySQL.lua"
+      ],
+      "fileContents": {
+        "lib/MySQL.lua": `local promise = promise
+local Await = Citizen.Await
+local resourceName = GetCurrentResourceName()
+local GetResourceState = GetResourceState
+
+local options = {
+	return_callback_errors = false
+}
+
+for i = 1, GetNumResourceMetadata(resourceName, 'mysql_option') do
+	local option = GetResourceMetadata(resourceName, 'mysql_option', i - 1)
+	options[option] = true
+end
+
+local function await(fn, query, parameters)
+	local p = promise.new()
+
+	fn(nil, query, parameters, function(result, error)
+		if error then
+			return p:reject(error)
+		end
+
+		p:resolve(result)
+	end, resourceName, true)
+
+	return Await(p)
+end
+
+local type = type
+local queryStore = {}
+
+local function safeArgs(query, parameters, cb, transaction)
+	local queryType = type(query)
+
+	if queryType == 'number' then
+		query = queryStore[query]
+		assert(query, "First argument received invalid query store reference")
+	elseif transaction then
+		if queryType ~= 'table' then
+			error(("First argument expected table, received '%s'"):format(query))
+		end
+	elseif queryType ~= 'string' then
+		error(("First argument expected string, received '%s'"):format(query))
+	end
+
+	if parameters then
+		local paramType = type(parameters)
+
+		if paramType ~= 'table' and paramType ~= 'function' then
+			error(("Second argument expected table or function, received '%s'"):format(parameters))
+		end
+
+		if paramType == 'function' or parameters.__cfx_functionReference then
+			cb = parameters
+			parameters = nil
+		end
+	end
+
+	if cb and parameters then
+		local cbType = type(cb)
+
+		if cbType ~= 'function' and (cbType == 'table' and not cb.__cfx_functionReference) then
+			error(("Third argument expected function, received '%s'"):format(cb))
+		end
+	end
+
+	return query, parameters, cb
+end
+
+local oxmysql = exports.oxmysql
+
+local mysql_method_mt = {
+	__call = function(self, query, parameters, cb)
+		query, parameters, cb = safeArgs(query, parameters, cb, self.method == 'transaction')
+		return oxmysql[self.method](nil, query, parameters, cb, resourceName, options.return_callback_errors)
+	end
+}
+
+local MySQL = setmetatable(MySQL or {}, {
+	__index = function(_, index)
+		return function(...)
+			return oxmysql[index](nil, ...)
+		end
+	end
+})
+
+for _, method in pairs({
+	'scalar', 'single', 'query', 'insert', 'update', 'prepare', 'transaction', 'rawExecute',
+}) do
+	MySQL[method] = setmetatable({
+		method = method,
+		await = function(query, parameters)
+			query, parameters = safeArgs(query, parameters, nil, method == 'transaction')
+			return await(oxmysql[method], query, parameters)
+		end
+	}, mysql_method_mt)
+end
+
+local alias = {
+	fetchAll = 'query',
+	fetchScalar = 'scalar',
+	fetchSingle = 'single',
+	insert = 'insert',
+	execute = 'update',
+	transaction = 'transaction',
+	prepare = 'prepare'
+}
+
+local alias_mt = {
+	__index = function(self, key)
+		if alias[key] then
+			local method = MySQL[alias[key]]
+			MySQL.Async[key] = method
+			MySQL.Sync[key] = method.await
+			alias[key] = nil
+			return self[key]
+		end
+	end
+}
+
+local function addStore(query, cb)
+	assert(type(query) == 'string', 'The SQL Query must be a string')
+
+	local storeN = #queryStore + 1
+	queryStore[storeN] = query
+
+	return cb and cb(storeN) or storeN
+end
+
+MySQL.Sync = setmetatable({ store = addStore }, alias_mt)
+MySQL.Async = setmetatable({ store = addStore }, alias_mt)
+
+local function onReady(cb)
+	while GetResourceState('oxmysql') ~= 'started' do
+		Wait(50)
+	end
+
+	oxmysql.awaitConnection()
+
+	return cb and cb() or true
+end
+
+MySQL.ready = setmetatable({
+	await = onReady
+}, {
+	__call = function(_, cb)
+		Citizen.CreateThreadNow(function() onReady(cb) end)
+	end,
+})
+
+function MySQL.startTransaction(cb)
+	return oxmysql:startTransaction(cb, resourceName)
+end
+
+_ENV.MySQL = MySQL
+`
+      }
+    },
+    {
+      "name": "skinchanger",
+      "scripts": [
+        {
+          "path": "../es_extended/locale.lua",
+          "source": 'Locales = {}\n\n--- English fallback for missing keys. locale.lua runs in every resource VM, so\n--- a resource may opt out through its own Config.LocaleFallback; otherwise the\n--- shared "esx:localeFallback" convar decides (enabled by default).\nlocal function localeFallbackEnabled()\n    if Config.LocaleFallback ~= nil then\n        return Config.LocaleFallback\n    end\n\n    return GetConvar("esx:localeFallback", "true") ~= "false"\nend\n\n--- Read and execute a locale file, returning its table or false if unreadable.\nlocal function readLocale(locale)\n    local success, result = pcall(function()\n        return assert(load(LoadResourceFile(GetCurrentResourceName(), ("locales/%s.lua"):format(locale))))()\n    end)\n\n    return success and result or false\nend\n\n--- Copy every key the target locale is missing from English into it once, warn\n--- about the gaps, then let the English table go. The locale ends up\n--- self-contained, so no per-call fallback and only one table stays in memory.\nlocal function backfillFromEnglish(locale, translations)\n    local english = readLocale("en")\n    if not english then\n        return\n    end\n\n    local missing = {}\n    for key, value in pairs(english) do\n        if translations[key] == nil then\n            translations[key] = value\n            missing[#missing + 1] = key\n        end\n    end\n\n    if #missing > 0 then\n        print(("[es_extended] locale [%s] is missing %d translation(s), falling back to English: %s")\n            :format(locale, #missing, table.concat(missing, ", ")))\n    end\nend\n\n--- Lazily load and cache a locale file, false if it cannot be read.\nlocal function loadLocale(locale)\n    if Locales[locale] == nil then\n        local translations = readLocale(locale)\n\n        if translations and locale ~= "en" and localeFallbackEnabled() then\n            backfillFromEnglish(locale, translations)\n        end\n\n        Locales[locale] = translations\n    end\n\n    return Locales[locale]\nend\n\nfunction Translate(str, ...) -- Translate string\n    if not str then\n        error(("Resource ^5%s^1 You did not specify a parameter for the Translate function or the value is nil!"):format(GetInvokingResource() or GetCurrentResourceName()))\n    end\n\n    local translations = loadLocale(Config.Locale)\n    if not translations then\n        if Config.Locale == "en" then\n            return "Locale [en] does not exist"\n        end\n\n        -- Fall back to English translation if the current locale is not found\n        Config.Locale = "en"\n        return Translate(str, ...)\n    end\n\n    if translations[str] then\n        return translations[str]:format(...)\n    end\n\n    return ("Translation [%s][%s] does not exist"):format(Config.Locale, str)\nend\n\nfunction TranslateCap(str, ...) -- Translate string first char uppercase\n    return (_(str, ...):gsub("^%l", string.upper))\nend\n\n_ = Translate\n-- luacheck: ignore _U\n_U = TranslateCap\n'
+        },
+        {
+          "path": "locales/da.lua",
+          "source": 'Locales["da"] = {\n    ["sex"] = "k\xF8n",\n    ["mom"] = "mors ansigt",\n    ["dad"] = "fars ansigt",\n    ["resemblance"] = "lighed",\n    ["skin_tone"] = "hudfarve",\n    ["nose_1"] = "n\xE6se bredde",\n    ["nose_2"] = "n\xE6sespidsh\xF8jde",\n    ["nose_3"] = "n\xE6sespidsl\xE6ngde",\n    ["nose_4"] = "n\xE6seknogleh\xF8jde",\n    ["nose_5"] = "n\xE6sespidss\xE6nkning",\n    ["nose_6"] = "nose bone twist",\n    ["cheeks_1"] = "kindbens h\xF8jde",\n    ["cheeks_2"] = "kindbens bredde",\n    ["cheeks_3"] = "kind bredde",\n    ["lip_fullness"] = "l\xE6be fylde",\n    ["jaw_bone_width"] = "k\xE6beknoglebredde",\n    ["jaw_bone_length"] = "k\xE6bebens l\xE6ngde",\n    ["chin_height"] = "hageh\xF8jde",\n    ["chin_length"] = "hagel\xE6ngde",\n    ["chin_width"] = "hagebredde",\n    ["chin_hole"] = "chin hole size",\n    ["neck_thickness"] = "nakke tykkelse",\n    ["wrinkles"] = "rynker",\n    ["wrinkle_thickness"] = "rynke tykkelse",\n    ["beard_type"] = "sk\xE6g type",\n    ["beard_size"] = "sk\xE6g st\xF8rrelse",\n    ["beard_color_1"] = "sk\xE6g farve 1",\n    ["beard_color_2"] = "sk\xE6g farve 2",\n    ["hair_1"] = "h\xE5r 1",\n    ["hair_2"] = "h\xE5r 2",\n    ["hair_color_1"] = "h\xE5rfarve  1",\n    ["hair_color_2"] = "h\xE5rfarve 2",\n    ["eye_color"] = "\xF8jenfarve",\n    ["eye_squint"] = "\xF8jet skele",\n    ["eyebrow_type"] = "\xF8jenbryns type",\n    ["eyebrow_size"] = "\xF8jenbryns st\xF8rrelse",\n    ["eyebrow_color_1"] = "\xF8jenbryn farve 1",\n    ["eyebrow_color_2"] = "\xF8jenbryn farve 2",\n    ["eyebrow_depth"] = "\xF8jenbryns dybde",\n    ["eyebrow_height"] = "\xF8jenbryns h\xF8jde",\n    ["makeup_type"] = "makeup type",\n    ["makeup_thickness"] = "makeup tykkelse",\n    ["makeup_color_1"] = "makeup farve 1",\n    ["makeup_color_2"] = "makeup farve 2",\n    ["lipstick_type"] = "l\xE6bestifts type",\n    ["lipstick_thickness"] = "l\xE6bestifts tykkelse",\n    ["lipstick_color_1"] = "l\xE6bestifts farve 1",\n    ["lipstick_color_2"] = "l\xE6bestifts farve 2",\n    ["ear_accessories"] = "\xF8retilbeh\xF8r",\n    ["ear_accessories_color"] = "\xF8retilbeh\xF8r farve",\n    ["tshirt_1"] = "t-shirt 1",\n    ["tshirt_2"] = "t-shirt 2",\n    ["torso_1"] = "overkrop 1",\n    ["torso_2"] = "overkrop 2",\n    ["decals_1"] = "m\xE6rkater 1",\n    ["decals_2"] = "m\xE6rkater 2",\n    ["arms"] = "arme",\n    ["arms_2"] = "arme 2",\n    ["pants_1"] = "bukser 1",\n    ["pants_2"] = "bukser 2",\n    ["shoes_1"] = "sko 1",\n    ["shoes_2"] = "sko 2",\n    ["mask_1"] = "maske 1",\n    ["mask_2"] = "maske 2",\n    ["bproof_1"] = "skudsikker vest 1",\n    ["bproof_2"] = "skudsikker vest 2",\n    ["chain_1"] = "k\xE6de 1",\n    ["chain_2"] = "k\xE6de 2",\n    ["helmet_1"] = "hjelm 1",\n    ["helmet_2"] = "hjelm 2",\n    ["watches_1"] = "ure 1",\n    ["watches_2"] = "ure 2",\n    ["bracelets_1"] = "armb\xE5nd 1",\n    ["bracelets_2"] = "armb\xE5nd 2",\n    ["glasses_1"] = "briller 1",\n    ["glasses_2"] = "briller 2",\n    ["bag"] = "taske",\n    ["bag_color"] = "taske farve",\n    ["blemishes"] = "bumser",\n    ["blemishes_size"] = "bumser tykkelse",\n    ["ageing"] = "aldring",\n    ["ageing_1"] = "aldring tykkelse",\n    ["blush"] = "r\xF8dme",\n    ["blush_1"] = "r\xF8dme tykkelse",\n    ["blush_color"] = "r\xF8dme farve",\n    ["complexion"] = "teint",\n    ["complexion_1"] = "teint tykkelse",\n    ["sun"] = "sol",\n    ["sun_1"] = "soltykkelse",\n    ["freckles"] = "fregner",\n    ["freckles_1"] = "fregnernes tykkelse",\n    ["chest_hair"] = "brysth\xE5r",\n    ["chest_hair_1"] = "brysth\xE5rtykkelse",\n    ["chest_color"] = "brysth\xE5rfarve",\n    ["bodyb"] = "krops pletter",\n    ["bodyb_size"] = "krops pletter tykkelse",\n    ["bodyb_extra"] = "pletter kropseffekt",\n    ["bodyb_extra_thickness"] = "pletter kropseffekt tykkelse",\n}\n'
+        },
+        {
+          "path": "locales/de.lua",
+          "source": 'Locales["de"] = {\n  ["sex"] = "Geschlecht",\n  ["mom"] = "Mutters Gesicht",\n  ["dad"] = "Vaters Gesicht",\n  ["resemblance"] = "\xC4hnlichkeit",\n  ["skin_tone"] = "Hautton",\n  ["nose_1"] = "Nasenbreite",\n  ["grandparents"] = "Gro\xDFeltern",\n  ["resemblance_g"] = "Gro\xDFeltern \xC4hnlichkeit",\n  ["nose_2"] = "H\xF6he der Nasenspitze",\n  ["nose_3"] = "L\xE4nge der Nasenspitze",\n  ["nose_4"] = "Nasenbeinh\xF6he",\n  ["nose_5"] = "Nasenspitzenabsenkung",\n  ["nose_6"] = "Nasenbeinverdrehung",\n  ["cheeks_1"] = "Wangenknochenh\xF6he",\n  ["cheeks_2"] = "Wangenknochenbreite",\n  ["cheeks_3"] = "Wangenbreite",\n  ["lip_fullness"] = "Lippendicke",\n  ["jaw_bone_width"] = "Kieferknochenbreite",\n  ["jaw_bone_length"] = "Kieferknochenl\xE4nge",\n  ["chin_height"] = "Kinnh\xF6he",\n  ["chin_length"] = "Kinnl\xE4nge",\n  ["chin_width"] = "Kinnbreite",\n  ["chin_hole"] = "Kinnlochgr\xF6\xDFe",\n  ["neck_thickness"] = "Halsdicke",\n  ["wrinkles"] = "Falten",\n  ["wrinkle_thickness"] = "Faltenst\xE4rke",\n  ["beard_type"] = "Barttyp",\n  ["beard_size"] = "Bartgr\xF6\xDFe",\n  ["beard_color_1"] = "Bartfarbe 1",\n  ["beard_color_2"] = "Bartfarbe 2",\n  ["hair_1"] = "Haare 1",\n  ["hair_2"] = "Haare 2",\n  ["hair_color_1"] = "Haarfarbe 1",\n  ["hair_color_2"] = "Haarfarbe 2",\n  ["eye_color"] = "Augenfarbe",\n  ["eye_squint"] = "Augenblinzeln",\n  ["eyebrow_type"] = "Augenbrauentyp",\n  ["eyebrow_size"] = "Augenbrauengr\xF6\xDFe",\n  ["eyebrow_color_1"] = "Augenbrauenfarbe 1",\n  ["eyebrow_color_2"] = "Augenbrauenfarbe 2",\n  ["eyebrow_depth"] = "Augenbrauentiefe",\n  ["eyebrow_height"] = "Augenbrauenh\xF6he",\n  ["makeup_type"] = "Makeup-Typ",\n  ["makeup_thickness"] = "Makeupst\xE4rke",\n  ["makeup_color_1"] = "Schminkfarbe 1",\n  ["makeup_color_2"] = "Schminkfarbe 2",\n  ["lipstick_type"] = "Lippenstifttyp",\n  ["lipstick_thickness"] = "Lippenstiftdicke",\n  ["lipstick_color_1"] = "Lippenstiftfarbe 1",\n  ["lipstick_color_2"] = "Lippenstiftfarbe 2",\n  ["ear_accessories"] = "Ohrenzubeh\xF6r",\n  ["ear_accessories_color"] = "Ohrenzubeh\xF6r Farbe",\n  ["tshirt_1"] = "T-Shirt 1",\n  ["tshirt_2"] = "T-Shirt 2",\n  ["torso_1"] = "Oberk\xF6rper 1",\n  ["torso_2"] = "Oberk\xF6rper 2",\n  ["decals_1"] = "Abziehbilder 1",\n  ["decals_2"] = "Abziehbilder 2",\n  ["arms"] = "Arme 1",\n  ["arms_2"] = "Arme 2",\n  ["pants_1"] = "Hose 1",\n  ["pants_2"] = "Hose 2",\n  ["shoes_1"] = "Schuhe 1",\n  ["shoes_2"] = "Schuhe 2",\n  ["mask_1"] = "Maske 1",\n  ["mask_2"] = "Maske 2",\n  ["bproof_1"] = "Kugelsichere Weste 1",\n  ["bproof_2"] = "Kugelsichere Weste 2",\n  ["chain_1"] = "Kette 1",\n  ["chain_2"] = "Kette 2",\n  ["helmet_1"] = "Helm 1",\n  ["helmet_2"] = "Helm 2",\n  ["watches_1"] = "Uhren 1",\n  ["watches_2"] = "Uhren 2",\n  ["bracelets_1"] = "Armb\xE4nder 1",\n  ["bracelets_2"] = "Armb\xE4nder 2",\n  ["glasses_1"] = "Brille 1",\n  ["glasses_2"] = "Brille 2",\n  ["bag"] = "Tasche",\n  ["bag_color"] = "Taschenfarbe",\n  ["blemishes"] = "Sch\xF6nheitsfehler",\n  ["blemishes_size"] = "Fleckenst\xE4rke",\n  ["ageing"] = "Alterung",\n  ["ageing_1"] = "Alterungsst\xE4rke",\n  ["blush"] = "Err\xF6ten",\n  ["blush_1"] = "Err\xF6tungsst\xE4rke",\n  ["blush_color"] = "Err\xF6tungsfarbe",\n  ["complexion"] = "Teint",\n  ["complexion_1"] = "Teintst\xE4rke",\n  ["sun"] = "Sonne",\n  ["sun_1"] = "Sonnenst\xE4rke",\n  ["freckles"] = "Sommersprossen",\n  ["freckles_1"] = "Sommersprossenst\xE4rke",\n  ["chest_hair"] = "Brusthaar",\n  ["chest_hair_1"] = "Brusthaarst\xE4rke",\n  ["chest_color"] = "Brusthaarfarbe",\n  ["bodyb"] = "K\xF6rpermakel",\n  ["bodyb_size"] = "K\xF6rpermakelst\xE4rke",\n  ["bodyb_extra"] = "K\xF6rperfleckeneffekt",\n  ["bodyb_extra_thickness"] = "K\xF6rperfleckeneffektst\xE4rke",\n}\n'
+        },
+        {
+          "path": "locales/en.lua",
+          "source": 'Locales["en"] = {\n    ["sex"] = "sex",\n    ["mom"] = "Face 1",\n    ["dad"] = "Face 2",\n    ["grandparents"] = "Face 3",\n    ["resemblance"] = "Face 1/2 Mix",\n    ["resemblance_g"] = "Face 3 Mix",\n    ["skin_tone"] = "skin tone",\n    ["nose_1"] = "nose width",\n    ["nose_2"] = "nose peak height",\n    ["nose_3"] = "nose peak length",\n    ["nose_4"] = "nose bone height",\n    ["nose_5"] = "nose peak lowering",\n    ["nose_6"] = "nose bone twist",\n    ["cheeks_1"] = "cheekbones height",\n    ["cheeks_2"] = "cheekbones width",\n    ["cheeks_3"] = "cheeks width",\n    ["lip_fullness"] = "lip fullness",\n    ["jaw_bone_width"] = "jaw bone width",\n    ["jaw_bone_length"] = "jaw bone length",\n    ["chin_height"] = "chin height",\n    ["chin_length"] = "chin length",\n    ["chin_width"] = "chin width",\n    ["chin_hole"] = "chin hole size",\n    ["neck_thickness"] = "neck thickness",\n    ["wrinkles"] = "wrinkles",\n    ["wrinkle_thickness"] = "wrinkle thickness",\n    ["beard_type"] = "beard type",\n    ["beard_size"] = "beard size",\n    ["beard_color_1"] = "beard color 1",\n    ["beard_color_2"] = "beard color 2",\n    ["hair_1"] = "hair 1",\n    ["hair_2"] = "hair 2",\n    ["hair_color_1"] = "hair color 1",\n    ["hair_color_2"] = "hair color 2",\n    ["eye_color"] = "eye color",\n    ["eye_squint"] = "eye squint",\n    ["eyebrow_type"] = "eyebrow type",\n    ["eyebrow_size"] = "eyebrow size",\n    ["eyebrow_color_1"] = "eyebrow color 1",\n    ["eyebrow_color_2"] = "eyebrow color 2",\n    ["eyebrow_depth"] = "eyebrow depth",\n    ["eyebrow_height"] = "eyebrow height",\n    ["makeup_type"] = "makeup type",\n    ["makeup_thickness"] = "makeup thickness",\n    ["makeup_color_1"] = "makeup color 1",\n    ["makeup_color_2"] = "makeup color 2",\n    ["lipstick_type"] = "lipstick type",\n    ["lipstick_thickness"] = "lipstick thickness",\n    ["lipstick_color_1"] = "lipstick color 1",\n    ["lipstick_color_2"] = "lipstick color 2",\n    ["ear_accessories"] = "ear accessories",\n    ["ear_accessories_color"] = "ear accessories color",\n    ["tshirt_1"] = "t-Shirt 1",\n    ["tshirt_2"] = "t-Shirt 2",\n    ["torso_1"] = "torso 1",\n    ["torso_2"] = "torso 2",\n    ["decals_1"] = "decals 1",\n    ["decals_2"] = "decals 2",\n    ["arms"] = "arms",\n    ["arms_2"] = "arms 2",\n    ["pants_1"] = "pants 1",\n    ["pants_2"] = "pants 2",\n    ["shoes_1"] = "shoes 1",\n    ["shoes_2"] = "shoes 2",\n    ["mask_1"] = "mask 1",\n    ["mask_2"] = "mask 2",\n    ["bproof_1"] = "bulletproof vest 1",\n    ["bproof_2"] = "bulletproof vest 2",\n    ["chain_1"] = "chain 1",\n    ["chain_2"] = "chain 2",\n    ["helmet_1"] = "helmet 1",\n    ["helmet_2"] = "helmet 2",\n    ["watches_1"] = "watches 1",\n    ["watches_2"] = "watches 2",\n    ["bracelets_1"] = "bracelets 1",\n    ["bracelets_2"] = "bracelets 2",\n    ["glasses_1"] = "glasses 1",\n    ["glasses_2"] = "glasses 2",\n    ["bag"] = "bag",\n    ["bag_color"] = "bag color",\n    ["blemishes"] = "blemishes",\n    ["blemishes_size"] = "blemishes thickness",\n    ["ageing"] = "ageing",\n    ["ageing_1"] = "ageing thickness",\n    ["blush"] = "blush",\n    ["blush_1"] = "blush thickness",\n    ["blush_color"] = "blush color",\n    ["complexion"] = "complexion",\n    ["complexion_1"] = "complexion thickness",\n    ["sun"] = "sun",\n    ["sun_1"] = "sun thickness",\n    ["freckles"] = "freckles",\n    ["freckles_1"] = "freckles thickness",\n    ["chest_hair"] = "chest hair",\n    ["chest_hair_1"] = "chest hair thickness",\n    ["chest_color"] = "chest hair color",\n    ["bodyb"] = "body blemishes",\n    ["bodyb_size"] = "body blemishes thickness",\n    ["bodyb_extra"] = "blemishes body effect",\n    ["bodyb_extra_thickness"] = "blemishes body effect thickness",\n}\n'
+        },
+        {
+          "path": "locales/es.lua",
+          "source": 'Locales["es"] = {\n    ["sex"] = "Sexo",\n    ["mom"] = "Herencia de la Madre",\n    ["dad"] = "Herencia del Padre",\n    ["resemblance"] = "Parecido",\n    ["skin_tone"] = "Tono de piel",\n    ["nose_1"] = "Ancho de la Nariz",\n    ["nose_2"] = "Altura del pico de la Nariz",\n    ["nose_3"] = "Longitud del pico de la Nariz",\n    ["nose_4"] = "Altura del hueso de la Nariz",\n    ["nose_5"] = "Bajada del pico de la Nariz",\n    ["nose_6"] = "Torsi\xF3n del hueso de la Nariz",\n    ["cheeks_1"] = "Altura de los p\xF3mulos",\n    ["cheeks_2"] = "Anchura de los p\xF3mulos",\n    ["cheeks_3"] = "Ancho de las mejillas",\n    ["lip_fullness"] = "Relleno de los labios",\n    ["jaw_bone_width"] = "Anchura del hueso de la mand\xEDbula",\n    ["jaw_bone_length"] = "Longitud del hueso de la mand\xEDbula",\n    ["chin_height"] = "Altura de la barbilla",\n    ["chin_length"] = "Longitud de la barbilla",\n    ["chin_width"] = "Ancho de la barbilla",\n    ["chin_hole"] = "Tama\xF1o del agujero de la barbilla",\n    ["neck_thickness"] = "Grosor del cuello",\n    ["wrinkles"] = "Arrugas",\n    ["wrinkle_thickness"] = "Cantidad de arrugas",\n    ["beard_type"] = "Tipo de barba",\n    ["beard_size"] = "Tama\xF1o de la barba",\n    ["beard_color_1"] = "Color de la barba 1",\n    ["beard_color_2"] = "Color de la barba 2",\n    ["hair_1"] = "Pelo 1",\n    ["hair_2"] = "Pelo 2",\n    ["hair_color_1"] = "Color de pelo 1",\n    ["hair_color_2"] = "Color de pelo 2",\n    ["eye_color"] = "Color de ojos",\n    ["eye_squint"] = "Apertura de ojos",\n    ["eyebrow_type"] = "Tipo de ceja",\n    ["eyebrow_size"] = "Tipo de ceja",\n    ["eyebrow_color_1"] = "Color de ceja 1",\n    ["eyebrow_color_2"] = "Color de ceja 2",\n    ["eyebrow_depth"] = "Profundidad de las cejas",\n    ["eyebrow_height"] = "Altura de las cejas",\n    ["makeup_type"] = "Tipo de maquillaje",\n    ["makeup_thickness"] = "Cantidad de maquillaje",\n    ["makeup_color_1"] = "Color de maquillaje 1",\n    ["makeup_color_2"] = "Color de maquillaje 2",\n    ["lipstick_type"] = "Tipo de pintalabios",\n    ["lipstick_thickness"] = "Cantidad de pintalabios",\n    ["lipstick_color_1"] = "Color de pintalabios 1",\n    ["lipstick_color_2"] = "Color de pintalabios 2",\n    ["ear_accessories"] = "Accesorios de oreja",\n    ["ear_accessories_color"] = "Color de accesorios",\n    ["tshirt_1"] = "Camiseta 1",\n    ["tshirt_2"] = "Camiseta 2",\n    ["torso_1"] = "Torso 1",\n    ["torso_2"] = "Torso 2",\n    ["decals_1"] = "Tatuajes 1",\n    ["decals_2"] = "Tatuajes 2",\n    ["arms"] = "Brazos",\n    ["arms_2"] = "Brazos 2",\n    ["pants_1"] = "Pantalones 1",\n    ["pants_2"] = "Pantalones 2",\n    ["shoes_1"] = "Calzado 1",\n    ["shoes_2"] = "Calzado 2",\n    ["mask_1"] = "Mascara 1",\n    ["mask_2"] = "Mascara 2",\n    ["bproof_1"] = "Chaleco antibalas 1",\n    ["bproof_2"] = "Chaleco antibalas 2",\n    ["chain_1"] = "Cadena 1",\n    ["chain_2"] = "Cadena 2",\n    ["helmet_1"] = "Casco 1",\n    ["helmet_2"] = "Casco 2",\n    ["watches_1"] = "Reloj 1",\n    ["watches_2"] = "Reloj 2",\n    ["bracelets_1"] = "Pulseras 1",\n    ["bracelets_2"] = "Pulseras 2",\n    ["glasses_1"] = "Gafas 1",\n    ["glasses_2"] = "Gafas 2",\n    ["bag"] = "Mochila",\n    ["bag_color"] = "Color mochila",\n    ["blemishes"] = "Manchas",\n    ["blemishes_size"] = "Cantidad de manchas",\n    ["ageing"] = "Envejecimiento",\n    ["ageing_1"] = "Cantidad de envejecimiento",\n    ["blush"] = "Colorete",\n    ["blush_1"] = "Cantidad de colorete",\n    ["blush_color"] = "Color de colorete",\n    ["complexion"] = "Complexi\xF3n",\n    ["complexion_1"] = "Cantidad de complexi\xF3n",\n    ["sun"] = "Bronceado",\n    ["sun_1"] = "Cantidad de bronceado",\n    ["freckles"] = "Pecas",\n    ["freckles_1"] = "Cantidad de pecas",\n    ["chest_hair"] = "Vello corporal",\n    ["chest_hair_1"] = "Cantidad de vello corporal",\n    ["chest_color"] = "Color de vello corporal",\n    ["bodyb"] = "Manchas en el cuerpo",\n    ["bodyb_size"] = "Tipo de manchas en el cuerpo",\n    ["bodyb_extra"] = "Efecto de manchas en el cuerpo",\n    ["bodyb_extra_thickness"] = "Espesor de manchas efecto cuerpo",\n}\n'
+        },
+        {
+          "path": "locales/fi.lua",
+          "source": 'Locales["fi"] = {\n    ["sex"] = "Sukupuoli",\n    ["face"] = "Kasvot",\n    ["skin"] = "Iho",\n    ["wrinkles"] = "Rypyt",\n    ["wrinkle_thickness"] = "Ryppyjen vahvuus",\n    ["beard_type"] = "Parta tyyli",\n    ["beard_size"] = "Parran koko",\n    ["beard_color_1"] = "Parran v\xE4ri 1",\n    ["beard_color_2"] = "Parran v\xE4ri 2",\n    ["hair_1"] = "Hiukset 1",\n    ["hair_2"] = "Hiukset 2",\n    ["hair_color_1"] = "Hiuksien v\xE4ri 1",\n    ["hair_color_2"] = "Hiuksien v\xE4ri 2",\n    ["eye_color"] = "Silmien v\xE4ri",\n    ["eyebrow_type"] = "Kulmakarva tyyli",\n    ["eyebrow_size"] = "Kulmakarvojen tiheys",\n    ["eyebrow_color_1"] = "Kulmakarvojen v\xE4ri 1",\n    ["eyebrow_color_2"] = "Kulmakarvojen v\xE4ri 2",\n    ["makeup_type"] = "Meikki tyyli",\n    ["makeup_thickness"] = "Meikin vahvuus",\n    ["makeup_color_1"] = "Meikin v\xE4ri 1",\n    ["makeup_color_2"] = "Meikin v\xE4ri 2",\n    ["lipstick_type"] = "Huulipuna tyyli",\n    ["lipstick_thickness"] = "Huulipunan vahvuus",\n    ["lipstick_color_1"] = "Huulipunan v\xE4ri 1",\n    ["lipstick_color_2"] = "Huulipunan v\xE4ri 2",\n    ["ear_accessories"] = "Korvakorut",\n    ["ear_accessories_color"] = "Korvakorujen v\xE4ri",\n    ["tshirt_1"] = "T-paita 1",\n    ["tshirt_2"] = "T-paita 2",\n    ["torso_1"] = "Paita 1",\n    ["torso_2"] = "Paita 2",\n    ["decals_1"] = "Kerros 1",\n    ["decals_2"] = "Kerros 2",\n    ["arms"] = "K\xE4det",\n    ["arms_2"] = "K\xE4det 2",\n    ["pants_1"] = "Housut 1",\n    ["pants_2"] = "Housut 2",\n    ["shoes_1"] = "Keng\xE4t 1",\n    ["shoes_2"] = "Keng\xE4t 2",\n    ["mask_1"] = "Maski 1",\n    ["mask_2"] = "Maski 2",\n    ["bproof_1"] = "Luotiliivi 1",\n    ["bproof_2"] = "Luotiliivi 2",\n    ["chain_1"] = "Korut 1",\n    ["chain_2"] = "Korut 2",\n    ["helmet_1"] = "Kyp\xE4r\xE4t 1",\n    ["helmet_2"] = "Kyp\xE4r\xE4t 2",\n    ["watches_1"] = "Kellot 1",\n    ["watches_2"] = "Kellot 2",\n    ["bracelets_1"] = "Rannekkeet 1",\n    ["bracelets_2"] = "Rannekkeet 2",\n    ["glasses_1"] = "Lasit 1",\n    ["glasses_2"] = "Lasit 2",\n    ["bag"] = "Reput",\n    ["bag_color"] = "Repun v\xE4ri",\n    ["blemishes"] = "Pisamat",\n    ["blemishes_size"] = "Pisamien vahvuus",\n    ["ageing"] = "Ik\xE4\xE4ntyminen",\n    ["ageing_1"] = "Ik\xE4\xE4ntyminen vahvuus",\n    ["blush"] = "Punastuminen",\n    ["blush_1"] = "Punastumisen vahvuus",\n    ["blush_color"] = "Punastumisen v\xE4ri",\n    ["complexion"] = "Pigmentti",\n    ["complexion_1"] = "Pigmentin vahvuus",\n    ["sun"] = "Rusketus",\n    ["sun_1"] = "Rusketus vahvuus",\n    ["freckles"] = "Pilkut",\n    ["freckles_1"] = "Pilkkujen vahvuus",\n    ["chest_hair"] = "Rintakarvat",\n    ["chest_hair_1"] = "Rintakarvojen tiheys",\n    ["chest_color"] = "Rintakarvojen v\xE4ri",\n    ["bodyb"] = "Pisamat kehossa",\n    ["bodyb_size"] = "Kehopisamien vahvuus",\n}\n'
+        },
+        {
+          "path": "locales/fr.lua",
+          "source": `Locales["fr"] = {
+    ["sex"] = "sexe",
+    ["mom"] = "visage de la m\xE8re",
+    ["dad"] = "visage du p\xE8re",
+    ["resemblance"] = "ressemblance",
+    ["skin_tone"] = "teint",
+    ["nose_1"] = "largeur du nez",
+    ["nose_2"] = "hauteur du pic du nez",
+    ["nose_3"] = "longueur du pic du nez",
+    ["nose_4"] = "hauteur de l'os du nez",
+    ["nose_5"] = "abaissement du pic du nez",
+    ["nose_6"] = "torsion de l'os du nez",
+    ["cheeks_1"] = "hauteur des pommettes",
+    ["cheeks_2"] = "largeur des pommettes",
+    ["cheeks_3"] = "largeur des joues",
+    ["lip_fullness"] = "pl\xE9nitude des l\xE8vres",
+    ["jaw_bone_width"] = "largeur de l'os de la m\xE2choire",
+    ["jaw_bone_length"] = "longueur de l'os de la m\xE2choire",
+    ["chin_height"] = "hauteur du menton",
+    ["chin_length"] = "longueur du menton",
+    ["chin_width"] = "largeur du menton",
+    ["chin_hole"] = "taille du trou du menton",
+    ["neck_thickness"] = "\xE9paisseur du cou",
+    ["wrinkles"] = "les rides",
+    ["wrinkle_thickness"] = "\xE9paisseur des rides",
+    ["beard_type"] = "type de barbe",
+    ["beard_size"] = "taille de barbe",
+    ["beard_color_1"] = "couleur de barbe 1",
+    ["beard_color_2"] = "couleur de barbe 2",
+    ["hair_1"] = "cheveux 1",
+    ["hair_2"] = "cheveux 2",
+    ["hair_color_1"] = "couleur de cheveux 1",
+    ["hair_color_2"] = "couleur de cheveux 2",
+    ["eye_color"] = "couleur des yeux",
+    ["eye_squint"] = "Louchement des yeux",
+    ["eyebrow_type"] = "type de sourcil",
+    ["eyebrow_size"] = "taille des sourcils",
+    ["eyebrow_color_1"] = "couleur des sourcils 1",
+    ["eyebrow_color_2"] = "couleur des sourcils 2",
+    ["eyebrow_depth"] = "profondeur des sourcils",
+    ["eyebrow_height"] = "hauteur des sourcils",
+    ["makeup_type"] = "type de maquillage",
+    ["makeup_thickness"] = "\xE9paisseur de maquillage",
+    ["makeup_color_1"] = "couleur de maquillage 1",
+    ["makeup_color_2"] = "couleur de maquillage 2",
+    ["lipstick_type"] = "type de rouge \xE0 l\xE8vres",
+    ["lipstick_thickness"] = "\xE9paisseur du rouge \xE0 l\xE8vres",
+    ["lipstick_color_1"] = "couleur de rouge \xE0 l\xE8vres 1",
+    ["lipstick_color_2"] = "couleur de rouge \xE0 l\xE8vres 2",
+    ["ear_accessories"] = "accessoires d'oreille",
+    ["ear_accessories_color"] = "couleur des accessoires d'oreille",
+    ["tshirt_1"] = "t-Shirt 1",
+    ["tshirt_2"] = "t-Shirt 2",
+    ["torso_1"] = "torse 1",
+    ["torso_2"] = "torse 2",
+    ["decals_1"] = "d\xE9calcomanies 1",
+    ["decals_2"] = "d\xE9calcomanies 2",
+    ["arms"] = "bras",
+    ["arms_2"] = "bras 2",
+    ["pants_1"] = "pantalon 1",
+    ["pants_2"] = "pantalon 2",
+    ["shoes_1"] = "chaussures 1",
+    ["shoes_2"] = "chaussures 2",
+    ["mask_1"] = "masque 1",
+    ["mask_2"] = "masque 2",
+    ["bproof_1"] = "gilet pare-balles 1",
+    ["bproof_2"] = "gilet pare-balles 2",
+    ["chain_1"] = "cha\xEEne 1",
+    ["chain_2"] = "cha\xEEne 2",
+    ["helmet_1"] = "casque 1",
+    ["helmet_2"] = "casque 2",
+    ["watches_1"] = "montres 1",
+    ["watches_2"] = "montres 2",
+    ["bracelets_1"] = "bracelets 1",
+    ["bracelets_2"] = "bracelets 2",
+    ["glasses_1"] = "lunettes 1",
+    ["glasses_2"] = "lunettes 2",
+    ["bag"] = "sac",
+    ["bag_color"] = "couleur du sac",
+    ["blemishes"] = "imperfections",
+    ["blemishes_size"] = "\xE9paisseur des imperfections",
+    ["ageing"] = "vieillissement",
+    ["ageing_1"] = "\xE9paisseur de vieillissement",
+    ["blush"] = "rougir",
+    ["blush_1"] = "\xE9paisseur du fard \xE0 joues",
+    ["blush_color"] = "couleur fard \xE0 joues",
+    ["complexion"] = "complexion",
+    ["complexion_1"] = "\xE9paisseur du teint",
+    ["sun"] = "soleil",
+    ["sun_1"] = "\xE9paisseur du soleil",
+    ["freckles"] = "taches de rousseur",
+    ["freckles_1"] = "\xE9paisseur des taches de rousseur",
+    ["chest_hair"] = "les poils du torse",
+    ["chest_hair_1"] = "\xE9paisseur des poils de la poitrine",
+    ["chest_color"] = "couleur des cheveux de la poitrine",
+    ["bodyb"] = "imperfections du corps",
+    ["bodyb_size"] = "\xE9paisseur des imperfections corporelles",
+    ["bodyb_extra"] = "effet corps",
+    ["bodyb_extra_thickness"] = "imperfections effet corps \xE9paisseur",
+}
+`
+        },
+        {
+          "path": "locales/he.lua",
+          "source": 'Locales["he"] = {\n    ["sex"] = "\u05DE\u05D9\u05DF",\n    ["mom"] = "\u05E4\u05E0\u05D9\u05DD \u05E9\u05DC \u05D0\u05DE\u05D0",\n    ["dad"] = "\u05E4\u05E0\u05D9\u05DD \u05E9\u05DC \u05D0\u05D1\u05D0",\n    ["resemblance"] = "\u05D3\u05DE\u05D9\u05D5\u05DF",\n    ["skin_tone"] = "\u05D2\u05D5\u05D5\u05DF \u05D4\u05E2\u05D5\u05E8",\n    ["nose_1"] = "\u05E8\u05D5\u05D7\u05D1 \u05D4\u05D0\u05E3",\n    ["nose_2"] = "\u05D2\u05D5\u05D1\u05D4 \u05E9\u05D9\u05D0 \u05D4\u05D0\u05E3",\n    ["nose_3"] = "\u05D0\u05D5\u05E8\u05DA \u05E9\u05D9\u05D0 \u05D4\u05D0\u05E3",\n    ["nose_4"] = "\u05D2\u05D5\u05D1\u05D4 \u05E2\u05E6\u05DD \u05D4\u05D0\u05E3",\n    ["nose_5"] = "\u05D4\u05D5\u05E8\u05D3\u05EA \u05E9\u05D9\u05D0 \u05D4\u05D0\u05E3",\n    ["nose_6"] = "\u05E1\u05D9\u05D1\u05D5\u05D1 \u05E2\u05E6\u05DD \u05D4\u05D0\u05E3",\n    ["cheeks_1"] = "\u05D2\u05D5\u05D1\u05D4 \u05D4\u05DC\u05D7\u05D9\u05D9\u05DD",\n    ["cheeks_2"] = "\u05E8\u05D5\u05D7\u05D1 \u05D4\u05DC\u05D7\u05D9\u05D9\u05DD",\n    ["cheeks_3"] = "\u05E8\u05D5\u05D7\u05D1 \u05D4\u05DC\u05D7\u05D9\u05D9\u05DD",\n    ["lip_fullness"] = "\u05DE\u05DC\u05D0\u05D5\u05EA \u05D4\u05E9\u05E4\u05EA\u05D9\u05D9\u05DD",\n    ["jaw_bone_width"] = "\u05E8\u05D5\u05D7\u05D1 \u05E2\u05E6\u05DD \u05D4\u05DC\u05E1\u05EA",\n    ["jaw_bone_length"] = "\u05D0\u05D5\u05E8\u05DA \u05E2\u05E6\u05DD \u05D4\u05DC\u05E1\u05EA",\n    ["chin_height"] = "\u05D2\u05D5\u05D1\u05D4 \u05D4\u05E1\u05E0\u05D8\u05E8",\n    ["chin_length"] = "\u05D0\u05D5\u05E8\u05DA \u05D4\u05E1\u05E0\u05D8\u05E8",\n    ["chin_width"] = "\u05E8\u05D5\u05D7\u05D1 \u05D4\u05E1\u05E0\u05D8\u05E8",\n    ["chin_hole"] = "\u05D2\u05D5\u05D3\u05DC \u05D7\u05D5\u05E8 \u05D4\u05E1\u05E0\u05D8\u05E8",\n    ["neck_thickness"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05E6\u05D5\u05D5\u05D0\u05E8",\n    ["wrinkles"] = "\u05E7\u05DE\u05D8\u05D9\u05DD",\n    ["wrinkle_thickness"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05E7\u05DE\u05D8\u05D9\u05DD",\n    ["beard_type"] = "\u05E1\u05D5\u05D2 \u05D4\u05D6\u05E7\u05DF",\n    ["beard_size"] = "\u05D2\u05D5\u05D3\u05DC \u05D4\u05D6\u05E7\u05DF",\n    ["beard_color_1"] = "\u05E6\u05D1\u05E2 \u05D4\u05D6\u05E7\u05DF 1",\n    ["beard_color_2"] = "\u05E6\u05D1\u05E2 \u05D4\u05D6\u05E7\u05DF 2",\n    ["hair_1"] = "\u05E9\u05D9\u05E2\u05E8 1",\n    ["hair_2"] = "\u05E9\u05D9\u05E2\u05E8 2",\n    ["hair_color_1"] = "\u05E6\u05D1\u05E2 \u05D4\u05E9\u05D9\u05E2\u05E8 1",\n    ["hair_color_2"] = "\u05E6\u05D1\u05E2 \u05D4\u05E9\u05D9\u05E2\u05E8 2",\n    ["eye_color"] = "\u05E6\u05D1\u05E2 \u05D4\u05E2\u05D9\u05E0\u05D9\u05D9\u05DD",\n    ["eye_squint"] = "\u05E7\u05D9\u05DE\u05D5\u05D8 \u05D4\u05E2\u05D9\u05DF",\n    ["eyebrow_type"] = "\u05E1\u05D5\u05D2 \u05D4\u05D2\u05D1\u05D5\u05EA",\n    ["eyebrow_size"] = "\u05D2\u05D5\u05D3\u05DC \u05D4\u05D2\u05D1\u05D5\u05EA",\n    ["eyebrow_color_1"] = "\u05E6\u05D1\u05E2 \u05D4\u05D2\u05D1\u05D5\u05EA 1",\n    ["eyebrow_color_2"] = "\u05E6\u05D1\u05E2 \u05D4\u05D2\u05D1\u05D5\u05EA 2",\n    ["eyebrow_depth"] = "\u05E2\u05D5\u05DE\u05E7 \u05D4\u05D2\u05D1\u05D5\u05EA",\n    ["eyebrow_height"] = "\u05D2\u05D5\u05D1\u05D4 \u05D4\u05D2\u05D1\u05D5\u05EA",\n    ["makeup_type"] = "\u05E1\u05D5\u05D2 \u05D4\u05D0\u05D9\u05E4\u05D5\u05E8",\n    ["makeup_thickness"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05D0\u05D9\u05E4\u05D5\u05E8",\n    ["makeup_color_1"] = "\u05E6\u05D1\u05E2 \u05D4\u05D0\u05D9\u05E4\u05D5\u05E8 1",\n    ["makeup_color_2"] = "\u05E6\u05D1\u05E2 \u05D4\u05D0\u05D9\u05E4\u05D5\u05E8 2",\n    ["lipstick_type"] = "\u05E1\u05D5\u05D2 \u05D4\u05E9\u05E4\u05EA\u05D5\u05DF",\n    ["lipstick_thickness"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05E9\u05E4\u05EA\u05D5\u05DF",\n    ["lipstick_color_1"] = "\u05E6\u05D1\u05E2 \u05D4\u05E9\u05E4\u05EA\u05D5\u05DF 1",\n    ["lipstick_color_2"] = "\u05E6\u05D1\u05E2 \u05D4\u05E9\u05E4\u05EA\u05D5\u05DF 2",\n    ["ear_accessories"] = "\u05EA\u05DB\u05E9\u05D9\u05D8\u05D9\u05DD \u05DC\u05D0\u05D5\u05D6\u05E0\u05D9\u05D9\u05DD",\n    ["ear_accessories_color"] = "\u05E6\u05D1\u05E2 \u05D4\u05EA\u05DB\u05E9\u05D9\u05D8\u05D9\u05DD \u05DC\u05D0\u05D5\u05D6\u05E0\u05D9\u05D9\u05DD",\n    ["tshirt_1"] = "\u05D7\u05D5\u05DC\u05E6\u05EA \u05D8\u05D9 1",\n    ["tshirt_2"] = "\u05D7\u05D5\u05DC\u05E6\u05EA \u05D8\u05D9 2",\n    ["torso_1"] = "\u05D2\u05D5\u05E3 \u05E2\u05DC\u05D9\u05D5\u05DF 1",\n    ["torso_2"] = "\u05D2\u05D5\u05E3 \u05E2\u05DC\u05D9\u05D5\u05DF 2",\n    ["decals_1"] = "\u05DE\u05D3\u05D1\u05E7\u05D5\u05EA 1",\n    ["decals_2"] = "\u05DE\u05D3\u05D1\u05E7\u05D5\u05EA 2",\n    ["arms"] = "\u05D9\u05D3\u05D9\u05D9\u05DD",\n    ["arms_2"] = "\u05D9\u05D3\u05D9\u05D9\u05DD 2",\n    ["pants_1"] = "\u05DE\u05DB\u05E0\u05E1\u05D9\u05D9\u05DD 1",\n    ["pants_2"] = "\u05DE\u05DB\u05E0\u05E1\u05D9\u05D9\u05DD 2",\n    ["shoes_1"] = "\u05E0\u05E2\u05DC\u05D9\u05D9\u05DD 1",\n    ["shoes_2"] = "\u05E0\u05E2\u05DC\u05D9\u05D9\u05DD 2",\n    ["mask_1"] = "\u05DE\u05E1\u05D9\u05DB\u05D4 1",\n    ["mask_2"] = "\u05DE\u05E1\u05D9\u05DB\u05D4 2",\n    ["bproof_1"] = "\u05E9\u05E8\u05D9\u05D5\u05DF \u05E0\u05D2\u05D3 \u05E7\u05DC\u05D9\u05E2\u05D9\u05DD 1",\n    ["bproof_2"] = "\u05E9\u05E8\u05D9\u05D5\u05DF \u05E0\u05D2\u05D3 \u05E7\u05DC\u05D9\u05E2\u05D9\u05DD 2",\n    ["chain_1"] = "\u05E9\u05E8\u05E9\u05E8\u05EA 1",\n    ["chain_2"] = "\u05E9\u05E8\u05E9\u05E8\u05EA 2",\n    ["helmet_1"] = "\u05E7\u05E1\u05D3\u05D4 1",\n    ["helmet_2"] = "\u05E7\u05E1\u05D3\u05D4 2",\n    ["watches_1"] = "\u05E9\u05E2\u05D5\u05E0\u05D9\u05DD 1",\n    ["watches_2"] = "\u05E9\u05E2\u05D5\u05E0\u05D9\u05DD 2",\n    ["bracelets_1"] = "\u05E6\u05DE\u05D9\u05D3\u05D9\u05DD 1",\n    ["bracelets_2"] = "\u05E6\u05DE\u05D9\u05D3\u05D9\u05DD 2",\n    ["glasses_1"] = "\u05DE\u05E9\u05E7\u05E4\u05D9\u05D9\u05DD 1",\n    ["glasses_2"] = "\u05DE\u05E9\u05E7\u05E4\u05D9\u05D9\u05DD 2",\n    ["bag"] = "\u05EA\u05D9\u05E7",\n    ["bag_color"] = "\u05E6\u05D1\u05E2 \u05D4\u05EA\u05D9\u05E7",\n    ["blemishes"] = "\u05DB\u05EA\u05DE\u05D9\u05DD",\n    ["blemishes_size"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05DB\u05EA\u05DE\u05D9\u05DD",\n    ["ageing"] = "\u05D4\u05D6\u05D3\u05E7\u05E0\u05D5\u05EA",\n    ["ageing_1"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05D4\u05D6\u05D3\u05E7\u05E0\u05D5\u05EA",\n    ["blush"] = "\u05E8\u05D5\u05D2\u05D6",\n    ["blush_1"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05E8\u05D5\u05D2\u05D6",\n    ["blush_color"] = "\u05E6\u05D1\u05E2 \u05D4\u05E8\u05D5\u05D2\u05D6",\n    ["complexion"] = "\u05DE\u05E8\u05E7\u05DD \u05D4\u05E2\u05D5\u05E8",\n    ["complexion_1"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05DE\u05E8\u05E7\u05DD",\n    ["sun"] = "\u05E9\u05DE\u05E9",\n    ["sun_1"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05E9\u05DE\u05E9",\n    ["freckles"] = "\u05E0\u05DE\u05E9\u05D9\u05DD",\n    ["freckles_1"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05E0\u05DE\u05E9\u05D9\u05DD",\n    ["chest_hair"] = "\u05E9\u05D9\u05E2\u05E8 \u05D7\u05D6\u05D4",\n    ["chest_hair_1"] = "\u05E2\u05D5\u05D1\u05D9 \u05E9\u05D9\u05E2\u05E8 \u05D4\u05D7\u05D6\u05D4",\n    ["chest_color"] = "\u05E6\u05D1\u05E2 \u05E9\u05D9\u05E2\u05E8 \u05D4\u05D7\u05D6\u05D4",\n    ["bodyb"] = "\u05DB\u05EA\u05DE\u05D9\u05DD \u05D1\u05D2\u05D5\u05E3",\n    ["bodyb_size"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05DB\u05EA\u05DE\u05D9\u05DD \u05D1\u05D2\u05D5\u05E3",\n    ["bodyb_extra"] = "\u05D4\u05E9\u05E4\u05E2\u05EA \u05DB\u05EA\u05DE\u05D9\u05DD \u05D1\u05D2\u05D5\u05E3",\n    ["bodyb_extra_thickness"] = "\u05E2\u05D5\u05D1\u05D9 \u05D4\u05E9\u05E4\u05E2\u05EA \u05D4\u05DB\u05EA\u05DE\u05D9\u05DD \u05D1\u05D2\u05D5\u05E3",\n}\n'
+        },
+        {
+          "path": "locales/hu.lua",
+          "source": 'Locales["hu"] = {\n    ["sex"] = "Nem",\n    ["mom"] = "Anyja arca",\n    ["dad"] = "Apja arca",\n    ["resemblance"] = "Hasonl\xF3s\xE1g",\n    ["skin_tone"] = "B\u0151rsz\xEDn",\n    ["nose_1"] = "Orr sz\xE9less\xE9ge",\n    ["nose_2"] = "Orr magass\xE1ga",\n    ["nose_3"] = "Orrcs\xFAcs hossza",\n    ["nose_4"] = "Orrcsont magass\xE1ga",\n    ["nose_5"] = "Orrcs\xFAcs leenged\xE9se",\n    ["nose_6"] = "Orrcsong csavar",\n    ["cheeks_1"] = "Arccsont magass\xE1ga",\n    ["cheeks_2"] = "Arccsont sz\xE9less\xE9ge",\n    ["cheeks_3"] = "Arccsont sz\xE9less\xE9ge 2",\n    ["lip_fullness"] = "Ajak telts\xE9ge",\n    ["jaw_bone_width"] = "Allcsont sz\xE9less\xE9ge",\n    ["jaw_bone_length"] = "\xC1llcsong hossza",\n    ["chin_height"] = "\xC1ll magass\xE1ga",\n    ["chin_length"] = "\xC1ll hossza",\n    ["chin_width"] = "\xC1ll sz\xE9less\xE9ge",\n    ["chin_hole"] = "\xC1lllyuk m\xE9rete",\n    ["neck_thickness"] = "Nyak vastags\xE1ga",\n    ["wrinkles"] = "R\xE1ncok",\n    ["wrinkle_thickness"] = "R\xE1ncok er\u0151ss\xE9ge",\n    ["beard_type"] = "Szak\xE1ll t\xEDpusa",\n    ["beard_size"] = "Szak\xE1ll nagys\xE1ga",\n    ["beard_color_1"] = "Szak\xE1ll sz\xEDne 1",\n    ["beard_color_2"] = "Szak\xE1ll sz\xEDne 2",\n    ["hair_1"] = "Haj 1",\n    ["hair_2"] = "Haj 2",\n    ["hair_color_1"] = "Haj sz\xEDne 1",\n    ["hair_color_2"] = "Haj sz\xEDne 2",\n    ["eye_color"] = "Szem szine",\n    ["eye_squint"] = "Szem hunyorg\xE1s",\n    ["eyebrow_type"] = "Szem t\xEDpusa",\n    ["eyebrow_size"] = "Szem nagys\xE1ga",\n    ["eyebrow_color_1"] = "Szem sz\xEDne 1",\n    ["eyebrow_color_2"] = "Szem sz\xEDne 2",\n    ["eyebrow_depth"] = "Szem\xF6ld\xF6km\xE9lys\xE9ge",\n    ["eyebrow_height"] = "Szem\xF6ld\xF6kmagass\xE1ga",\n    ["makeup_type"] = "Smink tipusa",\n    ["makeup_thickness"] = "Smink er\xF6ss\xE9ge",\n    ["makeup_color_1"] = "Smink sz\xEDne 1",\n    ["makeup_color_2"] = "Smink sz\xEDne 2",\n    ["lipstick_type"] = "R\xFAzs t\xEDpusa",\n    ["lipstick_thickness"] = "R\xFAzs er\u0151ss\xE9ge",\n    ["lipstick_color_1"] = "R\xFAzs sz\xEDne 1",\n    ["lipstick_color_2"] = "R\xFAzs sz\xEDne 2",\n    ["ear_accessories"] = "F\xFClbeval\xF3",\n    ["ear_accessories_color"] = "F\xFClbeval\xF3 sz\xEDne",\n    ["tshirt_1"] = "P\xF3l\xF3 1",\n    ["tshirt_2"] = "P\xF3l\xF3 2",\n    ["torso_1"] = "Fels\xF6 1",\n    ["torso_2"] = "Fels\xF6 2",\n    ["decals_1"] = "Matrica 1",\n    ["decals_2"] = "Matrica 2",\n    ["arms"] = "Kezek",\n    ["arms_2"] = "Kezek 2",\n    ["pants_1"] = "Nadr\xE1g 1",\n    ["pants_2"] = "Nadr\xE1g 2",\n    ["shoes_1"] = "Cip\xF6 1",\n    ["shoes_2"] = "Cip\xF6 2",\n    ["mask_1"] = "Maszk 1",\n    ["mask_2"] = "Maszk 2",\n    ["bproof_1"] = "Goly\xF3\xE1ll\xF3mell\xE9ny 1",\n    ["bproof_2"] = "Goly\xF3\xE1ll\xF3mell\xE9ny 2",\n    ["chain_1"] = "L\xE1nc 1",\n    ["chain_2"] = "L\xE1nc 2",\n    ["helmet_1"] = "Sisak 1",\n    ["helmet_2"] = "Sisak 2",\n    ["watches_1"] = "\xD3ra 1",\n    ["watches_2"] = "\xD3ra 2",\n    ["bracelets_1"] = "Kark\xF6t\xF6 1",\n    ["bracelets_2"] = "Kark\xF6t\xF6 2",\n    ["glasses_1"] = "Szem\xFCveg 1",\n    ["glasses_2"] = "Szem\xFCveg 2",\n    ["bag"] = "T\xE1ska",\n    ["bag_color"] = "T\xE1ska szine",\n    ["blemishes"] = "Foltok",\n    ["blemishes_size"] = "Foltok er\u0151ss\xE9ge",\n    ["ageing"] = "\xD6reged\xE9s",\n    ["ageing_1"] = "\xD6reged\xE9s er\u0151ss\xE9ge",\n    ["blush"] = "B\u0151rp\xEDr",\n    ["blush_1"] = "B\u0151rp\xEDr er\u0151ss\xE9ge",\n    ["blush_color"] = "B\u0151rp\xEDr sz\xEDne",\n    ["complexion"] = "Arcsz\xEDn",\n    ["complexion_1"] = "Arcsz\xEDn er\u0151ss\xE9ge",\n    ["sun"] = "Nap",\n    ["sun_1"] = "Nap er\u0151ss\xE9ge",\n    ["freckles"] = "Szepl\u0151k",\n    ["freckles_1"] = "Szepl\u0151k er\u0151ss\xE9ge",\n    ["chest_hair"] = "Mellsz\u0151r",\n    ["chest_hair_1"] = "Mellsz\u0151r er\u0151ss\xE9ge",\n    ["chest_color"] = "Mellsz\u0151r sz\xEDne",\n    ["bodyb"] = "B\u0151rhib\xE1k",\n    ["bodyb_size"] = "B\u0151rhib\xE1k er\u0151ss\xE9ge",\n    ["bodyb_extra"] = "Foltos testhat\xE1s",\n    ["bodyb_extra_thickness"] = "Foltos testhat\xE1s vastags\xE1ga",\n}\n'
+        },
+        {
+          "path": "locales/it.lua",
+          "source": `Locales["it"] = {
+    ["sex"] = "sesso",
+    ["mom"] = "viso donna",
+    ["dad"] = "viso uomo",
+    ["resemblance"] = "somiglianze",
+    ["skin_tone"] = "tono della pelle",
+    ["nose_1"] = "larghezza del naso",
+    ["nose_2"] = "altezza della punta del naso",
+    ["nose_3"] = "lunghezza della punta del naso",
+    ["nose_4"] = "altezza dell'osso del naso",
+    ["nose_5"] = "abbassamento della punta del naso",
+    ["nose_6"] = "torsione dell'osso del naso",
+    ["cheeks_1"] = "altezza degli zigomi",
+    ["cheeks_2"] = "larghezza degli zigomi",
+    ["cheeks_3"] = "larghezza delle guance",
+    ["lip_fullness"] = "spessore delle labbra",
+    ["jaw_bone_width"] = "larghezza dell'osso mascellare",
+    ["jaw_bone_length"] = "lunghezza dell'osso mascellare",
+    ["chin_height"] = "altezza del mento",
+    ["chin_length"] = "lunghezza del mento",
+    ["chin_width"] = "larghezza del mento",
+    ["chin_hole"] = "dimensione del foro del mento",
+    ["neck_thickness"] = "spessore del collo",
+    ["wrinkles"] = "rughe",
+    ["wrinkle_thickness"] = "spessore delle rughe",
+    ["beard_type"] = "tipo di barba",
+    ["beard_size"] = "dimensione della barba",
+    ["beard_color_1"] = "colore della barba 1",
+    ["beard_color_2"] = "colore della barba 2",
+    ["hair_1"] = "capelli 1",
+    ["hair_2"] = "capelli 2",
+    ["hair_color_1"] = "colore capelli 1",
+    ["hair_color_2"] = "colore capelli 2",
+    ["eye_color"] = "colore degli occhi",
+    ["eye_squint"] = "strabismo degli occhi",
+    ["eyebrow_type"] = "tipo di sopracciglio",
+    ["eyebrow_size"] = "dimensione delle sopracciglia",
+    ["eyebrow_color_1"] = "colore delle sopracciglia 1",
+    ["eyebrow_color_2"] = "colore delle sopracciglia 2",
+    ["eyebrow_depth"] = "profondit\xE0 delle sopracciglia",
+    ["eyebrow_height"] = "altezza del sopracciglio",
+    ["makeup_type"] = "tipo di trucco",
+    ["makeup_thickness"] = "spessore del trucco",
+    ["makeup_color_1"] = "colore del trucco 1",
+    ["makeup_color_2"] = "colore del trucco 2",
+    ["lipstick_type"] = "tipo di rossetto",
+    ["lipstick_thickness"] = "spessore del rossetto",
+    ["lipstick_color_1"] = "colore del rossetto 1",
+    ["lipstick_color_2"] = "colore del rossetto 2",
+    ["ear_accessories"] = "accessori per le orecchie",
+    ["ear_accessories_color"] = "colore accessori orecchie",
+    ["tshirt_1"] = "t-Shirt 1",
+    ["tshirt_2"] = "t-Shirt 2",
+    ["torso_1"] = "torso 1",
+    ["torso_2"] = "torso 2",
+    ["decals_1"] = "decals 1",
+    ["decals_2"] = "decals 2",
+    ["arms"] = "braccia",
+    ["arms_2"] = "braccia 2",
+    ["pants_1"] = "pantaloni",
+    ["pants_2"] = "colore pantaloni",
+    ["shoes_1"] = "scarpe",
+    ["shoes_2"] = "colore scarpe",
+    ["mask_1"] = "maschera 1",
+    ["mask_2"] = "maschera 2",
+    ["bproof_1"] = "giubbotto antiproiettile 1",
+    ["bproof_2"] = "giubbotto antiproiettile2",
+    ["chain_1"] = "collana 1",
+    ["chain_2"] = "collana 2",
+    ["helmet_1"] = "casco 1",
+    ["helmet_2"] = "casco 2",
+    ["watches_1"] = "orologi 1",
+    ["watches_2"] = "orologi 2",
+    ["bracelets_1"] = "bracciali 1",
+    ["bracelets_2"] = "bracciali 2",
+    ["glasses_1"] = "occhiali 1",
+    ["glasses_2"] = "occhiali 2",
+    ["bag"] = "zaino",
+    ["bag_color"] = "colore zaino",
+    ["blemishes"] = "imperfezioni",
+    ["blemishes_size"] = "pessore delle imperfezioni",
+    ["ageing"] = "invecchiamento pelle",
+    ["ageing_1"] = "spessore invecchiamento",
+    ["blush"] = "arrossimento",
+    ["blush_1"] = "spessore del rossore",
+    ["blush_color"] = "colore rossore",
+    ["complexion"] = "carnagione",
+    ["complexion_1"] = "spessore della carnagione",
+    ["sun"] = "lentiggini",
+    ["sun_1"] = "spessore lentiggini",
+    ["freckles"] = "lentiggini",
+    ["freckles_1"] = "spessore delle lentiggini",
+    ["chest_hair"] = "peli del petto",
+    ["chest_hair_1"] = "spessore dei peli del torace",
+    ["chest_color"] = "colore dei peli del petto",
+    ["bodyb"] = "inestetismi del corpo",
+    ["bodyb_size"] = "spessore delle imperfezioni",
+    ["bodyb_extra"] = "inestetismi del corpo extra",
+    ["bodyb_extra_thickness"] = "inestetismi del corpo spessore",
+}
+`
+        },
+        {
+          "path": "locales/nl.lua",
+          "source": 'Locales["nl"] = {\n    ["sex"] = "geslacht",\n    ["mom"] = "gezicht moeder",\n    ["dad"] = "gezicht vader",\n    ["resemblance"] = "gelijkenis",\n    ["skin_tone"] = "huidskleur",\n    ["nose_1"] = "neusbreedte",\n    ["nose_2"] = "neuspiek hoogte",\n    ["nose_3"] = "neuspiek lengte",\n    ["nose_4"] = "neusbeen hoogte",\n    ["nose_5"] = "neusbeen verlaging",\n    ["nose_6"] = "neusbeen verdraaiing",\n    ["cheeks_1"] = "jukbeenderen hoogte",\n    ["cheeks_2"] = "jukbeenderen breedte",\n    ["cheeks_3"] = "wangen breedte",\n    ["lip_fullness"] = "lipvolheid",\n    ["jaw_bone_width"] = "kaakbeen breedte",\n    ["jaw_bone_length"] = "kaakbeen lengte",\n    ["chin_height"] = "kin hoogte",\n    ["chin_length"] = "kin lengte",\n    ["chin_width"] = "kin breedte",\n    ["chin_hole"] = "grootte van het kin-gat",\n    ["neck_thickness"] = "nek dikte",\n    ["wrinkles"] = "rimpels",\n    ["wrinkle_thickness"] = "rimpels dikte",\n    ["beard_type"] = "baard type",\n    ["beard_size"] = "baard grootte",\n    ["beard_color_1"] = "baard kleur 1",\n    ["beard_color_2"] = "baard kleur 2",\n    ["hair_1"] = "haar 1",\n    ["hair_2"] = "haar 2",\n    ["hair_color_1"] = "haar kleur 1",\n    ["hair_color_2"] = "haar kleur 2",\n    ["eye_color"] = "oogkleur",\n    ["eye_squint"] = "oog scheelte",\n    ["eyebrow_type"] = "wenkbrauw type",\n    ["eyebrow_size"] = "wenkbrauw formaat",\n    ["eyebrow_color_1"] = "wenkbrauw kleur 1",\n    ["eyebrow_color_2"] = "wenkbrauw kleur 2",\n    ["eyebrow_depth"] = "wenkbrauw diepte",\n    ["eyebrow_height"] = "wenkbrauw hoogte",\n    ["makeup_type"] = "makeup type",\n    ["makeup_thickness"] = "makeup dikte",\n    ["makeup_color_1"] = "makeup kleur 1",\n    ["makeup_color_2"] = "makeup kleur 2",\n    ["lipstick_type"] = "lippenstift type",\n    ["lipstick_thickness"] = "lippenstift dikte",\n    ["lipstick_color_1"] = "lippenstift kleur 1",\n    ["lipstick_color_2"] = "lippenstift kleur 2",\n    ["ear_accessories"] = "ooraccessoires",\n    ["ear_accessories_color"] = "ooraccessoires kleur",\n    ["tshirt_1"] = "t-shirt 1",\n    ["tshirt_2"] = "t-shirt 2",\n    ["torso_1"] = "vest 1",\n    ["torso_2"] = "vest 2",\n    ["decals_1"] = "stickers 1",\n    ["decals_2"] = "stickers 2",\n    ["arms"] = "armen",\n    ["arms_2"] = "armen 2",\n    ["pants_1"] = "broek 1",\n    ["pants_2"] = "broek 2",\n    ["shoes_1"] = "shoenen 1",\n    ["shoes_2"] = "shoenen 2",\n    ["mask_1"] = "masker 1",\n    ["mask_2"] = "masker 2",\n    ["bproof_1"] = "kogelvrij vest 1",\n    ["bproof_2"] = "kogelvrij vest 2",\n    ["chain_1"] = "ketting 1",\n    ["chain_2"] = "ketting 2",\n    ["helmet_1"] = "helm 1",\n    ["helmet_2"] = "helm 2",\n    ["watches_1"] = "horloge 1",\n    ["watches_2"] = "horloge 2",\n    ["bracelets_1"] = "armband(en) 1",\n    ["bracelets_2"] = "armband(en) 2",\n    ["glasses_1"] = "bril 1",\n    ["glasses_2"] = "bril 2",\n    ["bag"] = "rugzak",\n    ["bag_color"] = "rugzak kleur",\n    ["blemishes"] = "vlekken",\n    ["blemishes_size"] = "vlekken dikte",\n    ["ageing"] = "veroudering",\n    ["ageing_1"] = "veroudering zichtbaarheid",\n    ["blush"] = "blozen",\n    ["blush_1"] = "blozen zichtbaarheid",\n    ["blush_color"] = "blozen kleur",\n    ["complexion"] = "gelaatskleur",\n    ["complexion_1"] = "gelaatskleur 1",\n    ["sun"] = "zon",\n    ["sun_1"] = "zon dikte",\n    ["freckles"] = "sproeten",\n    ["freckles_1"] = "sproeten dikte",\n    ["chest_hair"] = "borsthaar",\n    ["chest_hair_1"] = "borsthaar dikte",\n    ["chest_color"] = "borsthaar kleur",\n    ["bodyb"] = "lichaamsvlekken",\n    ["bodyb_size"] = "lichaamsvlekken zichtbaarheid",\n    ["bodyb_extra"] = "lichaamsvlekken effect",\n    ["bodyb_extra_thickness"] = "lichaamsvlekken effect zichtbaarheid",\n}\n'
+        },
+        {
+          "path": "locales/pl.lua",
+          "source": 'Locales["pl"] = {\n    ["sex"] = "p\u0142e\u0107",\n    ["mom"] = "twarz matki",\n    ["dad"] = "twarz ojca",\n    ["resemblance"] = "podobie\u0144stwo",\n    ["skin_tone"] = "kolor sk\xF3ry",\n    ["nose_1"] = "szeroko\u015B\u0107 nosa",\n    ["nose_2"] = "nose peak height",\n    ["nose_3"] = "wysoko\u015B\u0107 szczytu nosa",\n    ["nose_4"] = "wysoko\u015B\u0107 ko\u015Bci nosa",\n    ["nose_5"] = "obni\u017Cenie szczytu nosa",\n    ["nose_6"] = "skr\u0119cenie ko\u015Bci nosa",\n    ["cheeks_1"] = "wysoko\u015B\u0107 ko\u015Bci policzkowych",\n    ["cheeks_2"] = "szeroko\u015B\u0107 ko\u015Bci policzkowych",\n    ["cheeks_3"] = "szeroko\u015B\u0107 policzk\xF3w",\n    ["lip_fullness"] = "pe\u0142ne usta",\n    ["jaw_bone_width"] = "szeroko\u015B\u0107 ko\u015Bci szcz\u0119ki",\n    ["jaw_bone_length"] = "d\u0142ugo\u015B\u0107 ko\u015Bci szcz\u0119ki",\n    ["chin_height"] = "wysoko\u015B\u0107 podbr\xF3dka",\n    ["chin_length"] = "d\u0142ugo\u015B\u0107 podbr\xF3dka",\n    ["chin_width"] = "szeroko\u015B\u0107 podbr\xF3dka",\n    ["chin_hole"] = "rozmiar dziury w podbr\xF3dku",\n    ["neck_thickness"] = "grubo\u015B\u0107 szyi",\n    ["face"] = "twarz",\n    ["skin"] = "sk\xF3ra",\n    ["wrinkles"] = "zmarszczki",\n    ["wrinkle_thickness"] = "wielko\u015B\u0107 zmarszczek",\n    ["beard_type"] = "styl brody",\n    ["beard_size"] = "wielko\u015B\u0107 brody",\n    ["beard_color_1"] = "kolor brody 1",\n    ["beard_color_2"] = "kolor brody 2",\n    ["hair_1"] = "w\u0142osy 1",\n    ["hair_2"] = "w\u0142osy 2",\n    ["hair_color_1"] = "kolor w\u0142os\xF3w 1",\n    ["hair_color_2"] = "kolor w\u0142os\xF3w 2",\n    ["eye_color"] = "kolor oczu",\n    ["eye_squint"] = "zmru\u017Cenie oczu",\n    ["eyebrow_type"] = "styl brwi",\n    ["eyebrow_size"] = "wielko\u015B\u0107 brwi",\n    ["eyebrow_color_1"] = "kolor brwi 1",\n    ["eyebrow_color_2"] = "kolor brwi 2",\n    ["eyebrow_depth"] = "g\u0142\u0119boko\u015B\u0107 brwi",\n    ["eyebrow_height"] = "wysoko\u015B\u0107 brwi",\n    ["makeup_type"] = "styl makija\u017Cu",\n    ["makeup_thickness"] = "grubo\u015B\u0107 makija\u017Cu",\n    ["makeup_color_1"] = "kolor makija\u017Cu 1",\n    ["makeup_color_2"] = "kolor makija\u017Cu 2",\n    ["lipstick_type"] = "styl szminki",\n    ["lipstick_thickness"] = "grubo\u015B\u0107 szminki",\n    ["lipstick_color_1"] = "kolor szminki 1",\n    ["lipstick_color_2"] = "kolor szminki 2",\n    ["ear_accessories"] = "akcesoria do uszu",\n    ["ear_accessories_color"] = "kolor akcesorii do uszu",\n    ["tshirt_1"] = "koszulka 1",\n    ["tshirt_2"] = "koszulka 2",\n    ["torso_1"] = "tu\u0142\xF3w 1",\n    ["torso_2"] = "tu\u0142\xF3w 2",\n    ["decals_1"] = "detale 1",\n    ["decals_2"] = "detale 2",\n    ["arms"] = "ramiona",\n    ["arms_2"] = "ramiona 2",\n    ["pants_1"] = "spodnie 1",\n    ["pants_2"] = "spodnie 2",\n    ["shoes_1"] = "buty 1",\n    ["shoes_2"] = "buty 2",\n    ["mask_1"] = "maska 1",\n    ["mask_2"] = "maska 2",\n    ["bproof_1"] = "kamizelka kuloodporna 1",\n    ["bproof_2"] = "kamizelka kuloodporna 2",\n    ["chain_1"] = "\u0142a\u0144cuch 1",\n    ["chain_2"] = "\u0142a\u0144cuch 2",\n    ["helmet_1"] = "he\u0142m 1",\n    ["helmet_2"] = "he\u0142m 2",\n    ["watches_1"] = "zegarek 1",\n    ["watches_2"] = "zegarek 2",\n    ["bracelets_1"] = "bransoletka 1",\n    ["bracelets_2"] = "bransoletka 2",\n    ["glasses_1"] = "okulary 1",\n    ["glasses_2"] = "okulary 2",\n    ["bag"] = "torba",\n    ["bag_color"] = "kolor torby",\n    ["blemishes"] = "skazy",\n    ["blemishes_size"] = "wielko\u015B\u0107 skaz",\n    ["ageing"] = "starzenie",\n    ["ageing_1"] = "wielko\u015B\u0107 starzenia",\n    ["blush"] = "rumie\u0144ce",\n    ["blush_1"] = "grubo\u015B\u0107 rumieni",\n    ["blush_color"] = "kolor rumieni",\n    ["complexion"] = "cera",\n    ["complexion_1"] = "rodzaj cery",\n    ["sun"] = "opalenie",\n    ["sun_1"] = "wielko\u015B\u0107 opalenia",\n    ["freckles"] = "piegi",\n    ["freckles_1"] = "rodzaj pieg\xF3w",\n    ["chest_hair"] = "w\u0142osy na klacie",\n    ["chest_hair_1"] = "ilo\u015B\u0107 w\u0142os\xF3w na klacie",\n    ["chest_color"] = "kolor w\u0142os\xF3w na klacie",\n    ["bodyb"] = "skazy cia\u0142a",\n    ["bodyb_size"] = "rodzaj skaz cia\u0142a",\n    ["bodyb_extra"] = "efekt skaz cia\u0142a",\n    ["bodyb_extra_thickness"] = "wielko\u015B\u0107 skaz cia\u0142a",\n}\n'
+        },
+        {
+          "path": "locales/pt.lua",
+          "source": 'Locales["pt"] = {\n    ["sex"] = "sexo",\n    ["mom"] = "cara da m\xE3e",\n    ["dad"] = "cara do pai",\n    ["resemblance"] = "semelhan\xE7as",\n    ["skin_tone"] = "tom de pele",\n    ["nose_1"] = "largura do nariz",\n    ["nose_2"] = "altura da ponta do nariz",\n    ["nose_3"] = "tamanho da ponta do nariz",\n    ["nose_4"] = "altura do nariz",\n    ["nose_5"] = "reduzir ponta do nariz",\n    ["nose_6"] = "torcer o nariz",\n    ["cheeks_1"] = "altura das ma\xE7\xE3s do rosto",\n    ["cheeks_2"] = "largura das ma\xE7\xE3s do rosto",\n    ["cheeks_3"] = "largura das bochechas",\n    ["lip_fullness"] = "preenchimento labial",\n    ["jaw_bone_width"] = "largura do maxilar",\n    ["jaw_bone_length"] = "comprimento do maxilar",\n    ["chin_height"] = "altura do queixo",\n    ["chin_length"] = "comprimento do queixo",\n    ["chin_width"] = "largura do queixo",\n    ["chin_hole"] = "tamanho do buraco do queixo",\n    ["neck_thickness"] = "espessura do pesco\xE7o",\n    ["wrinkles"] = "rugas",\n    ["wrinkle_thickness"] = "espessura das rugas",\n    ["beard_type"] = "tipo de barba",\n    ["beard_size"] = "tamanho da barba",\n    ["beard_color_1"] = "cor da barba 1",\n    ["beard_color_2"] = "cor da barba 2",\n    ["hair_1"] = "cabelo 1",\n    ["hair_2"] = "cabelo 2",\n    ["hair_color_1"] = "cor do cabelo 1",\n    ["hair_color_2"] = "cor do cabelo 2",\n    ["eye_color"] = "cor dos olhos",\n    ["eye_squint"] = "estrabismo",\n    ["eyebrow_type"] = "tipo de sobrancelha",\n    ["eyebrow_size"] = "tamanho da sobrancelha",\n    ["eyebrow_color_1"] = "cor da sobrancelha 1",\n    ["eyebrow_color_2"] = "cor da sobrancelha 2",\n    ["eyebrow_depth"] = "profundidade da sobrancelha",\n    ["eyebrow_height"] = "altura da sobrancelha",\n    ["makeup_type"] = "tipo de maquiagem",\n    ["makeup_thickness"] = "espessura da maquiagem",\n    ["makeup_color_1"] = "cor da maquiagem 1",\n    ["makeup_color_2"] = "cor da maquiagem 2",\n    ["lipstick_type"] = "tipo de batom",\n    ["lipstick_thickness"] = "espessura do batom",\n    ["lipstick_color_1"] = "cor do batom 1",\n    ["lipstick_color_2"] = "cor do batom 2",\n    ["ear_accessories"] = "acess\xF3rios de ouvido",\n    ["ear_accessories_color"] = "cor dos acess\xF3rios de ouvido",\n    ["tshirt_1"] = "t-Shirt 1",\n    ["tshirt_2"] = "t-Shirt 2",\n    ["torso_1"] = "casaco 1",\n    ["torso_2"] = "casaco 2",\n    ["decals_1"] = "autocolantes 1",\n    ["decals_2"] = "autocolantes 2",\n    ["arms"] = "bra\xE7os",\n    ["arms_2"] = "bra\xE7os 2",\n    ["pants_1"] = "cal\xE7as 1",\n    ["pants_2"] = "cal\xE7as 2",\n    ["shoes_1"] = "sapatos 1",\n    ["shoes_2"] = "sapatos 2",\n    ["mask_1"] = "m\xE1scara 1",\n    ["mask_2"] = "m\xE1scara 2",\n    ["bproof_1"] = "colete 1",\n    ["bproof_2"] = "colete 2",\n    ["chain_1"] = "colar 1",\n    ["chain_2"] = "colar 2",\n    ["helmet_1"] = "capacete 1",\n    ["helmet_2"] = "capacete 2",\n    ["watches_1"] = "rel\xF3gio 1",\n    ["watches_2"] = "rel\xF3gio 2",\n    ["bracelets_1"] = "pulseiras 1",\n    ["bracelets_2"] = "pulseiras 2",\n    ["glasses_1"] = "\xF3culos 1",\n    ["glasses_2"] = "\xF3culos 2",\n    ["bag"] = "mochila",\n    ["bag_color"] = "cor da mochila",\n    ["blemishes"] = "manchas",\n    ["blemishes_size"] = "espessura de manchas",\n    ["ageing"] = "envelhecimento",\n    ["ageing_1"] = "espessura de envelhecimento",\n    ["blush"] = "corar",\n    ["blush_1"] = "espessura do blush",\n    ["blush_color"] = "cor de blush",\n    ["complexion"] = "apar\xEAncia",\n    ["complexion_1"] = "apar\xEAncia 2",\n    ["sun"] = "sol",\n    ["sun_1"] = "espessura do sol",\n    ["freckles"] = "sardas",\n    ["freckles_1"] = "espessura das sardas",\n    ["chest_hair"] = "pelos no peito",\n    ["chest_hair_1"] = "espessura dos pelos do peito",\n    ["chest_color"] = "cor dos pelos dos peitos",\n    ["bodyb"] = "manchas no corpo",\n    ["bodyb_size"] = "espessura das manchas no corpo",\n    ["bodyb_extra"] = "extra das manchas no corpo",\n    ["bodyb_extra_thickness"] = "cor do extra das manchas no corpo",\n}\n'
+        },
+        {
+          "path": "locales/sl.lua",
+          "source": `Locales["sl"] = {
+    ["sex"] = "Spol",
+    ["mom"] = "mom's face",
+    ["dad"] = "dad's face",
+    ["resemblance"] = "resemblance",
+    ["skin_tone"] = "skin tone",
+    ["nose_1"] = "nose width",
+    ["nose_2"] = "nose peak height",
+    ["nose_3"] = "nose peak length",
+    ["nose_4"] = "nose bone height",
+    ["nose_5"] = "nose peak lowering",
+    ["nose_6"] = "nose bone twist",
+    ["cheeks_1"] = "cheekbones height",
+    ["cheeks_2"] = "cheekbones width",
+    ["cheeks_3"] = "cheeks width",
+    ["lip_fullness"] = "lip fullness",
+    ["jaw_bone_width"] = "jaw bone width",
+    ["jaw_bone_length"] = "jaw bone length",
+    ["chin_height"] = "chin height",
+    ["chin_length"] = "chin length",
+    ["chin_width"] = "chin width",
+    ["chin_hole"] = "chin hole size",
+    ["neck_thickness"] = "neck thickness",
+    ["wrinkles"] = "wrinkles",
+    ["wrinkle_thickness"] = "wrinkle thickness",
+    ["beard_type"] = "beard type",
+    ["beard_size"] = "beard size",
+    ["beard_color_1"] = "beard color 1",
+    ["beard_color_2"] = "beard color 2",
+    ["hair_1"] = "hair 1",
+    ["hair_2"] = "hair 2",
+    ["hair_color_1"] = "hair color 1",
+    ["hair_color_2"] = "hair color 2",
+    ["eye_color"] = "eye color",
+    ["eye_squint"] = "eye squint",
+    ["eyebrow_type"] = "eyebrow type",
+    ["eyebrow_size"] = "eyebrow size",
+    ["eyebrow_color_1"] = "eyebrow color 1",
+    ["eyebrow_color_2"] = "eyebrow color 2",
+    ["eyebrow_depth"] = "eyebrow depth",
+    ["eyebrow_height"] = "eyebrow height",
+    ["makeup_type"] = "makeup type",
+    ["makeup_thickness"] = "makeup thickness",
+    ["makeup_color_1"] = "makeup color 1",
+    ["makeup_color_2"] = "makeup color 2",
+    ["lipstick_type"] = "lipstick type",
+    ["lipstick_thickness"] = "lipstick thickness",
+    ["lipstick_color_1"] = "lipstick color 1",
+    ["lipstick_color_2"] = "lipstick color 2",
+    ["ear_accessories"] = "ear accessories",
+    ["ear_accessories_color"] = "ear accessories color",
+    ["tshirt_1"] = "t-Shirt 1",
+    ["tshirt_2"] = "t-Shirt 2",
+    ["torso_1"] = "torso 1",
+    ["torso_2"] = "torso 2",
+    ["decals_1"] = "decals 1",
+    ["decals_2"] = "decals 2",
+    ["arms"] = "arms",
+    ["arms_2"] = "arms 2",
+    ["pants_1"] = "pants 1",
+    ["pants_2"] = "pants 2",
+    ["shoes_1"] = "shoes 1",
+    ["shoes_2"] = "shoes 2",
+    ["mask_1"] = "mask 1",
+    ["mask_2"] = "mask 2",
+    ["bproof_1"] = "bulletproof vest 1",
+    ["bproof_2"] = "bulletproof vest 2",
+    ["chain_1"] = "chain 1",
+    ["chain_2"] = "chain 2",
+    ["helmet_1"] = "helmet 1",
+    ["helmet_2"] = "helmet 2",
+    ["watches_1"] = "watches 1",
+    ["watches_2"] = "watches 2",
+    ["bracelets_1"] = "bracelets 1",
+    ["bracelets_2"] = "bracelets 2",
+    ["glasses_1"] = "glasses 1",
+    ["glasses_2"] = "glasses 2",
+    ["bag"] = "bag",
+    ["bag_color"] = "bag color",
+    ["blemishes"] = "blemishes",
+    ["blemishes_size"] = "blemishes thickness",
+    ["ageing"] = "ageing",
+    ["ageing_1"] = "ageing thickness",
+    ["blush"] = "blush",
+    ["blush_1"] = "blush thickness",
+    ["blush_color"] = "blush color",
+    ["complexion"] = "complexion",
+    ["complexion_1"] = "complexion thickness",
+    ["sun"] = "sun",
+    ["sun_1"] = "sun thickness",
+    ["freckles"] = "freckles",
+    ["freckles_1"] = "freckles thickness",
+    ["chest_hair"] = "chest hair",
+    ["chest_hair_1"] = "chest hair thickness",
+    ["chest_color"] = "chest hair color",
+    ["bodyb"] = "body blemishes",
+    ["bodyb_size"] = "body blemishes thickness",
+    ["bodyb_extra"] = "blemishes body effect",
+    ["bodyb_extra_thickness"] = "blemishes body effect thickness",
+}
+`
+        },
+        {
+          "path": "locales/sr.lua",
+          "source": 'Locales["sr"] = {\n    ["sex"] = "pol",\n    ["mom"] = "mamina faca",\n    ["dad"] = "tatina faca",\n    ["resemblance"] = "sli\u010Dnost",\n    ["skin_tone"] = "ten",\n    ["nose_1"] = "\u0161irina nosa",\n    ["nose_2"] = "visina vrha nosa",\n    ["nose_3"] = "du\u017Eina vrha nosa",\n    ["nose_4"] = "visina nosne kosti",\n    ["nose_5"] = "spu\u0161tanje vrha nosa",\n    ["nose_6"] = "uvrtanje nosne kosti",\n    ["cheeks_1"] = "visina jagodica",\n    ["cheeks_2"] = "\u0161irina jagodica",\n    ["cheeks_3"] = "\u0161irina obraza",\n    ["lip_fullness"] = "puno\u0107a usana",\n    ["jaw_bone_width"] = "\u0161irina kostiju vilice",\n    ["jaw_bone_length"] = "du\u017Eina kostiju vilice",\n    ["chin_height"] = "visina brade",\n    ["chin_length"] = "du\u017Eina brade",\n    ["chin_width"] = "\u0161irina brade",\n    ["chin_hole"] = "veli\u010Dina rupe za bradu",\n    ["neck_thickness"] = "debljina vrata",\n    ["wrinkles"] = "bore",\n    ["wrinkle_thickness"] = "debljina bora",\n    ["beard_type"] = "tip brade",\n    ["beard_size"] = "veli\u010Dina brade",\n    ["beard_color_1"] = "boja brade 1",\n    ["beard_color_2"] = "boja brade 2",\n    ["hair_1"] = "kosa 1",\n    ["hair_2"] = "kosa 2",\n    ["hair_color_1"] = "boja kose 1",\n    ["hair_color_2"] = "boja kose 2",\n    ["eye_color"] = "boja o\u010Diju",\n    ["eye_squint"] = "ra\u0161irenost oka",\n    ["eyebrow_type"] = "tip obrva",\n    ["eyebrow_size"] = "veli\u010Dina obrva",\n    ["eyebrow_color_1"] = "boja obrva 1",\n    ["eyebrow_color_2"] = "boja obrva 2",\n    ["eyebrow_depth"] = "dubina obrva",\n    ["eyebrow_height"] = "visina obrva",\n    ["makeup_type"] = "\u0161minka",\n    ["makeup_thickness"] = "debljina \u0161minke",\n    ["makeup_color_1"] = "boja \u0161minke 1",\n    ["makeup_color_2"] = "boja \u0161minke 2",\n    ["lipstick_type"] = "tip karmina",\n    ["lipstick_thickness"] = "debljina karmina",\n    ["lipstick_color_1"] = "boja karmina 1",\n    ["lipstick_color_2"] = "boja karmina 2",\n    ["ear_accessories"] = "nau\u0161nice",\n    ["ear_accessories_color"] = "boja nau\u0161nica",\n    ["tshirt_1"] = "majica ",\n    ["tshirt_2"] = "boja majice",\n    ["torso_1"] = "gornjak",\n    ["torso_2"] = "boja gornjaka",\n    ["decals_1"] = "detalji",\n    ["decals_2"] = "boja detalja",\n    ["arms"] = "ruke",\n    ["arms_2"] = "boja rukavica",\n    ["pants_1"] = "pantalone",\n    ["pants_2"] = "boja pantalona",\n    ["shoes_1"] = "patike",\n    ["shoes_2"] = "boja patika",\n    ["mask_1"] = "maska",\n    ["mask_2"] = "boja maske",\n    ["bproof_1"] = "pancir",\n    ["bproof_2"] = "boja pancira",\n    ["chain_1"] = "lanac",\n    ["chain_2"] = "boja lanca",\n    ["helmet_1"] = "kaciga",\n    ["helmet_2"] = "boja kacige",\n    ["watches_1"] = "sat",\n    ["watches_2"] = "boja sata",\n    ["bracelets_1"] = "narukvice",\n    ["bracelets_2"] = "boja narukvice",\n    ["glasses_1"] = "nao\u010Dare",\n    ["glasses_2"] = "boja nao\u010Dara",\n    ["bag"] = "torba",\n    ["bag_color"] = "boja torbe",\n    ["blemishes"] = "mrlje",\n    ["blemishes_size"] = "debljina mrlja",\n    ["ageing"] = "starenje",\n    ["ageing_1"] = "debljina starenja",\n    ["blush"] = "rumenilo",\n    ["blush_1"] = "debljina rumenila",\n    ["blush_color"] = "boja rumenila",\n    ["complexion"] = "ten",\n    ["complexion_1"] = "debljina tena",\n    ["sun"] = "sunce",\n    ["sun_1"] = "debljina sunca",\n    ["freckles"] = "pege",\n    ["freckles_1"] = "debljina pega",\n    ["chest_hair"] = "dlake na grudima",\n    ["chest_hair_1"] = "debljina dlaka na grudima",\n    ["chest_color"] = "boja dlaka na grudima",\n    ["bodyb"] = "mrlje na telu",\n    ["bodyb_size"] = "debljina mrlja na telu",\n    ["bodyb_extra"] = "efekat mrlja na telu",\n    ["bodyb_extra_thickness"] = "mrlje telo efekat debljine",\n}\n'
+        },
+        {
+          "path": "locales/sv.lua",
+          "source": 'Locales["sv"] = {\n    ["sex"] = "K\xF6n",\n    ["mom"] = "Mammas ansikte",\n    ["dad"] = "Pappas ansikte",\n    ["resemblance"] = "Likhet",\n    ["skin_tone"] = "Hudton",\n    ["nose_1"] = "N\xE4sbredd",\n    ["nose_2"] = "N\xE4stoppsh\xF6jd",\n    ["nose_3"] = "N\xE4stoppsl\xE4ngd",\n    ["nose_4"] = "N\xE4sbensh\xF6jd",\n    ["nose_5"] = "N\xE4stoppss\xE4nkning",\n    ["nose_6"] = "N\xE4sbensvridning",\n    ["cheeks_1"] = "Kindbens h\xF6jd",\n    ["cheeks_2"] = "Kindbens bredd",\n    ["cheeks_3"] = "Kinder bredd",\n    ["lip_fullness"] = "L\xE4ppfullhet",\n    ["jaw_bone_width"] = "K\xE4kbensbredd",\n    ["jaw_bone_length"] = "K\xE4kbensl\xE4ngd",\n    ["chin_height"] = "Hakh\xF6jd",\n    ["chin_length"] = "Hakl\xE4ngd",\n    ["chin_width"] = "Hakbredd",\n    ["chin_hole"] = "Hakh\xE5lsstorlek",\n    ["neck_thickness"] = "Halstjocklek",\n    ["wrinkles"] = "Rynkor",\n    ["wrinkle_thickness"] = "Rynktjocklek",\n    ["beard_type"] = "Sk\xE4gg typ",\n    ["beard_size"] = "Sk\xE4ggstorlek",\n    ["beard_color_1"] = "Sk\xE4ggf\xE4rg 1",\n    ["beard_color_2"] = "Sk\xE4ggf\xE4rg 2",\n    ["hair_1"] = "H\xE5r 1",\n    ["hair_2"] = "H\xE5r 2",\n    ["hair_color_1"] = "H\xE5rf\xE4rg 1",\n    ["hair_color_2"] = "H\xE5rf\xE4rg 2",\n    ["eye_color"] = "\xD6gonf\xE4rg",\n    ["eye_squint"] = "Kisning",\n    ["eyebrow_type"] = "\xD6gonbryn",\n    ["eyebrow_size"] = "\xD6gonbryns Storlek",\n    ["eyebrow_color_1"] = "\xD6gonbrynsf\xE4rg 1",\n    ["eyebrow_color_2"] = "\xD6gonbrynsf\xE4rg 2",\n    ["eyebrow_depth"] = "\xD6gonbryns djup",\n    ["eyebrow_height"] = "\xD6gonbrynsh\xF6jd",\n    ["makeup_type"] = "Smink",\n    ["makeup_thickness"] = "Sminktjocklek",\n    ["makeup_color_1"] = "Sminkf\xE4rg 1",\n    ["makeup_color_2"] = "Sminkf\xE4rg 2",\n    ["lipstick_type"] = "L\xE4ppstift",\n    ["lipstick_thickness"] = "L\xE4ppstift tjocklek",\n    ["lipstick_color_1"] = "L\xE4ppstift f\xE4rg 1",\n    ["lipstick_color_2"] = "L\xE4ppstift f\xE4rg 2",\n    ["ear_accessories"] = "\xD6rontillbeh\xF6r",\n    ["ear_accessories_color"] = "\xD6rontillbeh\xF6r color",\n    ["tshirt_1"] = "T-Shirt 1",\n    ["tshirt_2"] = "T-Shirt 2",\n    ["torso_1"] = "Jacka 1",\n    ["torso_2"] = "Jacka 2",\n    ["decals_1"] = "Dekaler 1",\n    ["decals_2"] = "Dekaler 2",\n    ["arms"] = "Armar",\n    ["arms_2"] = "Armar 2",\n    ["pants_1"] = "Byxor 1",\n    ["pants_2"] = "Byxor 2",\n    ["shoes_1"] = "Skor 1",\n    ["shoes_2"] = "Skor 2",\n    ["mask_1"] = "Mask 1",\n    ["mask_2"] = "Mask 2",\n    ["bproof_1"] = "Skotts\xE4ker v\xE4st 1",\n    ["bproof_2"] = "Skotts\xE4ker v\xE4st 2",\n    ["chain_1"] = "Kedja 1",\n    ["chain_2"] = "Kedja 2",\n    ["helmet_1"] = "Hj\xE4lm 1",\n    ["helmet_2"] = "Hj\xE4lm 2",\n    ["watches_1"] = "Klockor 1",\n    ["watches_2"] = "Klockor 2",\n    ["bracelets_1"] = "Armband 1",\n    ["bracelets_2"] = "Armband 2",\n    ["glasses_1"] = "Glas\xF6gon 1",\n    ["glasses_2"] = "Glas\xF6gon 2",\n    ["bag"] = "V\xE4ska",\n    ["bag_color"] = "V\xE4skf\xE4rg",\n    ["blemishes"] = "Fl\xE4ckar",\n    ["blemishes_size"] = "Fl\xE4ckar tjocklek",\n    ["ageing"] = "\xC5ldring",\n    ["ageing_1"] = "\xC5ldring tjocklek",\n    ["blush"] = "Rouge",\n    ["blush_1"] = "Rodning tjocklek",\n    ["blush_color"] = "Rouge f\xE4rg",\n    ["complexion"] = "Hy",\n    ["complexion_1"] = "Hy tjocklek",\n    ["sun"] = "Sol",\n    ["sun_1"] = "Soltjocklek",\n    ["freckles"] = "Fr\xE4knar",\n    ["freckles_1"] = "Fr\xE4knar tjocklek",\n    ["chest_hair"] = "Br\xF6sth\xE5r",\n    ["chest_hair_1"] = "Br\xF6sth\xE5r tjocklek",\n    ["chest_color"] = "Br\xF6sth\xE5r f\xE4rg",\n    ["bodyb"] = "Kroppsfl\xE4ckar",\n    ["bodyb_size"] = "Kroppsfl\xE4ckar tjocklek",\n    ["bodyb_extra"] = "Fl\xE4ckar kroppseffekt",\n    ["bodyb_extra_thickness"] = "Fl\xE4ckar kroppseffekt tjocklek",\n}\n'
+        },
+        {
+          "path": "config.lua",
+          "source": 'Config = {}\n\nConfig.Locale = GetConvar("esx:locale", "en")\n\nConfig.Components = {\n    {\n        label = TranslateCap("sex"),\n        name = "sex",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 1,\n    },\n    {\n        label = TranslateCap("mom"),\n        name = "mom",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 45,\n    },\n    {\n        label = TranslateCap("dad"),\n        name = "dad",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 44,\n    },\n    {\n        label = TranslateCap("grandparents"),\n        name = "grandparents",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 45,\n    },\n    {\n        label = TranslateCap("resemblance"),\n        name = "face_md_weight",\n        value = 50,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 100,\n    },\n    {\n        label = TranslateCap("resemblance_g"),\n        name = "face_g_weight",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 100,\n    },\n    {\n        label = TranslateCap("skin_tone"),\n        name = "skin_md_weight",\n        value = 50,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 100,\n    },\n    {\n        label = TranslateCap("nose_1"),\n        name = "nose_1",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("nose_2"),\n        name = "nose_2",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("nose_3"),\n        name = "nose_3",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("nose_4"),\n        name = "nose_4",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("nose_5"),\n        name = "nose_5",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("nose_6"),\n        name = "nose_6",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("cheeks_1"),\n        name = "cheeks_1",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("cheeks_2"),\n        name = "cheeks_2",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("cheeks_3"),\n        name = "cheeks_3",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("lip_fullness"),\n        name = "lip_thickness",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("jaw_bone_width"),\n        name = "jaw_1",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("jaw_bone_length"),\n        name = "jaw_2",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("chin_height"),\n        name = "chin_1",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("chin_length"),\n        name = "chin_2",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("chin_width"),\n        name = "chin_3",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("chin_hole"),\n        name = "chin_4",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("neck_thickness"),\n        name = "neck_thickness",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("hair_1"),\n        name = "hair_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 2) - 1\n        end\n    },\n    {\n        label = TranslateCap("hair_2"),\n        name = "hair_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        textureof = "hair_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 2, Character["hair_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("hair_color_1"),\n        name = "hair_color_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("hair_color_2"),\n        name = "hair_color_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("tshirt_1"),\n        name = "tshirt_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        componentId = 8,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 8) - 1\n        end\n    },\n    {\n        label = TranslateCap("tshirt_2"),\n        name = "tshirt_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        textureof = "tshirt_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 8, Character["tshirt_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("torso_1"),\n        name = "torso_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        componentId = 11,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 11) - 1\n        end\n    },\n    {\n        label = TranslateCap("torso_2"),\n        name = "torso_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        textureof = "torso_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 11, Character["torso_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("decals_1"),\n        name = "decals_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        componentId = 10,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 10) - 1\n        end\n    },\n    {\n        label = TranslateCap("decals_2"),\n        name = "decals_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        textureof = "decals_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 10, Character["decals_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("arms"),\n        name = "arms",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 3) - 1\n        end\n    },\n    {\n        label = TranslateCap("arms_2"),\n        name = "arms_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        max = 10,\n    },\n    {\n        label = TranslateCap("pants_1"),\n        name = "pants_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.8,\n        camOffset = -0.5,\n        componentId = 4,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 4) - 1\n        end\n    },\n    {\n        label = TranslateCap("pants_2"),\n        name = "pants_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.8,\n        camOffset = -0.5,\n        textureof = "pants_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 4, Character["pants_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("shoes_1"),\n        name = "shoes_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.8,\n        camOffset = -0.8,\n        componentId = 6,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 6) - 1\n        end\n    },\n    {\n        label = TranslateCap("shoes_2"),\n        name = "shoes_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.8,\n        camOffset = -0.8,\n        textureof = "shoes_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 6, Character["shoes_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("mask_1"),\n        name = "mask_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        componentId = 1,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 1) - 1\n        end\n    },\n    {\n        label = TranslateCap("mask_2"),\n        name = "mask_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        textureof = "mask_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 1, Character["mask_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("bproof_1"),\n        name = "bproof_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        componentId = 9,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 9) - 1\n        end\n    },\n    {\n        label = TranslateCap("bproof_2"),\n        name = "bproof_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        textureof = "bproof_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 9, Character["bproof_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("chain_1"),\n        name = "chain_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        componentId = 7,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 7) - 1\n        end\n    },\n    {\n        label = TranslateCap("chain_2"),\n        name = "chain_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        textureof = "chain_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 7, Character["chain_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("helmet_1"),\n        name = "helmet_1",\n        value = -1,\n        min = -1,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        componentId = 0,\n        max = function(playerPed)\n            return GetNumberOfPedPropDrawableVariations(playerPed, 0) - 1\n        end\n    },\n    {\n        label = TranslateCap("helmet_2"),\n        name = "helmet_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        textureof = "helmet_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedPropTextureVariations(playerPed, 0, Character["helmet_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("glasses_1"),\n        name = "glasses_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        componentId = 1,\n        max = function(playerPed)\n            return GetNumberOfPedPropDrawableVariations(playerPed, 1) - 1\n        end\n    },\n    {\n        label = TranslateCap("glasses_2"),\n        name = "glasses_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.6,\n        camOffset = 0.65,\n        textureof = "glasses_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedPropTextureVariations(playerPed, 1, Character["glasses_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("watches_1"),\n        name = "watches_1",\n        value = -1,\n        min = -1,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        componentId = 6,\n        max = function(playerPed)\n            return GetNumberOfPedPropDrawableVariations(playerPed, 6) - 1\n        end\n    },\n    {\n        label = TranslateCap("watches_2"),\n        name = "watches_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        textureof = "watches_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedPropTextureVariations(playerPed, 6, Character["watches_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("bracelets_1"),\n        name = "bracelets_1",\n        value = -1,\n        min = -1,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        componentId = 7,\n        max = function(playerPed)\n            return GetNumberOfPedPropDrawableVariations(playerPed, 7) - 1\n        end\n    },\n    {\n        label = TranslateCap("bracelets_2"),\n        name = "bracelets_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        textureof = "bracelets_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedPropTextureVariations(playerPed, 7, Character["bracelets_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("bag"),\n        name = "bags_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        componentId = 5,\n        max = function(playerPed)\n            return GetNumberOfPedDrawableVariations(playerPed, 5) - 1\n        end\n    },\n    {\n        label = TranslateCap("bag_color"),\n        name = "bags_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        textureof = "bags_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedTextureVariations(playerPed, 5, Character["bags_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("eye_color"),\n        name = "eye_color",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 31,\n    },\n    {\n        label = TranslateCap("eye_squint"),\n        name = "eye_squint",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("eyebrow_size"),\n        name = "eyebrows_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("eyebrow_type"),\n        name = "eyebrows_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(2) - 1\n        end\n    },\n    {\n        label = TranslateCap("eyebrow_color_1"),\n        name = "eyebrows_3",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("eyebrow_color_2"),\n        name = "eyebrows_4",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("eyebrow_height"),\n        name = "eyebrows_5",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("eyebrow_depth"),\n        name = "eyebrows_6",\n        value = 0,\n        min = -10,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("makeup_type"),\n        name = "makeup_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(4) - 1\n        end\n    },\n    {\n        label = TranslateCap("makeup_thickness"),\n        name = "makeup_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("makeup_color_1"),\n        name = "makeup_3",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("makeup_color_2"),\n        name = "makeup_4",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("lipstick_type"),\n        name = "lipstick_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(8) - 1\n        end\n    },\n    {\n        label = TranslateCap("lipstick_thickness"),\n        name = "lipstick_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("lipstick_color_1"),\n        name = "lipstick_3",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("lipstick_color_2"),\n        name = "lipstick_4",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("ear_accessories"),\n        name = "ears_1",\n        value = -1,\n        min = -1,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        componentId = 2,\n        max = function(playerPed)\n            return GetNumberOfPedPropDrawableVariations(playerPed, 2) - 1\n        end\n    },\n    {\n        label = TranslateCap("ear_accessories_color"),\n        name = "ears_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        textureof = "ears_1",\n        max = function(playerPed, Character)\n            return GetNumberOfPedPropTextureVariations(playerPed, 2, Character["ears_1"]) - 1\n        end\n    },\n    {\n        label = TranslateCap("chest_hair"),\n        name = "chest_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        max = function()\n            return GetPedHeadOverlayNum(10) - 1\n        end\n    },\n    {\n        label = TranslateCap("chest_hair_1"),\n        name = "chest_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        max = 10,\n    },\n    {\n        label = TranslateCap("chest_color"),\n        name = "chest_3",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("bodyb"),\n        name = "bodyb_1",\n        value = -1,\n        min = -1,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        max = function()\n            return GetPedHeadOverlayNum(11) - 1\n        end\n    },\n    {\n        label = TranslateCap("bodyb_size"),\n        name = "bodyb_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.75,\n        camOffset = 0.15,\n        max = 10,\n    },\n    {\n        label = TranslateCap("bodyb_extra"),\n        name = "bodyb_3",\n        value = -1,\n        min = -1,\n        zoomOffset = 0.4,\n        camOffset = 0.15,\n        max = function()\n            return GetPedHeadOverlayNum(12) - 1\n        end\n    },\n    {\n        label = TranslateCap("bodyb_extra_thickness"),\n        name = "bodyb_4",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.15,\n        max = 10,\n    },\n    {\n        label = TranslateCap("wrinkles"),\n        name = "age_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(3) - 1\n        end\n    },\n    {\n        label = TranslateCap("wrinkle_thickness"),\n        name = "age_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("blemishes"),\n        name = "blemishes_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(0) - 1\n        end\n    },\n    {\n        label = TranslateCap("blemishes_size"),\n        name = "blemishes_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("blush"),\n        name = "blush_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(5) - 1\n        end\n    },\n    {\n        label = TranslateCap("blush_1"),\n        name = "blush_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("blush_color"),\n        name = "blush_3",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("complexion"),\n        name = "complexion_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(6) - 1\n        end\n    },\n    {\n        label = TranslateCap("complexion_1"),\n        name = "complexion_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("sun"),\n        name = "sun_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(7) - 1\n        end\n    },\n    {\n        label = TranslateCap("sun_1"),\n        name = "sun_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("freckles"),\n        name = "moles_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(9) - 1\n        end\n    },\n    {\n        label = TranslateCap("freckles_1"),\n        name = "moles_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("beard_type"),\n        name = "beard_1",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetPedHeadOverlayNum(1) - 1\n        end\n    },\n    {\n        label = TranslateCap("beard_size"),\n        name = "beard_2",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = 10,\n    },\n    {\n        label = TranslateCap("beard_color_1"),\n        name = "beard_3",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n    {\n        label = TranslateCap("beard_color_2"),\n        name = "beard_4",\n        value = 0,\n        min = 0,\n        zoomOffset = 0.4,\n        camOffset = 0.65,\n        max = function()\n            return GetNumHairColors() - 1\n        end\n    },\n}\n'
+        },
+        {
+          "path": "client/main.lua",
+          "source": `
+SkinChanger = {}
+SkinChanger._index = SkinChanger
+
+SkinChanger.lastSex = -1
+SkinChanger.character = {}
+SkinChanger.components = Config.Components
+
+function SkinChanger:RequestModel(model)
+    if type(model) == "string" then
+        model = joaat(model)
+    end
+
+    RequestModel(model)
+
+    while not HasModelLoaded(model) do
+        Wait(200)
+    end
+
+    return model
+end
+
+function SkinChanger:ModelLoaded()
+    ClearPedProp(PlayerPedId(), 0)
+
+    if self.loadSkin ~= nil then
+        self:ApplySkin(self.loadSkin)
+        self.loadSkin = nil
+    end
+
+    if self.loadClothes ~= nil then
+        self:ApplySkin(self.loadClothes.playerSkin, self.loadClothes.clothesSkin)
+        self.loadClothes = nil
+    end
+end
+
+function SkinChanger:DefaultModel(male, cb)
+    local characterModel = male and _cfxbt_mp_m_freemode_01 or _cfxbt_mp_f_freemode_01
+
+    if not IsModelInCdimage(characterModel) or not IsModelValid(characterModel) then
+        return
+    end
+    local model = self:RequestModel(characterModel)
+
+    SetPlayerModel(PlayerId(), model)
+    SetPedDefaultComponentVariation(PlayerPedId())
+
+    SetModelAsNoLongerNeeded(model)
+
+    if cb then
+        cb()
+    end
+
+    self:ModelLoaded()
+end
+
+function SkinChanger:MaxValues()
+    local playerPed = PlayerPedId()
+    local data = {}
+
+    for i = 1, #self.components, 1 do
+        local component = self.components[i]
+        local max = type(component.max) == "function" and component.max(playerPed, self.character) or component.max
+        data[component.name] = max
+    end
+
+    return data
+end
+
+function SkinChanger:DefaultFromSex(sex, cb)
+    if sex == 0 then
+        self:DefaultModel(true, cb)
+    else
+        self:DefaultModel(false, cb)
+    end
+end
+
+function SkinChanger:LoadSkin(skin, cb)
+    local sex = skin["sex"]
+    if sex ~= self.lastSex then
+        self.loadSkin = skin
+        self:DefaultFromSex(sex, cb)
+
+        self.lastSex = sex
+    else
+        self:ApplySkin(skin)
+
+        if cb ~= nil then
+            cb()
+        else
+            return
+        end
+    end
+end
+
+function SkinChanger:ValidClothes(key)
+    local keys = {["sex"] = true, ["mom"] = true, ["dad"] = true, ["face_md_weight"] = true, ["skin_md_weight"] = true, ["nose_1"] = true, ["nose_2"] = true,
+    ["nose_3"] = true, ["nose_4"] = true, ["nose_5"] = true, ["nose_6"] = true, ["cheeks_1"] = true, ["cheeks_2"] = true, ["cheeks_3"] = true,
+    ["lip_thickness"] = true, ["jaw_1"] = true, ["jaw_2"] = true, ["chin_1"] = true, ["chin_2"] = true, ["chin_3"] = true, ["chin_4"] = true,
+    ["neck_thickness"] = true, ["age_1"] = true, ["age_2"] = true, ["eye_color"] = true, ["eye_squint"] = true, ["beard_1"] = true, ["beard_2"] = true,
+    ["beard_3"] = true, ["beard_4"] = true, ["hair_1"] = true, ["hair_2"] = true, ["hair_color_1"] = true, ["hair_color_2"] = true, ["eyebrows_1"] = true,
+    ["eyebrows_2"] = true, ["eyebrows_3"] = true, ["eyebrows_4"] = true, ["eyebrows_5"] = true, ["eyebrows_6"] = true, ["makeup_1"] = true, ["makeup_2"] = true,
+    ["makeup_3"] = true, ["makeup_4"] = true, ["lipstick_1"] = true, ["lipstick_2"] = true, ["lipstick_3"] = true, ["lipstick_4"] = true, ["blemishes_1"] = true,
+    ["blemishes_2"] = true, ["blemishes_3"] = true, ["blush_1"] = true, ["blush_2"] = true, ["blush_3"] = true, ["complexion_1"] = true, ["complexion_2"] = true,
+    ["sun_1"] = true, ["sun_2"] = true, ["moles_1"] = true, ["moles_2"] = true, ["chest_1"] = true, ["chest_2"] = true, ["chest_3"] = true, ["bodyb_1"] = true,
+    ["bodyb_2"] = true, ["bodyb_3"] = true, ["bodyb_4"] = true}
+    return keys[key] == nil
+end
+
+local function Normalise(weight, divison)
+    return (weight / divison) + 0.0
+end
+
+function SkinChanger:SetHead()
+    local face_weight = Normalise(self.character["face_md_weight"], 100)
+    local skin_weight = Normalise(self.character["skin_md_weight"], 100)
+
+    if not self.character["face_g_weight"] then
+        self.character["face_g_weight"] = 0
+    end
+
+    local third_weight = Normalise(self.character["face_g_weight"], 100)
+
+    if not self.character["grandparents"] then
+        self.character["grandparents"] = 0
+    end
+
+    SetPedHeadBlendData(self.playerPed,
+    self.character["mom"], self.character["dad"], self.character["grandparents"] , self.character["mom"],
+    self.character["dad"], self.character["grandparents"], face_weight, skin_weight, third_weight, false)
+end
+
+function SkinChanger:SetFace()
+    local features = {"nose_1", "nose_2", "nose_3", "nose_4", "nose_5", "nose_6", "eyebrows_5", "eyebrows_6", "cheeks_1", "cheeks_2", "cheeks_3", "eye_squint", "lip_thickness", "jaw_1", "jaw_2", "chin_1", "chin_2", "chin_3", "chin_4", "neck_thickness"}
+    for i = 1, #features, 1 do
+        local feature = features[i]
+        SetPedFaceFeature(self.playerPed, i - 1, Normalise(self.character[feature], 10))
+    end
+    SetPedEyeColor(self.playerPed, self.character["eye_color"]) -- Eyes color
+end
+
+function SkinChanger:SetHeadOverlay()
+    local features = {{"blemishes_1", "blemishes_2"}, {"beard_1", "beard_2"}, {"eyebrows_1", "eyebrows_2"}, {"age_1", "age_2"}, {"makeup_1", "makeup_2"}, {"blush_1", "blush_2"}, {"complexion_1", "complexion_2"}, {"sun_1", "sun_2"}, {"lipstick_1", "lipstick_2"}, {"moles_1", "moles_2"}, {"chest_1", "chest_2"}}
+    for i = 1, #features, 1 do
+        local feature = features[i]
+        SetPedHeadOverlay(self.playerPed, i - 1, self.character[feature[1]], Normalise(self.character[feature[2]], 10))
+    end
+end
+
+function SkinChanger:SetHeadOverlayColour()
+    local features = {[1] = {"beard_3", "beard_4"}, [2] = {"eyebrows_3", "eyebrows_4"}, [4] = {"makeup_3", "makeup_4"}, [5] = {"blush_3", 0}, [8] = {"lipstick_3", "lipstick_4"}, [10] = {"chest_3", 0}}
+    for i, feature in pairs(features) do
+        SetPedHeadOverlayColor(self.playerPed, i, 1, self.character[feature[1]], self.character[feature[2]])
+    end
+    if self.character["bodyb_1"] == -1 then
+        SetPedHeadOverlay(self.playerPed, 11, 255, (self.character["bodyb_2"] / 10) + 0.0) -- Body Blemishes + opacity
+    else
+        SetPedHeadOverlay(self.playerPed, 11, self.character["bodyb_1"], (self.character["bodyb_2"] / 10) + 0.0)
+    end
+
+    if self.character["bodyb_3"] == -1 then
+        SetPedHeadOverlay(self.playerPed, 12, 255, (self.character["bodyb_4"] / 10) + 0.0)
+    else
+        SetPedHeadOverlay(self.playerPed, 12, self.character["bodyb_3"], (self.character["bodyb_4"] / 10) + 0.0) -- Blemishes 'added body effect' + opacity
+    end
+end
+
+function SkinChanger:SetHair()
+    SetPedComponentVariation(self.playerPed, 2, self.character["hair_1"], self.character["hair_2"], 2) -- Hair
+    SetPedHairColor(self.playerPed, self.character["hair_color_1"], self.character["hair_color_2"]) -- Hair Color
+end
+
+function SkinChanger:SetComponents()
+    local components = {{"tshirt_1", "tshirt_2", 8}, {"torso_1", "torso_2", 11}, {"decals_1", "decals_2", 10}, {"arms", "arms_2", 3}, {"pants_1", "pants_2", 4}, {"shoes_1", "shoes_2", 6}, {"mask_1", "mask_2", 1}, {"bproof_1", "bproof_2", 9}, {"chain_1", "chain_2", 7}, {"bags_1", "bags_2", 5}}
+    for i = 1, #components, 1 do
+        local component = components[i]
+        SetPedComponentVariation(self.playerPed, component[3], self.character[component[1]], self.character[component[2]], 2)
+    end
+end
+
+function SkinChanger:SetProps()
+    local props = {{"helmet_1", "helmet_2", 0}, {"glasses_1", "glasses_2", 1}, {"ears_1", "ears_2", 2}, {"watches_1", "watches_2", 6}, {"bracelets_1", "bracelets_2", 7}}
+    for i = 1, #props, 1 do
+        local prop = props[i]
+        local propVal = self.character[prop[1]]
+        if propVal == -1 then
+            ClearPedProp(self.playerPed, prop[3])
+        else
+            SetPedPropIndex(self.playerPed, prop[3], propVal, self.character[prop[2]], true)
+        end
+    end
+end
+
+function SkinChanger:ApplySkin(skin, clothes)
+    self.playerPed = PlayerPedId()
+
+    for k, v in pairs(skin) do
+        self.character[k] = v
+    end
+
+    if clothes ~= nil then
+        for k, v in pairs(clothes) do
+            if self:ValidClothes(k) then
+                self.character[k] = v
+            end
+        end
+    end
+
+    self:SetHead()
+    self:SetHair()
+    self:SetFace()
+    self:SetHeadOverlay()
+    self:SetHeadOverlayColour()
+    self:SetComponents()
+    self:SetProps()
+    return true
+end
+
+function SkinChanger:LoadClothes(playerSkin, clothesSkin)
+    local sex = playerSkin["sex"]
+    if sex ~= self.lastSex then
+        self.loadClothes = {
+            playerSkin = playerSkin,
+            clothesSkin = clothesSkin,
+        }
+
+        self:DefaultFromSex(sex)
+
+        self.lastSex = sex
+        return true
+    else
+        return self:ApplySkin(playerSkin, clothesSkin)
+    end
+end
+
+function SkinChanger:Change(key, val)
+    self.character[key] = val
+
+    if key == "sex" then
+        self:LoadSkin(self.character)
+    else
+        self:ApplySkin(self.character)
+    end
+end
+
+function SkinChanger:Init()
+    for i = 1, #self.components, 1 do
+        local component = self.components[i]
+        self.character[component.name] = component.value
+    end
+end
+
+function SkinChanger:GetData(noMax)
+    local components = SkinChanger.components
+    for k, v in pairs(SkinChanger.character) do
+        for i = 1, #components, 1 do
+            if k == components[i].name then
+                components[i].value = v
+            end
+        end
+    end
+
+    return components, noMax and nil or self:MaxValues()
+end
+
+--- exports
+
+exports("GetSkin", function()
+    return SkinChanger.character
+end)
+
+exports("GetMaxVals", function()
+    return SkinChanger:MaxValues()
+end)
+
+exports("LoadSkin", function(skin)
+    return SkinChanger:LoadSkin(skin)
+end)
+
+exports("GetData", function(noMax)
+    return SkinChanger:GetData(noMax)
+end)
+
+exports("LoadClothes", function(playerSkin, clothesSkin)
+    return SkinChanger:LoadClothes(playerSkin, clothesSkin)
+end)
+
+exports("Change", function(key, val)
+    return SkinChanger:Change(key, val)
+end)
+
+--- Events
+
+RegisterNetEvent("skinchanger:loadSkin", function(skin, cb)
+    SkinChanger:LoadSkin(skin, cb)
+end)
+
+RegisterNetEvent("skinchanger:loadClothes", function(playerSkin, clothesSkin)
+    SkinChanger:LoadClothes(playerSkin, clothesSkin)
+end)
+
+AddEventHandler("skinchanger:getSkin", function(cb)
+    cb(SkinChanger.character)
+end)
+
+AddEventHandler("skinchanger:loadDefaultModel", function(loadMale, cb)
+    SkinChanger:DefaultModel(loadMale, cb)
+end)
+
+AddEventHandler("skinchanger:change", function(key, val)
+    SkinChanger:Change(key, val)
+end)
+
+AddEventHandler("skinchanger:modelLoaded", function()
+    SkinChanger:ModelLoaded()
+end)
+
+AddEventHandler("skinchanger:getData", function(cb)
+    cb(SkinChanger:GetData())
+end)
+
+SkinChanger:Init()
+`
+        }
+      ],
+      "uiPage": null,
+      "files": [],
+      "fileContents": {}
     }
   ]
 };
@@ -16615,7 +19409,8 @@ local function jisArray(t)
     count = count + 1
     if k > maxk then maxk = k end
   end
-  return count == maxk and count > 0
+  -- empty tables encode as [] (FiveM json.encode behavior)
+  return count == maxk
 end
 
 local function jenc(v)
@@ -16693,6 +19488,8 @@ local function parseNumber(s, i)
   return tonumber(s:sub(i, j - 1)) or 0, j
 end
 
+__JSONNULL = {}  -- sentinel: JSON null inside arrays (Lua can't store nil)
+
 parseValue = function(s, i)
   i = skipws(s, i)
   local c = s:sub(i, i)
@@ -16702,6 +19499,7 @@ parseValue = function(s, i)
     if s:sub(i, i) == ']' then return t, i + 1 end
     while i <= #s do
       local val, nj = parseValue(s, i)
+      if val == nil then val = __JSONNULL end
       t[#t+1] = val
       i = skipws(s, nj)
       local d = s:sub(i, i)
@@ -16753,6 +19551,15 @@ local __schedule
 local function __handleYield(co, yielded)
   if coroutine.status(co) ~= 'suspended' then return end
   if yielded == '__cfx_await__' then return end
+  if type(yielded) == 'table' and rawget(yielded, '__nsmPromise') ~= nil then
+    yielded.__wait(function(...)
+      if __coResources[co] == false then return end
+      local ok2, y2 = coroutine.resume(co, ...)
+      if not ok2 then __logError('[thread] ' .. tostring(y2)) return end
+      __handleYield(co, y2)
+    end)
+    return
+  end
   __schedule(co, tonumber(yielded) or 0)
 end
 
@@ -16778,6 +19585,63 @@ end
 function CitizenWait(ms) return coroutine.yield(ms or 0) end
 Wait = CitizenWait
 Citizen = { Wait = CitizenWait, CreateThread = CreateThread }
+
+-- ---------- json / msgpack engine globals (FiveM Lua has these built in) ----------
+json = {}
+json.encode = __jsonEncode
+json.decode = function(s) return __jsonDecode(s) end
+json.stringify = json.encode
+json.parse = json.decode
+msgpack = {}
+msgpack.pack = __jsonEncode
+msgpack.unpack = function(s) return __jsonDecode(s) end
+
+-- ---------- promises + Citizen.Await (qb-core client TriggerCallback etc.) ----------
+-- Same contract as the server prelude: a yielded promise suspends the thread
+-- and resolves it from the waiter; matches FiveM's citizen promise library.
+promise = {}
+function promise.new()
+  local p = { state = 'pending', waiters = {} }
+  rawset(p, '__nsmPromise', true)
+  -- self-aware: callable as p:resolve(v) (qb-core/FiveM method syntax, self
+  -- arrives as arg 1) AND as p.resolve(v) / resolve(v) (dot/callback style)
+  p.resolve = function(a, ...)
+    if p.state ~= 'pending' then return end
+    p.state = 'resolved'
+    local vals = (a == p) and table.pack(...) or table.pack(a, ...)
+    p.values = vals
+    p.value = vals.n >= 1 and vals[1] or nil   -- FiveM promise: .value = first
+    local ws = p.waiters
+    p.waiters = {}
+    for i = 1, #ws do ws[i](table.unpack(vals, 1, vals.n)) end
+  end
+  p.reject = function(a, ...)
+    if p.state ~= 'pending' then return end
+    p.state = 'rejected'
+    local err = (a == p) and select(1, ...) or a
+    p.err = err
+    local ws = p.waiters
+    p.waiters = {}
+    for i = 1, #ws do ws[i]() end
+  end
+  p.__wait = function(fn) table.insert(p.waiters, fn) end
+  return p
+end
+
+function Citizen.Await(p)
+  if type(p) ~= 'table' or rawget(p, '__nsmPromise') == nil then
+    error('Citizen.Await: expected a promise (promise.new())', 2)
+  end
+  if p.state == 'pending' then
+    coroutine.yield(p)
+  end
+  if p.state == 'rejected' then
+    error(tostring(p.err), 2)
+  end
+  local vals = p.values
+  if vals == nil then return end
+  return table.unpack(vals, 1, vals.n)
+end
 
 function SetTimeout(ms, fn)
   local co = coroutine.create(fn)
@@ -16855,8 +19719,15 @@ setmetatable(_G, {
 -- ---------- misc FiveM globals ----------
 function IsDuplicityVersion() return false end
 function GetGameName() return 'fivem' end
-function GetHashKey(s) return __joaat(s) end
-function joaat(s) return __joaat(s) end
+-- FiveM Lua-visible hashes are SIGNED int32 (they print negative there);
+-- also required for fengari: bitwise ops on unsigned >0x7fffffff floats fail
+local function __joaatSigned(s)
+  local h = __joaat(s)
+  if h > 0x7fffffff then h = h - 0x100000000 end
+  return h
+end
+function GetHashKey(s) return __joaatSigned(s) end
+function joaat(s) return __joaatSigned(s) end
 function GetResourceState(res) return __resourceState and __resourceState(res) or 'started' end
 function GetInvokingResource() return __currentResource end
 function LoadResourceFile(res, file) return __readResourceFile and __readResourceFile(res, file) or nil end
@@ -16898,12 +19769,20 @@ function WasEventCanceled() return false end
 
 -- net dispatch: called by JS when the server sends us a FiveM event.
 -- argsJson is a JSON array of arguments.
+local function __argsToVarargs(t)
+  local n = #t
+  for i = 1, n do
+    if t[i] == __JSONNULL then t[i] = nil end
+  end
+  return table.unpack(t, 1, n)
+end
+
 function __netDispatch(evName, argsJson)
   local args = __jsonDecode(argsJson) or {}
   local list = __eventHandlers[evName]
   if not list then return end
   for i = 1, #list do
-    local ok, err = pcall(list[i].fn, table.unpack(args, 1, #args))
+    local ok, err = pcall(list[i].fn, __argsToVarargs(args))
     if not ok then __logError('[net] ' .. tostring(evName) .. ': ' .. tostring(err)) end
   end
 end
@@ -16921,11 +19800,32 @@ end
 local function stateProxy(target)
   local proxy
   proxy = setmetatable({}, {
-    __index = function(_, k) return stateTable(target)[k] end,
+    __index = function(_, k)
+      -- FiveM statebag method API: bag:set(key, value, replicated)
+      -- (qb-core client: LocalPlayer.state:set('isLoggedIn', true, false))
+      if k == 'set' then
+        -- method call: bag:set(key, value, replicated) passes the bag as self
+        return function(_, key, value, replicated)
+          stateTable(target)[key] = value
+          if replicated and target == 'local' and __stateEmitServer then
+            __stateEmitServer(key, jenc(value))
+          end
+        end
+      end
+      if k == 'get' then
+        return function(_, key) return stateTable(target)[key] end
+      end
+      return stateTable(target)[k]
+    end,
     __newindex = function(_, k, v)
       if k == '__set' then rawset(proxy, '__set', v) return end
       stateTable(target)[k] = v
-      -- client writes replicate up in FiveM; here they stay local (documented gap)
+      -- FiveM: the owner client writing its own player statebag replicates
+      -- to the server and every client. Propagate up; the server is the
+      -- authority and broadcasts it (including back to us).
+      if target == 'local' and __stateEmitServer then
+        __stateEmitServer(k, jenc(v))
+      end
     end,
   })
   return proxy
@@ -16934,6 +19834,23 @@ end
 function Entity(handleOrNetId) return { state = stateProxy('entity:' .. tostring(handleOrNetId)) } end
 function Player(serverId) return { state = stateProxy('player:' .. tostring(serverId)) } end
 LocalPlayer = { state = stateProxy('local') }
+
+-- server-set identity (pushed at handshake as __fivem:init)
+__ownServerId = false
+function __setOwnServerId(id) __ownServerId = id end
+
+function PlayerId() return 0 end
+function GetPlayerServerId(pid) return __ownServerId or -1 end
+function GetPlayerFromServerId(serverId)
+  if __ownServerId ~= false and tonumber(serverId) == __ownServerId then return 0 end
+  return -1 -- remote-player ped indices are not tracked (documented gap)
+end
+
+-- client GlobalState: readable, server-replicated (server-authoritative writes)
+GlobalState = setmetatable({}, {
+  __index = function(_, k) return stateTable('global')[k] end,
+  __newindex = function() error('GlobalState is read-only on the client', 2) end,
+})
 
 function AddStateBagChangeHandler(keyFilter, filter, fn)
   if type(fn) ~= 'function' then
@@ -16945,6 +19862,10 @@ end
 function __stateChange(target, key, valueJson)
   local v = __jsonDecode(valueJson)
   stateTable(target)[key] = v
+  -- our own player bag IS LocalPlayer.state in FiveM
+  if __ownServerId ~= false and target == 'player:' .. tostring(__ownServerId) then
+    stateTable('local')[key] = v
+  end
   local bagName = target:match('^entity:(.+)$') or target:match('^player:(.+)$') or target
   for i = 1, #__stateHandlers do
     local h = __stateHandlers[i]
@@ -16964,6 +19885,17 @@ function GetConvar(k, default)
   return v
 end
 GetConvarReplicated = GetConvar
+
+function GetConvarInt(k, default)
+  local v = tonumber(GetConvar(k, nil))
+  if v == nil then return tonumber(default) or 0 end
+  return v
+end
+function GetConvarBool(k, default)
+  local v = GetConvar(k, nil)
+  if v == nil then return default and true or false end
+  return v == true or v == 'true' or v == '1'
+end
 function GetResourceKvp(k) return __kvpGet(k) end
 function SetResourceKvp(k, v) __kvpSet(k, v) end
 function SetResourceKvpNoSync(k, v) __kvpSet(k, v) end
@@ -16983,7 +19915,17 @@ function RegisterKeyMapping(commandName, description, defaultMapper, defaultPara
 end
 
 function ExecuteCommand(cmd)
-  __executeCommand(tostring(cmd))
+  -- FiveM semantics: client-side ExecuteCommand runs LOCAL commands first;
+  -- unknown commands go through the chat/server path.
+  local text = tostring(cmd):gsub('^%s+', '')
+  local parts = {}
+  for w in text:gmatch('%S+') do parts[#parts + 1] = w end
+  if #parts == 0 then return end
+  local args = {}
+  if #parts > 1 then for i = 2, #parts do args[#args + 1] = parts[i] end end
+  if not __execCommand(parts[1]:lower(), __jsonEncode(args)) then
+    __executeCommand(text)
+  end
 end
 
 function __execCommand(cmdName, argsJson)
@@ -17007,6 +19949,9 @@ __envs = {}
 __exportsRegistry = {}
 __currentResource = nil
 
+-- raw Lua load, kept before any env overrides it (env.load below wraps it)
+__rawload = load
+
 function __makeEnv(name)
   local env = {}
   setmetatable(env, { __index = _G })
@@ -17020,6 +19965,17 @@ function __makeEnv(name)
 
   env.print = function(...) __print('[' .. name .. ']', ...) end
   env.warn = function(...) __print('[' .. name .. '] [warn]', ...) end
+
+  -- FiveM-style load(): transforms cfx Lua extensions, inherits this env when
+  -- the caller passes none (esx_lib's imports.lua loads sibling files with it)
+  env.load = function(src, chunkname, mode, e)
+    local transformed = src
+    if type(src) == 'string' and __transformLua then
+      local ok, t = pcall(__transformLua, src)
+      if ok then transformed = t else __logError('[' .. name .. '] lua transform failed: ' .. tostring(t)) end
+    end
+    return __rawload(transformed, chunkname, mode, e or env)
+  end
 
   -- NUI (per resource: the webview belongs to the owning resource)
   env.SendNUIMessage = function(data) __nuiSend(name, jenc(data)) end
@@ -17115,7 +20071,7 @@ function __callExport(resName, expName, argsJson)
   local reg = __exportsRegistry[resName]
   local fn = reg and reg[expName]
   if not fn then return nil end
-  local results = table.pack(pcall(fn, table.unpack(args, 1, #args)))
+  local results = table.pack(pcall(fn, __argsToVarargs(args)))
   if not results[1] then
     error('__callExport: ' .. tostring(results[2]), 2)
   end

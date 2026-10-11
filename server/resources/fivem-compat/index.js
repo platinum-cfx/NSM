@@ -1,59 +1,66 @@
 /**
- * NSM FiveM compatibility layer — alt:V adapter (v3)
+ * NSM FiveM compatibility layer — alt:V adapter (v4)
  * Drop FiveM Lua resources into <server-root>/fivem_resources/<name>/
  * (with fxmanifest.lua + server scripts) and they load on server start.
  *
- * v3 wiring: one Lua VM for all resources with live cross-resource exports
- * (exports['qb-core']:GetCoreObject() returns the live table), per-resource
- * environment isolation, and dependency-ordered startup (manifest
- * `dependencies` + @resource/ imports). v2 features kept: MySQL (mysql.json +
- * mysql2), entity natives (alt.Vehicle), player statebags (synced meta),
- * lifecycle events, and the full 6.4k-native stub set (cfx/natives-stubs.lua).
+ * v4: full transport wiring for fivem-client resources (CLIENT_COMPATIBILITY
+ * §8) — TriggerClientEvent/statebags travel the __fivem:net/__fivem:state
+ * envelope protocol with player-id mapping (alt player.id == FiveM source),
+ * join handshake (__fivem:ready -> __fivem:init + statebag snapshot), and
+ * client ExecuteCommand via __fivem:cmd. MySQL now runs through the shared
+ * cfx/mysql-real.js adapter (vendored mysql2, oxmysql semantics incl.
+ * MySQL.prepare + transactions) used by the integration tests.
+ *
+ * v3 features kept: one Lua VM with live cross-resource exports, per-resource
+ * environments, dependency-ordered startup, entity natives (alt.Vehicle),
+ * lifecycle events, and the 6.4k-native stub set (cfx/natives-stubs.lua).
  */
 import * as alt from 'alt-server';
 import * as fs from 'fs';
 import * as path from 'path';
-import { createRequire } from 'module';
 import { CfxCompatRuntime } from './cfx/runtime.js';
-
-const require = createRequire(import.meta.url);
+import { createRealMysql } from './cfx/mysql-real.js';
+import { wireFivemClients } from './cfx/client-net.js';
 
 const log = (...a) => alt.log('[cfx-compat]', ...a);
 const logError = (...a) => { try { alt.logError('[cfx-compat]', ...a); } catch { console.error('[cfx-compat]', ...a); } };
 
 function findPlayer(src) {
   if (src && typeof src === 'object') return src;
+  // FiveM ids are strings half the time (ESX tostring's them); be tolerant
+  if (typeof src === 'string' && /^-?\d+$/.test(src)) src = Number(src);
   return alt.Player.all.find((p) => p.id === src) || null;
 }
 
-// ---------- MySQL (optional: <server-root>/mysql.json + npm i mysql2) ----------
-function loadMysql() {
+// Events we pass through raw (protocol + native alt:V chat/UI events);
+// everything else a server resource sends to a client is a FiveM event and
+// travels inside the __fivem:net envelope (plus a raw emit for any native
+// alt:V client resource listening on the plain name).
+const isProtocolEvent = (name) => typeof name === 'string' && (name.startsWith('__fivem:') || name.startsWith('cfx:'));
+
+// ---------- MySQL (optional: <server-root>/mysql.json) ----------
+async function loadMysql() {
   const cfgPaths = [
     path.join(process.cwd(), 'mysql.json'),
     path.join(process.cwd(), 'server', 'mysql.json'),
+    path.join(process.cwd(), 'fivem_resources', 'mysql.json'),
   ];
   const cfgPath = cfgPaths.find((p) => fs.existsSync(p));
   if (!cfgPath) return null;
   let cfg;
   try { cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8')); }
   catch (e) { logError(`mysql.json is not valid JSON: ${e.message}`); return null; }
-  let mysql2;
-  try { mysql2 = require('mysql2/promise'); }
-  catch { logError('mysql.json found but mysql2 is not installed — run: npm i mysql2'); return null; }
-  const pool = mysql2.createPool({
-    host: cfg.host || '127.0.0.1',
-    port: cfg.port || 3306,
-    user: cfg.user || 'root',
-    password: cfg.password || '',
-    database: cfg.database || 'fivem',
-    connectionLimit: cfg.poolSize || 10,
-    dateStrings: true,
-  });
-  log(`MySQL: using ${cfg.user}@${cfg.host || '127.0.0.1'}:${cfg.port || 3306}/${cfg.database}`);
-  return {
-    query: async (sql, values) => { const [rows] = await pool.query(sql, values || []); return rows; },
-    execute: async (sql, values) => { const [r] = await pool.query(sql, values || []); return r; },
-  };
+  try {
+    const db = await createRealMysql(cfg);
+    // qb-core's GetDatabaseInfo() parses this convar (mysql://user:pass@host:port/db)
+    adapter.convars.mysql_connection_string =
+      `mysql://${cfg.user || 'root'}:${cfg.password || ''}@${cfg.host || '127.0.0.1'}:${cfg.port || 3306}/${cfg.database || 'fivem'}`;
+    log(`MySQL: real adapter connected (${db.config.user}@${db.config.host}:${db.config.port}/${db.config.database})`);
+    return db;
+  } catch (e) {
+    logError(`MySQL connection failed: ${e && e.message ? e.message : e}`);
+    return null;
+  }
 }
 
 // ---------- adapter ----------
@@ -63,9 +70,26 @@ const adapter = {
   onClient: (name, cb) => alt.onClient(name, cb),
   emitClient: (src, name, ...args) => {
     const p = findPlayer(src);
-    if (p) alt.emitClient(p, name, ...args);
+    if (!p) return;
+    if (isProtocolEvent(name)) {
+      try { alt.emitClient(p, name, ...args); } catch {}
+      return;
+    }
+    let payload = '[]';
+    try { payload = JSON.stringify(args); } catch {}
+    try { alt.emitClient(p, '__fivem:net', name, payload); } catch {}   // fivem-client resources
+    try { alt.emitClient(p, name, ...args); } catch {}                  // native alt:V listeners
   },
-  emitAllClients: (name, ...args) => alt.emitAllClients(name, ...args),
+  emitAllClients: (name, ...args) => {
+    if (isProtocolEvent(name)) {
+      try { alt.emitAllClients(name, ...args); } catch {}
+      return;
+    }
+    let payload = '[]';
+    try { payload = JSON.stringify(args); } catch {}
+    try { alt.emitAllClients('__fivem:net', name, payload); } catch {}
+    try { alt.emitAllClients(name, ...args); } catch {}
+  },
   findPlayer,
   playerIds: () => alt.Player.all.map((p) => p.id),
   dropPlayer: (p, reason) => { try { p.kick(reason); } catch {} },
@@ -99,18 +123,13 @@ const adapter = {
   setPlate: (ref, text) => { try { ref.numberPlateText = String(text).slice(0, 8); } catch {} },
   plate: (ref) => { try { return ref.numberPlateText || ''; } catch { return ''; } },
 
-  // statebags -> alt:V synced meta (values stored as JSON strings)
-  playerStateGet: (src, key) => {
-    const p = findPlayer(src);
-    if (!p) return null;
-    const v = p.getSyncedMeta(key);
-    return v === undefined || v === null ? null : v;
-  },
-  playerStateSet: (src, key, json) => {
-    const p = findPlayer(src);
-    if (p) { try { p.setSyncedMeta(key, json); } catch {} }
-  },
+  // statebags -> PlayerStateSync (store + alt:V synced meta + __fivem:state
+  // push to every client). Filled in by main() once wiring exists.
+  playerStateGet: null,
+  playerStateSet: null,
   onStateChange: (cb) => {
+    // external synced-meta changes reach server-Lua statebag handlers;
+    // PlayerStateSync (installed in main) owns replication to fivem clients
     alt.on('syncedMetaDataChange', (key, newValue, oldValue, entity) => {
       try {
         if (entity instanceof alt.Player) cb(`player:${entity.id}`, key, newValue);
@@ -123,26 +142,39 @@ const adapter = {
 function listResourceDirs(root) {
   const out = [];
   for (const e of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!e.isDirectory()) continue;
+    const p = path.join(root, e.name);
+    // statSync (not the dirent type) so symlinked resource dirs work too
+    let isDir = false;
+    try { isDir = fs.statSync(p).isDirectory(); } catch {}
+    if (!isDir) continue;
     if (e.name.startsWith('[')) {
       try {
-        for (const e2 of fs.readdirSync(path.join(root, e.name), { withFileTypes: true })) {
-          if (e2.isDirectory() && fs.existsSync(path.join(root, e.name, e2.name, 'fxmanifest.lua'))) {
-            out.push([e2.name, path.join(root, e.name, e2.name)]);
+        for (const e2 of fs.readdirSync(p, { withFileTypes: true })) {
+          if (fs.statSync(path.join(p, e2.name)).isDirectory() && fs.existsSync(path.join(p, e2.name, 'fxmanifest.lua'))) {
+            out.push([e2.name, path.join(p, e2.name)]);
           }
         }
       } catch {}
     } else {
-      out.push([e.name, path.join(root, e.name)]);
+      out.push([e.name, p]);
     }
   }
   return out.sort((a, b) => a[0].localeCompare(b[0]));
 }
 
 async function main() {
-  adapter.mysql = loadMysql();
+  adapter.mysql = await loadMysql();
   const runtime = new CfxCompatRuntime(adapter);
   await runtime.init();
+
+  // fivem-client transport: __fivem:net / __fivem:state / __fivem:cmd wiring,
+  // join handshake, statebag store + replication (CLIENT_COMPATIBILITY §8)
+  const { stateSync, handleCommand } = wireFivemClients({ alt, runtime, log, logError });
+  adapter.playerStateGet = (src, key) => stateSync.get(src, key);
+  adapter.playerStateSet = (src, key, json) => stateSync.set(src, key, json);
+  // NOTE: runtime.init() already consumed adapter.onStateChange (it forwards
+  // synced-meta changes to Lua handlers). PlayerStateSync.set does the client
+  // replication, so each state change reaches clients exactly once.
 
   // Locate <server-root>/fivem_resources — resources run with cwd = server root
   const roots = [
@@ -151,15 +183,14 @@ async function main() {
   ];
   const root = roots.find((p) => fs.existsSync(p) && fs.statSync(p).isDirectory());
 
-  if (!root) {
+  if (root) {
+    const entries = listResourceDirs(root);
+    // v3: dependency-ordered loading (manifest `dependencies` + @imports);
+    // alphabetical discovery order is only the tiebreaker.
+    await runtime.loadAll(entries);
+  } else {
     log('no fivem_resources/ folder found — create it next to the server exe and drop FiveM Lua resources in');
-    return runtime;
   }
-
-  const entries = listResourceDirs(root);
-  // v3: dependency-ordered loading (manifest `dependencies` + @imports);
-  // alphabetical discovery order is only the tiebreaker.
-  await runtime.loadAll(entries);
 
   // ---- lifecycle events (FiveM names, `source` set to the player id) ----
   alt.on('playerConnect', (player) => {
@@ -177,16 +208,15 @@ async function main() {
     runtime.fireLifecycle('playerDropped', player, [reason || 'Disconnected']);
   });
 
-  // Chat command bridge — have your chat UI emit 'cfx:command' with the raw text
-  alt.onClient('cfx:command', (player, text) => {
-    // resource management first: res list|status|stop|start|restart
-    if (runtime.handleAdminCommand(player, text)) return;
-    if (!runtime.runCommand(player, text)) {
-      alt.emitClient(player, 'cfx:commandResult', false, String(text).split(' ')[0]);
-    }
-  });
+  // Chat command bridge — two entry points, same logic:
+  //   'cfx:command'  a native alt:V chat resource emits this with raw text
+  //   '__fivem:cmd'  fivem-client ExecuteCommand()/chat emits this
+  alt.onClient('cfx:command', (player, text) => handleCommand(player, text));
 
   return runtime;
 }
 
-main().catch((e) => logError('fatal:', e && e.message ? e.message : e));
+export const ready = main().catch((e) => {
+  logError('fatal:', e && e.message ? e.message : e);
+  return null;
+});

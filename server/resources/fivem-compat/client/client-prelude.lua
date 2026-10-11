@@ -35,7 +35,8 @@ local function jisArray(t)
     count = count + 1
     if k > maxk then maxk = k end
   end
-  return count == maxk and count > 0
+  -- empty tables encode as [] (FiveM json.encode behavior)
+  return count == maxk
 end
 
 local function jenc(v)
@@ -113,6 +114,8 @@ local function parseNumber(s, i)
   return tonumber(s:sub(i, j - 1)) or 0, j
 end
 
+__JSONNULL = {}  -- sentinel: JSON null inside arrays (Lua can't store nil)
+
 parseValue = function(s, i)
   i = skipws(s, i)
   local c = s:sub(i, i)
@@ -122,6 +125,7 @@ parseValue = function(s, i)
     if s:sub(i, i) == ']' then return t, i + 1 end
     while i <= #s do
       local val, nj = parseValue(s, i)
+      if val == nil then val = __JSONNULL end
       t[#t+1] = val
       i = skipws(s, nj)
       local d = s:sub(i, i)
@@ -173,6 +177,15 @@ local __schedule
 local function __handleYield(co, yielded)
   if coroutine.status(co) ~= 'suspended' then return end
   if yielded == '__cfx_await__' then return end
+  if type(yielded) == 'table' and rawget(yielded, '__nsmPromise') ~= nil then
+    yielded.__wait(function(...)
+      if __coResources[co] == false then return end
+      local ok2, y2 = coroutine.resume(co, ...)
+      if not ok2 then __logError('[thread] ' .. tostring(y2)) return end
+      __handleYield(co, y2)
+    end)
+    return
+  end
   __schedule(co, tonumber(yielded) or 0)
 end
 
@@ -198,6 +211,63 @@ end
 function CitizenWait(ms) return coroutine.yield(ms or 0) end
 Wait = CitizenWait
 Citizen = { Wait = CitizenWait, CreateThread = CreateThread }
+
+-- ---------- json / msgpack engine globals (FiveM Lua has these built in) ----------
+json = {}
+json.encode = __jsonEncode
+json.decode = function(s) return __jsonDecode(s) end
+json.stringify = json.encode
+json.parse = json.decode
+msgpack = {}
+msgpack.pack = __jsonEncode
+msgpack.unpack = function(s) return __jsonDecode(s) end
+
+-- ---------- promises + Citizen.Await (qb-core client TriggerCallback etc.) ----------
+-- Same contract as the server prelude: a yielded promise suspends the thread
+-- and resolves it from the waiter; matches FiveM's citizen promise library.
+promise = {}
+function promise.new()
+  local p = { state = 'pending', waiters = {} }
+  rawset(p, '__nsmPromise', true)
+  -- self-aware: callable as p:resolve(v) (qb-core/FiveM method syntax, self
+  -- arrives as arg 1) AND as p.resolve(v) / resolve(v) (dot/callback style)
+  p.resolve = function(a, ...)
+    if p.state ~= 'pending' then return end
+    p.state = 'resolved'
+    local vals = (a == p) and table.pack(...) or table.pack(a, ...)
+    p.values = vals
+    p.value = vals.n >= 1 and vals[1] or nil   -- FiveM promise: .value = first
+    local ws = p.waiters
+    p.waiters = {}
+    for i = 1, #ws do ws[i](table.unpack(vals, 1, vals.n)) end
+  end
+  p.reject = function(a, ...)
+    if p.state ~= 'pending' then return end
+    p.state = 'rejected'
+    local err = (a == p) and select(1, ...) or a
+    p.err = err
+    local ws = p.waiters
+    p.waiters = {}
+    for i = 1, #ws do ws[i]() end
+  end
+  p.__wait = function(fn) table.insert(p.waiters, fn) end
+  return p
+end
+
+function Citizen.Await(p)
+  if type(p) ~= 'table' or rawget(p, '__nsmPromise') == nil then
+    error('Citizen.Await: expected a promise (promise.new())', 2)
+  end
+  if p.state == 'pending' then
+    coroutine.yield(p)
+  end
+  if p.state == 'rejected' then
+    error(tostring(p.err), 2)
+  end
+  local vals = p.values
+  if vals == nil then return end
+  return table.unpack(vals, 1, vals.n)
+end
 
 function SetTimeout(ms, fn)
   local co = coroutine.create(fn)
@@ -275,8 +345,15 @@ setmetatable(_G, {
 -- ---------- misc FiveM globals ----------
 function IsDuplicityVersion() return false end
 function GetGameName() return 'fivem' end
-function GetHashKey(s) return __joaat(s) end
-function joaat(s) return __joaat(s) end
+-- FiveM Lua-visible hashes are SIGNED int32 (they print negative there);
+-- also required for fengari: bitwise ops on unsigned >0x7fffffff floats fail
+local function __joaatSigned(s)
+  local h = __joaat(s)
+  if h > 0x7fffffff then h = h - 0x100000000 end
+  return h
+end
+function GetHashKey(s) return __joaatSigned(s) end
+function joaat(s) return __joaatSigned(s) end
 function GetResourceState(res) return __resourceState and __resourceState(res) or 'started' end
 function GetInvokingResource() return __currentResource end
 function LoadResourceFile(res, file) return __readResourceFile and __readResourceFile(res, file) or nil end
@@ -318,12 +395,20 @@ function WasEventCanceled() return false end
 
 -- net dispatch: called by JS when the server sends us a FiveM event.
 -- argsJson is a JSON array of arguments.
+local function __argsToVarargs(t)
+  local n = #t
+  for i = 1, n do
+    if t[i] == __JSONNULL then t[i] = nil end
+  end
+  return table.unpack(t, 1, n)
+end
+
 function __netDispatch(evName, argsJson)
   local args = __jsonDecode(argsJson) or {}
   local list = __eventHandlers[evName]
   if not list then return end
   for i = 1, #list do
-    local ok, err = pcall(list[i].fn, table.unpack(args, 1, #args))
+    local ok, err = pcall(list[i].fn, __argsToVarargs(args))
     if not ok then __logError('[net] ' .. tostring(evName) .. ': ' .. tostring(err)) end
   end
 end
@@ -341,11 +426,32 @@ end
 local function stateProxy(target)
   local proxy
   proxy = setmetatable({}, {
-    __index = function(_, k) return stateTable(target)[k] end,
+    __index = function(_, k)
+      -- FiveM statebag method API: bag:set(key, value, replicated)
+      -- (qb-core client: LocalPlayer.state:set('isLoggedIn', true, false))
+      if k == 'set' then
+        -- method call: bag:set(key, value, replicated) passes the bag as self
+        return function(_, key, value, replicated)
+          stateTable(target)[key] = value
+          if replicated and target == 'local' and __stateEmitServer then
+            __stateEmitServer(key, jenc(value))
+          end
+        end
+      end
+      if k == 'get' then
+        return function(_, key) return stateTable(target)[key] end
+      end
+      return stateTable(target)[k]
+    end,
     __newindex = function(_, k, v)
       if k == '__set' then rawset(proxy, '__set', v) return end
       stateTable(target)[k] = v
-      -- client writes replicate up in FiveM; here they stay local (documented gap)
+      -- FiveM: the owner client writing its own player statebag replicates
+      -- to the server and every client. Propagate up; the server is the
+      -- authority and broadcasts it (including back to us).
+      if target == 'local' and __stateEmitServer then
+        __stateEmitServer(k, jenc(v))
+      end
     end,
   })
   return proxy
@@ -354,6 +460,23 @@ end
 function Entity(handleOrNetId) return { state = stateProxy('entity:' .. tostring(handleOrNetId)) } end
 function Player(serverId) return { state = stateProxy('player:' .. tostring(serverId)) } end
 LocalPlayer = { state = stateProxy('local') }
+
+-- server-set identity (pushed at handshake as __fivem:init)
+__ownServerId = false
+function __setOwnServerId(id) __ownServerId = id end
+
+function PlayerId() return 0 end
+function GetPlayerServerId(pid) return __ownServerId or -1 end
+function GetPlayerFromServerId(serverId)
+  if __ownServerId ~= false and tonumber(serverId) == __ownServerId then return 0 end
+  return -1 -- remote-player ped indices are not tracked (documented gap)
+end
+
+-- client GlobalState: readable, server-replicated (server-authoritative writes)
+GlobalState = setmetatable({}, {
+  __index = function(_, k) return stateTable('global')[k] end,
+  __newindex = function() error('GlobalState is read-only on the client', 2) end,
+})
 
 function AddStateBagChangeHandler(keyFilter, filter, fn)
   if type(fn) ~= 'function' then
@@ -365,6 +488,10 @@ end
 function __stateChange(target, key, valueJson)
   local v = __jsonDecode(valueJson)
   stateTable(target)[key] = v
+  -- our own player bag IS LocalPlayer.state in FiveM
+  if __ownServerId ~= false and target == 'player:' .. tostring(__ownServerId) then
+    stateTable('local')[key] = v
+  end
   local bagName = target:match('^entity:(.+)$') or target:match('^player:(.+)$') or target
   for i = 1, #__stateHandlers do
     local h = __stateHandlers[i]
@@ -384,6 +511,17 @@ function GetConvar(k, default)
   return v
 end
 GetConvarReplicated = GetConvar
+
+function GetConvarInt(k, default)
+  local v = tonumber(GetConvar(k, nil))
+  if v == nil then return tonumber(default) or 0 end
+  return v
+end
+function GetConvarBool(k, default)
+  local v = GetConvar(k, nil)
+  if v == nil then return default and true or false end
+  return v == true or v == 'true' or v == '1'
+end
 function GetResourceKvp(k) return __kvpGet(k) end
 function SetResourceKvp(k, v) __kvpSet(k, v) end
 function SetResourceKvpNoSync(k, v) __kvpSet(k, v) end
@@ -403,7 +541,17 @@ function RegisterKeyMapping(commandName, description, defaultMapper, defaultPara
 end
 
 function ExecuteCommand(cmd)
-  __executeCommand(tostring(cmd))
+  -- FiveM semantics: client-side ExecuteCommand runs LOCAL commands first;
+  -- unknown commands go through the chat/server path.
+  local text = tostring(cmd):gsub('^%s+', '')
+  local parts = {}
+  for w in text:gmatch('%S+') do parts[#parts + 1] = w end
+  if #parts == 0 then return end
+  local args = {}
+  if #parts > 1 then for i = 2, #parts do args[#args + 1] = parts[i] end end
+  if not __execCommand(parts[1]:lower(), __jsonEncode(args)) then
+    __executeCommand(text)
+  end
 end
 
 function __execCommand(cmdName, argsJson)
@@ -427,6 +575,9 @@ __envs = {}
 __exportsRegistry = {}
 __currentResource = nil
 
+-- raw Lua load, kept before any env overrides it (env.load below wraps it)
+__rawload = load
+
 function __makeEnv(name)
   local env = {}
   setmetatable(env, { __index = _G })
@@ -440,6 +591,17 @@ function __makeEnv(name)
 
   env.print = function(...) __print('[' .. name .. ']', ...) end
   env.warn = function(...) __print('[' .. name .. '] [warn]', ...) end
+
+  -- FiveM-style load(): transforms cfx Lua extensions, inherits this env when
+  -- the caller passes none (esx_lib's imports.lua loads sibling files with it)
+  env.load = function(src, chunkname, mode, e)
+    local transformed = src
+    if type(src) == 'string' and __transformLua then
+      local ok, t = pcall(__transformLua, src)
+      if ok then transformed = t else __logError('[' .. name .. '] lua transform failed: ' .. tostring(t)) end
+    end
+    return __rawload(transformed, chunkname, mode, e or env)
+  end
 
   -- NUI (per resource: the webview belongs to the owning resource)
   env.SendNUIMessage = function(data) __nuiSend(name, jenc(data)) end
@@ -535,7 +697,7 @@ function __callExport(resName, expName, argsJson)
   local reg = __exportsRegistry[resName]
   local fn = reg and reg[expName]
   if not fn then return nil end
-  local results = table.pack(pcall(fn, table.unpack(args, 1, #args)))
+  local results = table.pack(pcall(fn, __argsToVarargs(args)))
   if not results[1] then
     error('__callExport: ' .. tostring(results[2]), 2)
   end

@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const { LuaFactory } = require('../vendor/wasmoon/dist/index.cjs');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(__dirname, '..', '..', '..', 'real_resources', 'qb-core');
+const root = path.join(__dirname, '..', '..', '..', '..', 'server', 'resource_store', 'qb-core');
 const factory = new LuaFactory();
 const lua = await factory.createEngine();
 

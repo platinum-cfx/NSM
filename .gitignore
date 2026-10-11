@@ -4,3 +4,7 @@ node_modules/
 
 # Runtime data (masterlist keys / runtime state must never be committed)
 masterlist/data/
+
+# fivem-compat runtime artifacts
+fivem-compat-kvp.json
+node_modules/

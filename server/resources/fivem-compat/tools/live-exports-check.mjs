@@ -64,7 +64,7 @@ print('qb-consumer ran: live=' .. tostring(__qb_identity) .. ' items=' .. tostri
   // WRONG order on purpose (consumer first); loadAll must reorder.
   await rt.loadAll([
     ['qb-consumer', consumerDir],
-    ['qb-core', path.join(__dirname, '..', '..', '..', 'real_resources', 'qb-core')],
+    ['qb-core', path.join(__dirname, '..', '..', '..', '..', 'server', 'resource_store', 'qb-core')],
   ]);
 
   check('consumer saw qb-core Functions table', rt.envGet('qb-consumer', '__qb_functions_table') === true);
@@ -121,8 +121,8 @@ print('esx-consumer ran: live=' .. tostring(__esx_identity))
   // scripts must force esx_lib first, then es_extended, then the consumer.
   await rt.loadAll([
     ['esx-consumer', consumerDir],
-    ['es_extended', path.join(__dirname, '..', '..', '..', 'real_resources', 'esx-legacy', '[core]', 'es_extended')],
-    ['esx_lib', path.join(__dirname, '..', '..', '..', 'real_resources', 'esx-legacy', '[core]', 'esx_lib')],
+    ['es_extended', path.join(__dirname, '..', '..', '..', '..', 'server', 'resource_store', 'esx-legacy', '[core]', 'es_extended')],
+    ['esx_lib', path.join(__dirname, '..', '..', '..', '..', 'server', 'resource_store', 'esx-legacy', '[core]', 'esx_lib')],
   ]);
 
   check('consumer got ESX table', rt.envGet('esx-consumer', '__esx_table') === true);

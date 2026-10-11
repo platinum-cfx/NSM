@@ -69,6 +69,26 @@ Antivirus/SmartScreen will warn: the launcher is unsigned and patches alt:V bina
 Note: `server/resources/` ships empty and `.cfg` references a `gtamp-online` resource that
 does not exist publicly. Set `resources = [ ]` or drop in your own alt:V JS gamemode.
 
+## FiveM resources (ESX / QBCore) — the compat stack
+
+`server/resources/fivem-compat` is a FiveM compatibility layer that runs real,
+unmodified FiveM Lua resources (ESX, QBCore, oxmysql, ...) inside this server:
+one Lua 5.4 VM per side with the FiveM API surface (events, exports, statebags,
+MySQL, natives), plus `server/resources/fivem-client` which runs the client half
+on the player's alt:V client (fengari Lua VM + NUI shim + `__fivem:*` transport).
+
+The server boots the tested ESX set from `server/fivem_resources/` by default
+(see `.cfg`). Quick start on Windows:
+
+1. `cd server` and run `powershell -ExecutionPolicy Bypass -File fix-jsmodule.ps1` (once — installs the SDK-matching js-module).
+2. Install MariaDB, create the `fivem` DB and import `resource_store/esx-legacy/[SQL]/legacy.sql`.
+3. Copy `mysql.json.example` to `mysql.json` and fill in credentials.
+4. Start `gtamp-server.exe`. The console shows each resource starting.
+5. Connect with the launcher — full details in [`docs/QUICKSTART-FIVEM.md`](docs/QUICKSTART-FIVEM.md).
+
+Test suites (server, client, multiplayer, real MariaDB, qb-core, ESX) run on
+plain Node: `cd server/resources/fivem-compat && node test/run-tests.js`.
+
 ## Masterlist admin: host the list
 
 See [`masterlist/README.md`](masterlist/README.md). Short version on a Linux VPS:

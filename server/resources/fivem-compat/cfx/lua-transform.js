@@ -154,9 +154,17 @@ function rewriteCompoundLines(code) {
   return fixed.join('\n');
 }
 
+// Lua 5.4 variable attributes — FiveM resources use `local x <const> = v`.
+// fengari is Lua 5.3, so strip the attribute. <close> loses its to-be-closed
+// semantics (documented limitation; rarely used in resources).
+function rewriteAttributes(src) {
+  return src.replace(/(\blocal\s+[A-Za-z_][A-Za-z0-9_.\s,]*?[A-Za-z0-9_])\s*<\s*(const|close)\s*>/g, '$1');
+}
+
 export function transformFiveMLua(src) {
-  // safe navigation first, on the full text (string-aware)
-  let code = rewriteSafeNavFull(src);
+  // Lua 5.4 attributes first, then safe navigation on the full text (string-aware)
+  let code = rewriteAttributes(src);
+  code = rewriteSafeNavFull(code);
   // backticks + compound per code segment
   const segs = segmentLua(code);
   let out = '';

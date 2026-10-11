@@ -17,6 +17,10 @@
 
 // joaat — the GTA/FiveM string hash (duplicate of cfx/runtime.js; not
 // imported from there because that module pulls in fs/path)
+
+// cfx Lua transformer (pure module — no fs/path imports, so it is safe to
+// pull in here; the client uses it via the __transformLua VM bridge)
+import { transformFiveMLua } from '../cfx/lua-transform.js';
 export function joaat(s) {
   s = String(s).toLowerCase();
   let h = 0;
@@ -249,6 +253,11 @@ export function createFiveMClientRuntime({ vm, alt, natives, payload, preludeSrc
     vm.setGlobalFn('__netEmitServer', (evName, argsJson) => {
       alt.emitServer('__fivem:net', String(evName), String(argsJson || '[]'));
     });
+    vm.setGlobalFn('__stateEmitServer', (key, valueJson) => {
+      if (typeof alt.emitServer === 'function') {
+        alt.emitServer('__fivem:stateSet', String(key), String(valueJson));
+      }
+    });
     vm.setGlobalFn('__nuiSend', (resName, json) => { getWebview(resName).emit('fivem:nui', String(json)); });
     vm.setGlobalFn('__nuiFocus', (resName, focus, cursor) => {
       const wv = getWebview(resName);
@@ -297,7 +306,16 @@ export function createFiveMClientRuntime({ vm, alt, natives, payload, preludeSrc
       const known = (payload.resources || []).some((r) => r.name === String(n));
       return known ? 'started' : 'missing';
     });
-    vm.setGlobalFn('__readResourceFile', () => null);
+    vm.setGlobalFn('__readResourceFile', (resName, rel) => {
+      const r = (payload.resources || []).find((x) => x.name === String(resName));
+      const fc = r && r.fileContents;
+      if (!fc) return null;
+      const key = String(rel).replace(/\\/g, '/').replace(/^\/+/, '');
+      return Object.prototype.hasOwnProperty.call(fc, key) ? fc[key] : null;
+    });
+    // cfx Lua 5.4 -> standard Lua transform (env.load in the prelude calls this
+    // so resource-loaded chunks support #/pointer/integer literal extensions)
+    vm.setGlobalFn('__transformLua', (src) => transformFiveMLua(String(src)));
   }
 
   async function boot() {
@@ -318,6 +336,18 @@ export function createFiveMClientRuntime({ vm, alt, natives, payload, preludeSrc
         try { vm.callGlobal('__stateChange', String(target), String(key), String(valueJson)); }
         catch (e) { logError(`[fivem-client] state dispatch failed: ${(e && e.message) || e}`); }
       });
+      // handshake: server tells us our FiveM server id + current GlobalState
+      alt.onServer('__fivem:init', (serverId, globalStateJson) => {
+        try {
+          vm.callGlobal('__setOwnServerId', Number(serverId));
+          let gs = {};
+          try { gs = JSON.parse(String(globalStateJson || '{}')) || {}; } catch {}
+          for (const [k, v] of Object.entries(gs)) {
+            vm.callGlobal('__stateChange', 'global', String(k), JSON.stringify(v));
+          }
+          log(`[fivem-client] handshake complete (server id ${serverId})`);
+        } catch (e) { logError(`[fivem-client] init failed: ${(e && e.message) || e}`); }
+      });
     }
 
     const resources = payload.resources || [];
@@ -331,6 +361,12 @@ export function createFiveMClientRuntime({ vm, alt, natives, payload, preludeSrc
       okCount++;
     }
     log(`[fivem-client] boot complete: ${okCount}/${resources.length} resources running`);
+
+    // tell the server we are up; it answers with __fivem:init (our server id
+    // + global state + every player statebag snapshot)
+    if (typeof alt.emitServer === 'function') {
+      try { alt.emitServer('__fivem:ready', true); } catch {}
+    }
   }
 
   return {

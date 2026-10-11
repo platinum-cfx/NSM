@@ -41,12 +41,23 @@ const rt = new CfxCompatRuntime(mock);
 await rt.init();
 
 const loaded = [];
-for (const entry of fs.readdirSync(RESDIR, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+// category-aware discovery — same semantics as listResourceDirs() in index.js:
+// [core]/name, [standalone]/name, or a direct resource dir
+const found = [];
+for (const entry of fs.readdirSync(RESDIR, { withFileTypes: true })) {
   if (!entry.isDirectory() || entry.name.startsWith('__tmp') || entry.name.startsWith('.')) continue;
-  const dir = path.join(RESDIR, entry.name);
-  if (!fs.existsSync(path.join(dir, 'fxmanifest.lua'))) continue;
-  await rt.loadResource(entry.name, dir);
-  loaded.push(entry.name);
+  if (entry.name.startsWith('[')) {
+    for (const e2 of fs.readdirSync(path.join(RESDIR, entry.name), { withFileTypes: true })) {
+      const d = path.join(RESDIR, entry.name, e2.name);
+      if (e2.isDirectory() && fs.existsSync(path.join(d, 'fxmanifest.lua'))) found.push([e2.name, d]);
+    }
+  } else if (fs.existsSync(path.join(RESDIR, entry.name, 'fxmanifest.lua'))) {
+    found.push([entry.name, path.join(RESDIR, entry.name)]);
+  }
+}
+for (const [name, dir] of found.sort((a, b) => a[0].localeCompare(b[0]))) {
+  await rt.loadResource(name, dir);
+  loaded.push(name);
 }
 
 const payload = rt.buildClientPayload();
@@ -71,7 +82,9 @@ const clientFiles = ['client.js'];
 
 for (const res of payload.resources) {
   if (!res.uiPage) continue;
-  const src = path.join(RESDIR, res.name, res.uiPage);
+  // resources may live in [category] subfolders — use the real dir
+  const resDir = (rt.engines.get(res.name) || {}).dir || path.join(RESDIR, res.name);
+  const src = path.join(resDir, res.uiPage);
   if (!fs.existsSync(src)) {
     console.error(`[build-client] WARN: ${res.name}: ui_page '${res.uiPage}' not found — skipped`);
     continue;
