@@ -49,3 +49,25 @@ f53ce2e  feat(compat): FiveM client-side Lua runtime (Prompt 4)
 original suites. The DB-backed suites (`multiplayer`, `db-integration`,
 `qbcore-client`, `selftest`) need a MariaDB service on :3307 —
 see `docs/TESTING.md` for the exact commands and preconditions.
+
+## Incident 2026-10-11: coalesced push dropped 3,962 files — rules that follow
+
+**What happened:** a coalesced commit (4688525) was built from a sandbox that
+contained only the fivem-compat slice; pushing it replaced the whole repo tree,
+deleting altv-js-module-v1, server, sources, website, client-new, masterlist,
+.github and the project README from main (ad4e75f). Restored in 5ac6755 as a
+union of the f53ce2e tree + compat work. No history was lost.
+
+**Hard rules from now on:**
+1. This clone is a **cone-mode sparse checkout** of `resources/ real_resources/
+   docs/ tools/` only. Framework files (altv-js-module-v1, server, sources,
+   website, client-new, masterlist, .github) are carried in the index with
+   skip-worktree bits — they are NEVER on disk, so a stray `git add -A` can
+   never delete them again. Do not disable sparse-checkout.
+2. **Verify before every push:** `git diff --name-status origin/main HEAD` must
+   show only intended additions/modifications inside the sparse cone. Any `D`
+   entry outside an explicit, user-approved deletion list = STOP, do not push.
+3. After any snapshot recovery, re-verify `git ls-tree --name-only HEAD` lists
+   every framework top-level dir before the next push.
+4. Coalesced/grafted commits must be built from the **union** of the remote
+   tree and the new work — never from a sandbox-only tree.
