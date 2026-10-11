@@ -14,8 +14,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Unit suite (69 checks)
+      - name: Unit suite (102 checks)
         run: node test/run-tests.js
+        working-directory: server/resources/fivem-compat
+      - name: Client runtime suite (70 checks, 2 VMs + NUI shim)
+        run: node test/client-runtime.test.mjs
         working-directory: server/resources/fivem-compat
       - name: Fork-syntax gate (skips without qb-core clone)
         run: node tools/lua-fork-transform.test.mjs

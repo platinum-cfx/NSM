@@ -46,24 +46,33 @@
   `LUA_RUNTIME.md`, `RESOURCE_DEVELOPMENT.md` (now scoped to include the
   client-side matrix — see Prompt 4).
 
-### Prompt 4 — Client-side execution 🔶 ACTIVE (re-scoped by owner directive)
-- Owner directive (2026-10): the primary goal is running the existing custom
-  FiveM QBCore server — including its **client-side Lua resources** — on
-  NSM. Do not silently abandon client-side compatibility. Investigate the
-  blocker in depth, enumerate exactly which FiveM client APIs / GTA natives
-  the alt:V client can support, present architectural options with real
-  limitations, and implement the most suitable viable approach.
-- Facts that still hold: the GTAMP client is the alt:V client — it embeds no
-  CFX Lua VM and no FiveM NUI sandbox. The earlier "blocked by design"
-  conclusion only ruled out the *FiveM client binary*; an **alternative
-  runtime** (FiveM-compatible Lua VM + API shim hosted in an alt:V
-  client-side JS resource) is technically plausible and is now the
-  investigation subject. Escrowed (encrypted) FiveM client scripts remain
-  impossible for any approach — they only decrypt inside the FiveM client.
-- Evidence rules: no compatibility claims beyond what integration tests
-  demonstrate; client-side, DB-persistence and multiplayer behavior must be
-  shown with real tests wherever this environment permits, and the rest
-  explicitly labeled as unverified.
+### Prompt 4 — Client-side execution 🔶 ALTERNATIVE RUNTIME IMPLEMENTED (in-sandbox)
+- Owner directive (2026-10): primary goal = run the existing custom FiveM
+  QBCore server — including **client-side Lua resources** — on NSM; do not
+  silently abandon client-side compatibility.
+- **Investigation done** → `docs/CLIENT_COMPATIBILITY.md`: full API matrix
+  (what the alt:V client provides vs what FiveM client scripts need),
+  six architectural options with limitations, decision = **Option B**:
+  a FiveM-compatible Lua VM hosted in a generated alt:V client JS resource
+  (`resources/fivem-client/`), built by `tools/build-client-bundle.mjs` from
+  the same server pipeline (manifest parse + fork transform) that runs the
+  server side.
+- Implemented: client prelude (Lua), VM-agnostic JS core, fengari adapter
+  (pure-JS Lua 5.3 — the baseline that runs in any JS sandbox) + wasmoon
+  adapter (Lua 5.4/WASM — cross-validation + upgrade path), NUI page shim
+  injected at build time, keybind map, statebag/state channels, native name
+  normalization + vector/multireturn marshalling.
+- Evidence: **client-runtime suite 70/70** (both VMs; real server pipeline
+  with mock game/transport); server suite 102/102, transform 62/62,
+  live-exports 17/17, qb-core load — all green after the changes.
+- Honest status: **logic verified in-sandbox only**. On-device checklist
+  (§7 of the doc): natives module resolution, WASM availability, webview
+  rendering/focus, keybind path, real event transport, perf benchmark,
+  qb-core real client scripts. Remaining build-outs: server→client event
+  wiring on the real js-module adapter, voice replacement (pma-voice),
+  networked-entity broker, dlc conversion tooling, KVP persistence.
+- Still impossible (any approach): escrowed client scripts; DUI; FiveM
+  loading-screen API.
 
 ### Prompt 5 — Events / players / entities / API registry 🔶 PARTIAL
 - Events (local/net/lifecycle, source semantics): implemented + tested.
@@ -98,13 +107,11 @@
 
 ## Next concrete tasks (priority order)
 
-1. **Client-side compatibility investigation + alternative runtime**
-   (Prompt 4, owner directive): inventory the FiveM client API surface
-   against alt:V client capabilities (natives bridge, events, NUI/CEF,
-   keybinds, statebags, voice), write `docs/CLIENT_COMPATIBILITY.md` with
-   the option analysis, implement the chosen runtime (Lua VM in a
-   client-side JS resource) with a Node-side mock harness, and demonstrate
-   with honest labels what can/cannot be verified without a real client.
+1. **Client runtime on-device verification + server wiring** (Prompt 4
+   continuation): run the §7 checklist on the Windows GTAMP host; wire
+   `TriggerClientEvent` → `alt.emitClient('__fivem:net', ...)` +
+   statebag pushes on the real js-module adapter; benchmark fengari vs
+   wasmoon in a `Wait(0)` loop; run qb-core's real client scripts.
 2. **`COMPATIBILITY_MATRIX.md` + `LUA_RUNTIME.md` + `RESOURCE_DEVELOPMENT.md`**
    (now including the client-side matrix from unit 1).
 3. **DB integration environment**: real MariaDB (dockerized or native) +

@@ -11,10 +11,12 @@ implementing Win32). The generated `cfx/natives-stubs.lua` name list comes from
 the public Cfx.re natives definitions (`github.com/citizenfx/natives`) — names
 and API surface, not code.
 
-**Test suite: 69/69 passing** (`node test/run-tests.js`) plus a live-exports
-acceptance suite (`node tools/live-exports-check.mjs`, 17 checks against real
-qb-core + es_extended) and the fork-syntax compile gate
-(`node tools/lua-fork-transform.test.mjs`, 62/62 qb-core files).
+**Test suites:** `node test/run-tests.js` → **102/102** (incl. resource
+lifecycle), `node test/client-runtime.test.mjs` → **70/70** (the client-side
+runtime, below), plus the live-exports acceptance suite
+(`node tools/live-exports-check.mjs`, 17/17 against real qb-core + es_extended)
+and the fork-syntax compile gate (`node tools/lua-fork-transform.test.mjs`,
+62/62 qb-core files).
 
 ## Real-framework status (v2.1)
 
@@ -68,7 +70,7 @@ not a compat bug). Pick one framework per server, like on FiveM.
 ## What runs (v2)
 
 **Core**
-- ✅ `fxmanifest.lua` parsing (`server_scripts`; `client_scripts` ignored with a warning)
+- ✅ `fxmanifest.lua` parsing (server scripts run here; `client_scripts`/shared scripts are collected, fork-transformed and shipped to players via the generated `fivem-client` resource — see below)
 - ✅ `RegisterNetEvent` / `RegisterServerEvent` / `AddEventHandler` / `on`, with the
   FiveM `source` global set per event/command
 - ✅ `TriggerEvent` (local bus), `TriggerClientEvent` (incl. `-1` broadcast)
@@ -123,12 +125,24 @@ not a compat bug). Pick one framework per server, like on FiveM.
 4. Chat commands: have your chat resource emit server event `cfx:command`
    with the raw message text (e.g. `/giveitem apple 2`).
 
+## Client-side Lua (fivem-client runtime)
+
+`client_scripts` now run too — inside a generated alt:V client JS resource
+(`../fivem-client/`, built by `node tools/build-client-bundle.mjs`): a Lua VM
+(fengari, pure JS) + a FiveM client-API prelude + JS bridges host your
+resources' client code, NUI pages (with a build-time compat shim), key
+mapping, statebags and events. See `docs/CLIENT_COMPATIBILITY.md` for the full
+investigation, API matrix, options analysis and the on-device verification
+checklist. **Not** possible on any architecture: escrowed (encrypted) FiveM
+client scripts, DUI, the FiveM loading-screen API.
+
 ## What does NOT run (architecture limits)
 
-- ❌ `client_scripts` / NUI / client natives — those run on the player's FiveM
-  client, which the GTAMP client is not. Server logic, events and statebags are
-  where compat lives; `TriggerClientEvent` still fires real alt:V client events
-  with the same names so you can pair with your own client-side JS.
+- ⚠️ Client-side logic is logic-verified in-sandbox (70/70 checks on the real
+  manifest→transform→payload pipeline) but **not yet verified on a real GTA V
+  client** — rendering/streaming/native behavior is on the on-device checklist.
+  `TriggerClientEvent` also fires real alt:V client events with the same names
+  so you can pair with your own client-side JS.
 - ⚠️ Unimplemented server natives return nil + a one-time warning (not a crash).
   Frameworks' server cores (QBCore/ESX/vMenu server side) lean mostly on what's
   implemented above; anything missing logs clearly — send the warning line and

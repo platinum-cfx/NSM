@@ -14,18 +14,6 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Frameworks are cloned by the developer (not committed):
-//   real_resources/qb-core           <- github.com/qbcore-framework/qb-core
-//   real_resources/esx-legacy/[core] <- github.com/esx-framework/esx-legacy
-const hasQb = fs.existsSync(path.join(__dirname, '..', 'real_resources', 'qb-core', 'fxmanifest.lua'));
-const hasEsx = fs.existsSync(path.join(__dirname, '..', 'real_resources', 'esx-legacy', '[core]', 'es_extended', 'fxmanifest.lua'));
-if (!hasQb || !hasEsx) {
-  console.log('live-exports-check: SKIPPED — clone qb-core and esx-legacy under real_resources/ to run');
-  console.log('  git clone --depth 1 https://github.com/qbcore-framework/qb-core real_resources/qb-core');
-  console.log('  git clone --depth 1 https://github.com/esx-framework/esx-legacy real_resources/esx-legacy');
-  process.exit(0);
-}
-
 let passed = 0, failed = 0;
 const check = (name, cond) => {
   if (cond) { passed++; console.log(`  PASS: ${name}`); }
@@ -76,7 +64,7 @@ print('qb-consumer ran: live=' .. tostring(__qb_identity) .. ' items=' .. tostri
   // WRONG order on purpose (consumer first); loadAll must reorder.
   await rt.loadAll([
     ['qb-consumer', consumerDir],
-    ['qb-core', path.join(__dirname, '..', 'real_resources', 'qb-core')],
+    ['qb-core', path.join(__dirname, '..', '..', '..', 'real_resources', 'qb-core')],
   ]);
 
   check('consumer saw qb-core Functions table', rt.envGet('qb-consumer', '__qb_functions_table') === true);
@@ -133,8 +121,8 @@ print('esx-consumer ran: live=' .. tostring(__esx_identity))
   // scripts must force esx_lib first, then es_extended, then the consumer.
   await rt.loadAll([
     ['esx-consumer', consumerDir],
-    ['es_extended', path.join(__dirname, '..', 'real_resources', 'esx-legacy', '[core]', 'es_extended')],
-    ['esx_lib', path.join(__dirname, '..', 'real_resources', 'esx-legacy', '[core]', 'esx_lib')],
+    ['es_extended', path.join(__dirname, '..', '..', '..', 'real_resources', 'esx-legacy', '[core]', 'es_extended')],
+    ['esx_lib', path.join(__dirname, '..', '..', '..', 'real_resources', 'esx-legacy', '[core]', 'esx_lib')],
   ]);
 
   check('consumer got ESX table', rt.envGet('esx-consumer', '__esx_table') === true);

@@ -12,7 +12,7 @@ const rt = new CfxCompatRuntime(mock);
 await rt.init();
 for (const w of which) {
   try {
-    await rt.loadResource(w.split('/').pop(), path.join(__dirname, '..', 'real_resources', ...w.split('/')));
+    await rt.loadResource(w.split('/').pop(), path.join(__dirname, '..', '..', '..', 'real_resources', ...w.split('/')));
     console.log(`>>> ${w}: LOADED OK`);
   } catch (e) {
     console.log(`>>> ${w}: LOAD FAILED — ${e && e.message ? e.message : e}`);

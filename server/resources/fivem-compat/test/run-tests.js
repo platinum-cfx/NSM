@@ -1,6 +1,6 @@
 // End-to-end test of the NSM cfx-compat runtime (v3: one VM, live exports)
 // against a mock alt:V server.
-import { CfxCompatRuntime, joaat } from '../resources/fivem-compat/cfx/runtime.js';
+import { CfxCompatRuntime, joaat } from '../cfx/runtime.js';
 import { makeMockAlt } from './mock-alt.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -33,7 +33,7 @@ await rt.loadResource('example-caller', callerDir);
 check('both resources loaded', rt.engines.has('example-hello') && rt.engines.has('example-caller'));
 check('server script ran (loaded OK message)', mock.logs.some((l) => l.includes('example-hello server.lua loaded OK')));
 check('example-caller loaded', mock.logs.some((l) => l.includes('example-caller loaded')));
-check('client_scripts warning emitted', mock.logs.some((l) => l.includes('IGNORED')));
+check('client script missing file is skipped (not fatal)', mock.errors.some((l) => l.includes("client bundle: missing script 'client.lua'")));
 check('one VM shared by both resources', rt.engines.get('example-hello').lua === rt.lua && rt.engines.get('example-caller').lua === rt.lua);
 check('print carries resource prefix', mock.logs.some((l) => l.includes('[example-hello]') || l.includes('example-hello')));
 

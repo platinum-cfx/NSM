@@ -761,6 +761,7 @@ function __makeEnv(name)
   -- fxmanifest directives: collected into THIS resource's manifest table
   local manifest = {
     server_scripts = {}, client_scripts = {}, shared_scripts = {}, dependencies = {},
+    files = {},
   }
   env.__manifest = manifest
   env.__manifestIgnored = {}
@@ -792,9 +793,20 @@ function __makeEnv(name)
   env.client_scripts = function(v) addscript('client_scripts', v) end
   env.dependency = function(v) adddep(v) end
   env.dependencies = function(v) adddep(v) end
-  -- directives with no server-side meaning: accepted, reported as ignored
+  -- files/ui_page matter for the CLIENT payload (NUI pages); the rest have
+  -- no server-side meaning and are accepted, reported as ignored
+  local function addfile(v)
+    if type(v) == 'table' then
+      for _, f in ipairs(v) do manifest.files[#manifest.files + 1] = tostring(f) end
+    else
+      manifest.files[#manifest.files + 1] = tostring(v)
+    end
+  end
+  env.files = function(v) addfile(v) end
+  env.file = function(v) addfile(v) end
+  env.ui_page = function(v) manifest.ui_page = tostring(v) end
   for _, d in ipairs({
-    'files', 'file', 'ui_page', 'provide', 'replace_script', 'escrow_ignore',
+    'provide', 'replace_script', 'escrow_ignore',
     'use_experimental_fxv2_oal', 'is_master_manifest',
   }) do
     env[d] = function(v) end
@@ -817,6 +829,10 @@ function __makeEnv(name)
     out[#out + 1] = string.format('%q:%s', 'server_scripts', ser(manifest.server_scripts))
     out[#out + 1] = string.format('%q:%s', 'client_scripts', ser(manifest.client_scripts))
     out[#out + 1] = string.format('%q:%s', 'dependencies', ser(manifest.dependencies))
+    if manifest.ui_page ~= nil then
+      out[#out + 1] = string.format('%q:%s', 'ui_page', ser(manifest.ui_page))
+    end
+    out[#out + 1] = string.format('%q:%s', 'files', ser(manifest.files))
     local ig = {}
     for k in pairs(env.__manifestIgnored) do ig[#ig + 1] = k end
     table.sort(ig)
@@ -1121,8 +1137,28 @@ export class CfxCompatRuntime {
   // Phase 2: run the resource's scripts (shared first, then server).
   async runResource(res) {
     const { name, dir, manifest } = res;
-    if ((manifest.client_scripts || []).length > 0) {
-      this.log(`has ${manifest.client_scripts.length} client script(s) — IGNORED (server-side compat only)`);
+    // Collect transformed client+shared scripts for the client bundle (the
+    // fivem-client resource ships them to players; see client/core.mjs).
+    res.clientScripts = [];
+    for (const rel of [...(manifest.shared_scripts || []), ...(manifest.client_scripts || [])]) {
+      const files = this.resolveScripts(name, dir, rel);
+      if (files === null) {
+        this.logError(`client bundle: missing script '${rel}' in '${name}' (skipped)`);
+        continue;
+      }
+      for (const p of files) {
+        try {
+          res.clientScripts.push({
+            path: path.relative(dir, p).split(path.sep).join('/'),
+            source: transformFiveMLua(fs.readFileSync(p, 'utf8')),
+          });
+        } catch (e) {
+          this.logError(`client bundle: error reading ${path.relative(dir, p)}: ${e && e.message ? e.message : e}`);
+        }
+      }
+    }
+    if (res.clientScripts.length > 0) {
+      this.log(`collected ${res.clientScripts.length} client-side script(s) for the client bundle`);
     }
 
     const g = this.lua.global;
@@ -1365,6 +1401,23 @@ export class CfxCompatRuntime {
   // Read a global from a resource's environment (testing/debug).
   envGet(resName, key) {
     return this.lua.global.get('__envGet')(String(resName), String(key));
+  }
+
+  // Client payload consumed by tools/build-client-bundle.mjs: everything the
+  // alt:V-side fivem-client resource needs to host this server's FiveM
+  // resources client-side (transformed scripts, ui_page, files list).
+  buildClientPayload() {
+    const resources = [];
+    for (const [name, res] of this.engines) {
+      if (res.status !== 'running') continue;
+      resources.push({
+        name,
+        scripts: res.clientScripts || [],
+        uiPage: (res.manifest && res.manifest.ui_page) || null,
+        files: (res.manifest && res.manifest.files) || [],
+      });
+    }
+    return { resources };
   }
 
   // Resolve a manifest script entry to actual files: expands * globs and

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    html, body { margin: 0; padding: 0; background: transparent; font-family: sans-serif; }
+    #hud {
+      display: none;
+      position: fixed; top: 12%; left: 50%; transform: translateX(-50%);
+      padding: 14px 22px; color: #fff; background: rgba(0, 0, 0, 0.75);
+      border-radius: 6px; font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">NSM demo HUD</div>
+  <script>
+    // Standard FiveM NUI page idioms: window 'message' events in,
+    // fetch('https://resource/callback') back out.
+    window.addEventListener('message', function (e) {
+      var d = e.data || {};
+      window.__nuiMsgs = window.__nuiMsgs || [];
+      window.__nuiMsgs.push(d);
+      var el = document.getElementById('hud');
+      if (el && d.action === 'setVisible') el.style.display = d.visible ? 'block' : 'none';
+    });
+    document.addEventListener('click', function () {
+      fetch('https://client-demo/nuiClosed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'clicked' })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        window.__nuiResp = j;
+      });
+    });
+  </script>
+</body>
+</html>
