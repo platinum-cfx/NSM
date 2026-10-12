@@ -7,6 +7,10 @@ you as playing it.
 
 ## Do the same for NSM / gtamp
 
+Fresh downloads already carry `steam_appid.txt` inside `client-new/` next to
+the client exe (same as FiveM's download carries it). If your copy predates
+this or the file is missing:
+
 1. Copy `steam_appid.txt` from this folder into the folder with the exe you
    launch to play (the gtamp launcher/client exe — the one you double-click).
 2. Make sure Steam is running, then launch the game as usual.
