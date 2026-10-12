@@ -1,39 +1,35 @@
 # Client extras — Steam presence (the FiveM trick)
 
-FiveM shows up in Steam as "Playing Source SDK Base 2007" because its exe
-initializes the Steamworks API with AppID 244310 (a free Source app) while it
-runs. **NSM now does exactly the same thing, the same way.**
+How FiveM does it: its game process has Steamworks code built in and
+initializes it at startup with AppID 244310 ("Source SDK Base 2007", a free
+Source app whose license virtually every Steam account already holds — which
+is why nothing ever gets downloaded or installed). Steam then shows
+"Playing Source SDK Base 2007" for as long as the game runs.
 
-## How it works in this download
+## How NSM does the same
 
-- `client-new/NSM.exe` — a tiny launcher (full source: `client-new/nsm-shim-source.c`).
-  On double-click it registers with Steam as AppID 244310, then starts the real
-  client (`nsm-game.exe`) and holds the status until you close the game.
-- `client-new/nsm-game.exe` — the actual game client (unchanged binary).
-- `client-new/connect.exe` — server browser. Launching through `NSM.exe` is
-  what carries the Steam status.
-- `client-new/steam_appid.txt` — contains `244310`; the launcher reads it.
+`NSM.exe` is untouched and remains the one and only file you run. The client
+loads `discord_rpc.dll` from its own folder at startup, so in this download
+that file is a small wrapper (full source: `client-new/nsm-steam-presence-source.c`):
 
-No files are copied into hidden folders and nothing is modified in your Steam
-install. The launcher loads `steam_api64.dll` from any installed Steam game
-(Grand Theft Auto V first) purely to make the "I'm playing" call.
+- the moment the client loads it, it initializes Steamworks **inside the
+  client's own process**, with the AppID from `client-new/steam_appid.txt`
+  (244310) — the same mechanism FiveM uses
+- Discord presence keeps working: everything forwards to the real library,
+  unchanged, renamed to `discord_rpc_real.dll`
+- `steam_api64.dll` is not shipped; it is borrowed at runtime from an
+  installed Steam game (Grand Theft Auto V first), located via the registry
+- if Steam isn't running or anything fails, it stays silent — the game and
+  Discord presence are never affected
 
-## Requirements (once per machine)
+## Requirements
 
-1. Steam installed and running.
-2. Your account must own Source SDK Base 2007 (free):
-   Steam → Library → dropdown "Games" → Tools → Source SDK Base 2007 → Install.
-3. Fully restart Steam once after installing it (Steam → Exit, not the window X).
+- Steam installed and running when you play.
+- Your account must hold the Source SDK Base 2007 license (free). It does if
+  it appears under Steam → Library → Tools. **No download or install of it
+  is needed** — the license alone is enough.
 
-## First run notes
+## If the status doesn't show
 
-- Windows may show a firewall prompt for `nsm-game.exe` → Allow (it's the game).
-- `NSM.exe` is unsigned. If SmartScreen shows "Windows protected your PC":
-  More info → Run anyway. The complete source ships next to it.
-- If Steam isn't running or the AppID isn't owned, the game still runs — you
-  just don't get the status. Presence never blocks playing.
-
-## Troubleshooting
-
-Run `CHECK-STEAM.bat` (in this folder) while the game is open and send back
+Run `CHECK-STEAM.bat` (this folder) while the client is open and send back
 the `STEAM-CHECK.txt` it produces.
