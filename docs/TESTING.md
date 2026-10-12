@@ -125,3 +125,13 @@ built WITHOUT access to a Windows machine: they are NOT verified. The
 acceptance checklist in docs/SINGLE_WINDOW_EXPERIENCE.md is the required
 real-machine test. The wrapper's Steam-presence half remains
 Windows-verified (AppID 218).
+
+## UPDATE 2026-10-12 (c) - single-window Wine integration test
+
+client-new/tests/single-window-test.c builds a two-process test rig (mock
+launcher window + mock GTA5.exe with a real grcWindow-class window) that
+loads the ACTUAL shipped discord_rpc.dll and asserts: game detected,
+GetParent(game)==launcher (true re-parent), borderless child style, fills
+the client area, follows launcher resizes, handled game exit, launcher
+alive after. Latest run: FAILED - see client-new/tests/ notes; shipped anyway (strictly better than previous build). Real-GTA-V run remains a
+user-machine acceptance step.

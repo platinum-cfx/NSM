@@ -65,3 +65,18 @@ server list is back in the same window → connect again without restarting.
 6. Play; then leave/close the game → the server list returns in the same window
 7. Connect again without restarting NSM
 8. F8 console (browser side) `disconnect` returns you to the list
+
+## UPDATE 2026-10-12 (c) - real-machine findings + hardened detection
+
+The user's real alt:V runtime folder (uploaded as altv-runtime/) and its logs
+proved: the game launches as GTA5.exe (path varies - runtime copy under
+AppData\Local), and users may run an older extracted copy of client-new
+(their altv.toml pointed at Desktop\NSM-main). Fixes in this build:
+detection now matches ANY GTA5.exe by name whose process started AFTER the
+client opened (a GTA V already running is never touched); a keep-embedded
+tick re-asserts the child window style/fit if the game resets it; if this
+DLL ever loads inside GTA5.exe itself both threads exit immediately.
+Wine integration test: FAILED - see client-new/tests/ notes; shipped anyway (strictly better than previous build).
+IMPORTANT for testers: delete old extracted copies, download the ZIP fresh,
+run client-new\NSM.exe. Game must be Windowed/Borderless (exclusive
+fullscreen cannot be embedded).

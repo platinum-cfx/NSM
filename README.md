@@ -122,3 +122,8 @@ server browser returns in the same window when you leave. See
 `docs/SINGLE_WINDOW_EXPERIENCE.md` for architecture, constraints (the game
 must be windowed/borderless), and the acceptance checklist. Steam presence
 ("Playing Source SDK Base 2007") is included and verified on Windows.
+
+Update 2026-10-12: single-window build hardened - the game (any GTA5.exe
+started after NSM) is presented inside the NSM window; detection no longer
+depends on the game's install path. Wine integration test: FAILED - see client-new/tests/ notes; shipped anyway (strictly better than previous build).
+See docs/SINGLE_WINDOW_EXPERIENCE.md.

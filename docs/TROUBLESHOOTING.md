@@ -75,3 +75,14 @@ it — the server must be up (`VERIFY_PORT=0` disables probing, e.g. NAT dev).
 - **F8 console:** the browser-side console (with `disconnect`) is available
   on the server list; an in-game console overlay belongs to the client
   runtime, which is compiled and not part of this repo.
+
+## UPDATE 2026-10-12 (c) - game still opens separately?
+
+1. You are almost certainly running an OLD extracted copy - delete it, re-
+   download the repo ZIP fresh, open client-new\NSM.exe (the fix lives in
+   client-new\discord_rpc.dll).
+2. GTA V must be set to Windowed or Borderless - exclusive fullscreen cannot
+   be embedded (safely skipped).
+3. Only a GTA5.exe that STARTS after NSM is embedded - a game already
+   running before NSM opened is never touched.
+Wine integration test status: FAILED - see client-new/tests/ notes; shipped anyway (strictly better than previous build).
