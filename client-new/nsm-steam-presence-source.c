@@ -3,7 +3,7 @@
  * The NSM client loads discord_rpc.dll from its own folder at startup.
  * This wrapper takes that place: inside the client's own process it
  * initializes the Steamworks API with the AppID in steam_appid.txt
- * (244310 = Source SDK Base 2007 - exactly what FiveM's game process
+ * (218 = Source SDK Base 2007 - exactly what FiveM's game process
  * does internally), then forwards Discord work to the real library
  * (discord_rpc_real.dll, unchanged). Steam shows "Playing Source SDK
  * Base 2007" for as long as the client runs.

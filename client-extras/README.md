@@ -1,7 +1,7 @@
 # Client extras — Steam presence (the FiveM trick)
 
 How FiveM does it: its game process has Steamworks code built in and
-initializes it at startup with AppID 244310 ("Source SDK Base 2007", a free
+initializes it at startup with AppID 218 ("Source SDK Base 2007", a free
 Source app whose license virtually every Steam account already holds — which
 is why nothing ever gets downloaded or installed). Steam then shows
 "Playing Source SDK Base 2007" for as long as the game runs.
@@ -14,7 +14,7 @@ that file is a small wrapper (full source: `client-new/nsm-steam-presence-source
 
 - the moment the client loads it, it initializes Steamworks **inside the
   client's own process**, with the AppID from `client-new/steam_appid.txt`
-  (244310) — the same mechanism FiveM uses
+  (218) — the same mechanism FiveM uses
 - Discord presence keeps working: everything forwards to the real library,
   unchanged, renamed to `discord_rpc_real.dll`
 - `steam_api64.dll` is not shipped; it is borrowed at runtime from an
