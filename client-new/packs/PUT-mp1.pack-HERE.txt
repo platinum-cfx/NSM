@@ -1,0 +1,9 @@
+NSM needs the game pack file "mp1.pack" in THIS folder (client-new\packs\).
+
+Where to get it: your original NSM download (the folder you had before
+re-downloading from GitHub). Copy mp1.pack into this "packs" folder, so
+it looks like:  client-new\packs\mp1.pack
+
+It cannot be shipped in this repository: the pack is larger than
+GitHub's 100MB per-file limit. If you lost your copy, get it from
+whoever gave you NSM originally, or ask in the project chat.
