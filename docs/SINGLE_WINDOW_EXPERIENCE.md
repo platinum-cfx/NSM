@@ -108,3 +108,17 @@ survival. Final status: MECH=FAIL CROSS=FAIL - investigate.
 The previous note's "MECH=FAIL CROSS=FAIL" was a test-script path bug
 (the test exe was built to one directory and copied from another - no
 test actually ran). Re-run with fixed paths: PASS - in-process mechanics fully verified (re-parent, child style, fill, resize-follow, game-exit, launcher survival) AND cross-process detection verified against the shipped DLL; the single step Wine cannot execute (cross-process SetParent) is a standard Windows API, confirmable on the user's machine via nsm-embed-debug.log.
+
+## UPDATE 2026-10-12 (h) - FINAL: full chain verified under Wine
+
+The re-run (efd6a15) actually completed the ENTIRE chain with the shipped
+DLL - the previous note under-claimed. DLL trace from the live run:
+startup snapshot (0 GTA5.exe) -> game pid found -> grcWindow found ->
+own launcher window found -> cross-process SetParent OK -> child style
+set -> fitted -> DONE (only SetFocus failed - cosmetic, focus arrives on
+first click). The game window also vanished from top-level enumeration
+exactly as a re-parented child should. In-process mechanics test: 6/6
+PASS. Cross-process detection + exit handling: PASS. The single-window
+mechanism is verified end-to-end in the test rig; remaining acceptance:
+a real GTA V run on the user's machine (fresh ZIP, game set to
+Windowed/Borderless), with nsm-embed-debug.log as the diagnostic trail.
