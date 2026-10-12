@@ -133,6 +133,9 @@ static HWND    g_hostWnd  = NULL;
 static HWND    g_gameWnd  = NULL;
 static WNDPROC g_origProc = NULL;
 
+static int    g_gaveUp = 0;      /* stop retrying a failing embed for this game */
+static int    g_embedFails = 0;
+
 static DWORD g_initial[8];
 static int   g_initialN = -1;   /* GTA5.exe PIDs alive at client start */
 
@@ -242,6 +245,20 @@ static void try_embed(HWND gameWnd)
         | (LONG_PTR)WS_CHILD);
     dblog("embed: child style set\r\n");
 
+    SetWindowPos(gameWnd, NULL, 0, 0, 0, 0,
+                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+                  SWP_FRAMECHANGED);
+    dblog("embed: frame updated\r\n");
+
+    /* verify the actual parent relationship - never trust the return value alone.
+     * GetAncestor(GA_PARENT) works with or without WS_CHILD already applied. */
+    if (GetAncestor(gameWnd, GA_PARENT) != host) {
+        dblog("embed: parent verify FAILED - leaving the game as a normal window\r\n");
+        SetParent(gameWnd, NULL);
+        return;
+    }
+    dblog("embed: parent verified (WS_CHILD + reparent confirmed)\r\n");
+
     if (!g_origProc)
         g_origProc = (WNDPROC)SetWindowLongPtrA(host, GWLP_WNDPROC,
                                                 (LONG_PTR)host_subclass_proc);
@@ -249,7 +266,14 @@ static void try_embed(HWND gameWnd)
     g_gameWnd = gameWnd;
     fit_game();
     dblog("embed: fitted\r\n");
-    if (!SetFocus(gameWnd)) dblog("embed: SetFocus failed (cosmetic)\r\n");
+    {
+        DWORD gtid = GetWindowThreadProcessId(gameWnd, NULL);
+        DWORD mtid = GetCurrentThreadId();
+        BOOL at = (gtid && gtid != mtid) ? AttachThreadInput(mtid, gtid, TRUE) : FALSE;
+        if (SetFocus(gameWnd)) dblog("embed: focus set\r\n");
+        else dblog("embed: SetFocus failed (cosmetic)\r\n");
+        if (at) AttachThreadInput(mtid, gtid, FALSE);
+    }
     dblog("embed: DONE\r\n");
 }
 
@@ -266,19 +290,47 @@ static void keep_embedded(void)
     fit_game();
 }
 
+
+/* .config may disable embedding (embed_game_window = false) - emergency
+ * fallback so the game opens in its own window for troubleshooting. */
+static int embed_enabled_by_config(void)
+{
+    char exe[MAX_PATH * 2], path[MAX_PATH * 2], line[512];
+    char *slash; FILE *f; int enabled = 1;
+    GetModuleFileNameA(NULL, exe, sizeof exe);
+    slash = strrchr(exe, '\\');
+    if (slash) *slash = 0;
+    _snprintf(path, sizeof path, "%s\\.config", exe);
+    f = fopen(path, "r");
+    if (!f) return 1;
+    while (fgets(line, sizeof line, f)) {
+        if (_strnicmp(line, "embed_game_window", 17) == 0) {
+            char *v = strchr(line, '=');
+            if (v && strstr(v, "false")) enabled = 0;
+            break;
+        }
+    }
+    fclose(f);
+    return enabled;
+}
+
 static DWORD WINAPI embed_thread(LPVOID unused)
 {
     char line[128];
     (void)unused;
     if (own_exe_is("GTA5.exe")) return 0;   /* never act inside the game */
     Sleep(1500);                            /* let the client UI come up */
+    if (!embed_enabled_by_config()) {
+        dblog("embed: disabled by config (embed_game_window = false)\r\n");
+        return 0;
+    }
     g_initialN = gta_pids(g_initial, 8, 0);
     _snprintf(line, sizeof line, "startup: %d GTA5.exe already running\r\n", g_initialN);
     dblog(line);
     for (;;) {
         DWORD found[8];
         int n = gta_pids(found, 8, 1);
-        if (n > 0 && !g_gameWnd) {
+        if (n > 0 && !g_gameWnd && !g_gaveUp) {
             DWORD gamePid = found[0];
             HWND gw = NULL;
             for (int tries = 0; tries < 180 && !gw; tries++) {
@@ -297,11 +349,15 @@ static DWORD WINAPI embed_thread(LPVOID unused)
                           (unsigned long)gamePid);
                 dblog(line);
                 try_embed(gw);
+                if (!g_gameWnd && ++g_embedFails >= 3) {
+                    g_gaveUp = 1;
+                    dblog("embed: giving up after 3 attempts - game stays a normal window\r\n");
+                }
             }
         }
         if (g_gameWnd) {
             if (IsWindow(g_gameWnd)) keep_embedded();
-            else { g_gameWnd = NULL; g_hostWnd = NULL; dblog("game exited\r\n"); }
+            else { g_gameWnd = NULL; g_hostWnd = NULL; g_gaveUp = 0; g_embedFails = 0; dblog("game exited\r\n"); }
         }
         Sleep(700);
     }
@@ -346,57 +402,12 @@ static DWORD WINAPI pack_guard_thread(LPVOID unused)
     _snprintf(pack, sizeof pack, "%s\\packs", dir);
     CreateDirectoryA(pack, NULL);
 
-    for (i = 1; i <= 7; i++) {
-        _snprintf(loose, sizeof loose, "%s\\mp%d.pack", dir, i);
-        _snprintf(pack, sizeof pack, "%s\\packs\\mp%d.pack", dir, i);
-        if (GetFileAttributesA(pack) == INVALID_FILE_ATTRIBUTES &&
-            GetFileAttributesA(loose) != INVALID_FILE_ATTRIBUTES) {
-            if (MoveFileA(loose, pack)) {
-                _snprintf(line, sizeof line,
-                          "pack: moved loose mp%d.pack into packs\r\n", i);
-                dblog(line);
-            }
-        }
-    }
-
-    for (i = 1; i <= 7; i++) {
-        _snprintf(pack, sizeof pack, "%s\\packs\\mp%d.pack", dir, i);
-        if (GetFileAttributesA(pack) == INVALID_FILE_ATTRIBUTES ||
-            (i == 1 && nsm_file_size(pack) < 10u * 1024u * 1024u)) {
-            _snprintf(tmp, sizeof tmp, "%s\\packs\\mp%d.download", dir, i);
-            _snprintf(url, sizeof url, "%smp%d.pack", NSM_PACK_RELEASE, i);
-            DeleteFileA(tmp);
-            _snprintf(line, sizeof line,
-                      "pack: fetching mp%d.pack in background\r\n", i);
-            dblog(line);
-            _snprintf(cmd, sizeof cmd,
-                      "cmd.exe /c curl -L --retry 3 -sS -o \"%s\" \"%s\"",
-                      tmp, url);
-            {
-                STARTUPINFOA si; PROCESS_INFORMATION pi;
-                memset(&si, 0, sizeof si); si.cb = sizeof si;
-                si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
-                if (CreateProcessA(NULL, cmd, NULL, NULL, FALSE,
-                                   CREATE_NO_WINDOW, NULL, dir, &si, &pi)) {
-                    WaitForSingleObject(pi.hProcess, 20u * 60u * 1000u);
-                    CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
-                } else {
-                    dblog("pack: curl spawn failed\r\n");
-                }
-            }
-            if ((i != 1 && nsm_file_size(tmp) > 1024u * 1024u) ||
-                (i == 1 && nsm_file_size(tmp) > 200u * 1024u * 1024u)) {
-                if (MoveFileExA(tmp, pack, MOVEFILE_REPLACE_EXISTING))
-                    dblog("pack: installed\r\n");
-                else
-                    dblog("pack: swap failed (in use; retry next start)\r\n");
-            } else {
-                DeleteFileA(tmp);
-                dblog("pack: download failed; keeping what is in place\r\n");
-            }
-        }
-    }
-    dblog("pack: guard done\r\n");
+    /* NOTE: fetching the large mp1.pack from a GitHub release was removed -
+ * the launcher now installs the game runtime directly from the local
+ * altv-runtime folder shipped in the same ZIP (EnsureRuntimeInstalled in
+ * connect.cpp), so no release download is needed. Existing packs are left
+ * exactly as they are. */
+        dblog("pack: guard done\r\n");
     return 0;
 }
 
