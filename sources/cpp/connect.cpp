@@ -4,6 +4,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <commdlg.h>
 #include <string>
 #include <vector>
@@ -29,11 +30,26 @@ string g_logFilePath = "";
 void WriteLog(const string& message) {
     if (g_logFilePath.empty()) return;
     ofstream logFile(g_logFilePath, ios::app);
+    if (!logFile.is_open()) {
+        // the log directory may not exist yet (fresh machine): create the full
+        // path recursively and retry once - log lines must never be lost
+        string dir = g_logFilePath;
+        size_t p = dir.find_last_of("\\/");
+        if (p != string::npos) {
+            SHCreateDirectoryExA(NULL, dir.substr(0, p).c_str(), NULL);
+            logFile.open(g_logFilePath, ios::app);
+        }
+    }
     if (logFile.is_open()) {
         auto now = chrono::system_clock::now();
         time_t now_c = chrono::system_clock::to_time_t(now);
         struct tm parts;
+#ifdef _MSC_VER
         localtime_s(&parts, &now_c);
+#else
+        struct tm* pparts = localtime(&now_c);
+        if (pparts) parts = *pparts;
+#endif
         char timeStr[64];
         strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &parts);
         logFile << "[" << timeStr << "] " << message << "\n";
@@ -656,7 +672,7 @@ inline string DetectGtaPath(const string& baseDir) {
     return "";
 }
 
-inline bool EnsureGtaPathConfigured(const string& baseDir) {
+inline bool EnsureGtaPathConfigured(const string& baseDir, bool allowPrompt) {
     auto checkDir = [](const string& dir) -> bool {
         if (dir.empty()) return false;
         string exe = dir + "\\GTA5.exe";
@@ -678,8 +694,9 @@ inline bool EnsureGtaPathConfigured(const string& baseDir) {
         return true;
     }
 
-    // Prompt user to browse for GTA5.exe
-    string userChosen = BrowseForGtaExe();
+    // Prompt user to browse for GTA5.exe (only at Connect time, never at startup,
+    // so no mysterious dialog appears before the server browser opens)
+    string userChosen = allowPrompt ? BrowseForGtaExe() : "";
     if (!userChosen.empty() && checkDir(userChosen)) {
         SetConfigGtaPath(cfgPath, userChosen);
         WriteLog("User selected GTA path: " + userChosen);
@@ -731,7 +748,7 @@ bool EnsureGameFilesReady(const string& baseDir, const string& targetDir) {
     }
 
     CreateDirectoryA(targetDir.c_str(), NULL);
-    CreateDirectoryA((targetDir + "\\logs").c_str(), NULL);
+    SHCreateDirectoryExA(NULL, (targetDir + "\\logs").c_str(), NULL);
     CreateDirectoryA((targetDir + "\\proxy").c_str(), NULL);
     CreateDirectoryA((targetDir + "\\cef").c_str(), NULL);
     CreateDirectoryA((targetDir + "\\cef\\locales").c_str(), NULL);
@@ -759,6 +776,179 @@ bool EnsureGameFilesReady(const string& baseDir, const string& targetDir) {
     }
     WriteLog("Packs successfully extracted.");
     return true;
+}
+
+
+// ============================================================
+// FiveM-parity helpers: local masterlist + server auto-start,
+// direct runtime install from the local altv-runtime folder,
+// and the NSM host window the game is embedded into.
+// ============================================================
+static bool NsmPortOpen(const string& host, int port) {
+    SOCKET s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s == INVALID_SOCKET) return false;
+    sockaddr_in a; memset(&a, 0, sizeof a);
+    a.sin_family = AF_INET; a.sin_port = htons((u_short)port);
+    a.sin_addr.s_addr = inet_addr(host.c_str());
+    bool ok = (connect(s, (sockaddr*)&a, sizeof a) == 0);
+    closesocket(s);
+    return ok;
+}
+
+static bool NsmSpawnAndWaitPort(const string& exePath, const string& workDir,
+                                const string& host, int port, int timeoutMs) {
+    STARTUPINFOA si; PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof si); si.cb = sizeof si;
+    char cmd[MAX_PATH * 2];
+    _snprintf(cmd, sizeof cmd, "\"%s\"", exePath.c_str());
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL,
+                        workDir.c_str(), &si, &pi)) return false;
+    CloseHandle(pi.hThread);
+    for (int t = 0; t < timeoutMs; t += 500) {
+        if (NsmPortOpen(host, port)) { CloseHandle(pi.hProcess); return true; }
+        Sleep(500);
+    }
+    CloseHandle(pi.hProcess);
+    return NsmPortOpen(host, port);
+}
+
+static bool NsmIsLocalHost(const string& h) {
+    return h == "127.0.0.1" || h == "localhost" || h.empty();
+}
+
+static void EnsureLocalMasterlistRunning(const string& baseDir, const string& masterlistUrl) {
+    string u = masterlistUrl;
+    if (u.rfind("http://", 0) == 0) u = u.substr(7);
+    else if (u.rfind("https://", 0) == 0) u = u.substr(8);
+    size_t slash = u.find('/');
+    if (slash != string::npos) u = u.substr(0, slash);
+    string host = "127.0.0.1"; int port = 8080;
+    size_t c = u.find(':');
+    if (c != string::npos) {
+        host = u.substr(0, c);
+        try { port = stoi(u.substr(c + 1)); } catch (...) {}
+    } else if (!u.empty()) host = u;
+    if (!NsmIsLocalHost(host)) return;             // only auto-start our own
+    if (NsmPortOpen(host, port)) return;           // already running
+    const char* rel[] = { "\\..\\masterlist\\masterlist.exe", "\\masterlist\\masterlist.exe" };
+    for (const char* r : rel) {
+        string exe = baseDir + r;
+        if (GetFileAttributesA(exe.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            string dir = exe.substr(0, exe.find_last_of("\\/"));
+            WriteLog("Starting local masterlist...");
+            if (NsmSpawnAndWaitPort(exe, dir, host, port, 10000))
+                WriteLog("Local masterlist is running.");
+            else
+                WriteLog("Local masterlist did not open its port; continuing.");
+            return;
+        }
+    }
+    WriteLog("masterlist.exe not found next to the launcher; assuming it runs elsewhere.");
+}
+
+static void EnsureLocalServerRunning(const string& baseDir, const string& host, int port) {
+    if (!NsmIsLocalHost(host)) return;             // remote servers are never started by us
+    if (NsmPortOpen(host, port)) { WriteLog("Local game server already running."); return; }
+    const char* rel[] = { "\\..\\server\\gtamp-server.exe", "\\server\\gtamp-server.exe" };
+    for (const char* r : rel) {
+        string exe = baseDir + r;
+        if (GetFileAttributesA(exe.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            string dir = exe.substr(0, exe.find_last_of("\\/"));
+            WriteLog("Starting local game server (gtamp-server.exe)...");
+            if (NsmSpawnAndWaitPort(exe, dir, host, port, 15000))
+                WriteLog("Local game server is running.");
+            else
+                WriteLog("Local game server did not open its port; the client will retry.");
+            return;
+        }
+    }
+    WriteLog("gtamp-server.exe not found next to the launcher; nothing to auto-start.");
+}
+
+static void NsmCopyTreeSkipExisting(const string& src, const string& dst) {
+    CreateDirectoryA(dst.c_str(), NULL);
+    string pat = src + "\\*";
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pat.c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, "..")) continue;
+        string s = src + "\\" + fd.cFileName;
+        string d = dst + "\\" + fd.cFileName;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            NsmCopyTreeSkipExisting(s, d);
+        } else if (GetFileAttributesA(d.c_str()) == INVALID_FILE_ATTRIBUTES) {
+            CopyFileA(s.c_str(), d.c_str(), TRUE);
+        }
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+}
+
+static void EnsureRuntimeInstalled(const string& baseDir, const string& targetDir) {
+    string altvExe = targetDir + "\\altv.exe";
+    if (GetFileAttributesA(altvExe.c_str()) != INVALID_FILE_ATTRIBUTES) return; // already present
+    const char* rel[] = { "\\..\\altv-runtime", "\\altv-runtime" };
+    for (const char* r : rel) {
+        string rtRoot = baseDir + r;
+        string pat = rtRoot + "\\*";
+        WIN32_FIND_DATAA fd;
+        HANDLE h = FindFirstFileA(pat.c_str(), &fd);
+        if (h == INVALID_HANDLE_VALUE) continue;
+        do {
+            if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+            if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, "..")) continue;
+            string sub = rtRoot + "\\" + fd.cFileName;
+            if (GetFileAttributesA((sub + "\\altv.exe").c_str()) == INVALID_FILE_ATTRIBUTES) continue;
+            WriteLog("Installing game runtime from: " + sub);
+            NsmCopyTreeSkipExisting(sub, targetDir);
+            WriteLog("Game runtime install complete.");
+            FindClose(h);
+            return;
+        } while (FindNextFileA(h, &fd));
+        FindClose(h);
+    }
+    WriteLog("No local altv-runtime folder found; relying on pack extraction only.");
+}
+
+// ---- NSM host window: the application window the game is embedded into ----
+static HWND g_nsmHostWnd = NULL;
+
+static LRESULT CALLBACK NsmHostWndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    if (m == WM_CLOSE) { ShowWindow(h, SW_HIDE); return 0; }  // hide, never destroy
+    return DefWindowProcA(h, m, w, l);
+}
+
+static DWORD WINAPI NsmHostWndThread(LPVOID unused) {
+    (void)unused;
+    WNDCLASSA wc; memset(&wc, 0, sizeof wc);
+    wc.lpfnWndProc = NsmHostWndProc;
+    wc.hInstance = GetModuleHandleA(NULL);
+    wc.hCursor = LoadCursorA(NULL, IDC_ARROW);
+    wc.hIcon = LoadIconA(GetModuleHandleA(NULL), MAKEINTRESOURCEA(1));
+    wc.lpszClassName = "NSMMainWindow";
+    RegisterClassA(&wc);
+    g_nsmHostWnd = CreateWindowExA(0, "NSMMainWindow", "NSM",
+        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 820,
+        NULL, NULL, GetModuleHandleA(NULL), NULL);
+    MSG msg;
+    while (g_nsmHostWnd && GetMessageA(&msg, NULL, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessageA(&msg);
+    }
+    return 0;
+}
+
+static void ShowHostWindow(const char* title) {
+    if (!g_nsmHostWnd) return;
+    SetWindowTextA(g_nsmHostWnd, title);
+    if (IsIconic(g_nsmHostWnd)) ShowWindow(g_nsmHostWnd, SW_RESTORE);
+    else ShowWindow(g_nsmHostWnd, SW_SHOW);
+    SetForegroundWindow(g_nsmHostWnd);
+    SetActiveWindow(g_nsmHostWnd);
+}
+
+static void HideHostWindow() {
+    if (g_nsmHostWnd) ShowWindow(g_nsmHostWnd, SW_HIDE);
 }
 
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -819,13 +1009,31 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     LocalFree(argvW);
 
     string baseDir = GetExecutableDir();
-    EnsureGtaPathConfigured(baseDir);
+
+    // Determine Local app directory FIRST - the log must exist before any GTA
+    // detection so every path decision is visible in connect.log
+    char localAppData[MAX_PATH];
+    ExpandEnvironmentStringsA("%LOCALAPPDATA%", localAppData, MAX_PATH);
+    string key = "gtamp";
+    string targetDir = string(localAppData) + "\\" + ComputeHash(key);
+    SHCreateDirectoryExA(NULL, (targetDir + "\\logs").c_str(), NULL);
+    g_logFilePath = targetDir + "\\logs\\connect.log";
+    WriteLog("Starting connect.exe / NSM.exe");
+
+    // Silent GTA detection at startup (saves to .config when found; NEVER prompts)
+    EnsureGtaPathConfigured(baseDir, false);
     string masterlistUrl = ReadConfigValue(baseDir, "masterlist_url", "http://127.0.0.1:8080");
+
+    // FiveM parity: if the masterlist is local and not running, start it
+    EnsureLocalMasterlistRunning(baseDir, masterlistUrl);
 
     // Start embedded launcher server and open dedicated FiveM-styled launcher window
     if (!gtamp::StartLauncherServer(baseDir, masterlistUrl, !hasConnect)) {
         return 0;
     }
+
+    // NSM host window: the real application window the game gets embedded into
+    CreateThread(NULL, 0, NsmHostWndThread, NULL, 0, NULL);
 
     // Initialize Discord RPC DLL if present
     string discordDllPath = baseDir + "\\discord_rpc.dll";
@@ -836,16 +1044,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         initDiscord();
     }
     
-    // Determine Local app directory
-    char localAppData[MAX_PATH];
-    ExpandEnvironmentStringsA("%LOCALAPPDATA%", localAppData, MAX_PATH);
-    string key = "gtamp";
-    string targetDir = string(localAppData) + "\\" + ComputeHash(key);
-    
-    CreateDirectoryA((targetDir + "\\logs").c_str(), NULL);
-    g_logFilePath = targetDir + "\\logs\\connect.log";
-    WriteLog("Starting connect.exe / NSM.exe");
-
     // ========================================================
     // Main FiveM Session Loop:
     // Keeps NSM.exe running across connects, in-game sessions,
@@ -878,7 +1076,22 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
         size_t colon = pickedServer.find(':');
         serverIp = (colon != string::npos) ? pickedServer.substr(0, colon) : pickedServer;
+        int serverPort = 7788;
+        if (colon != string::npos) { try { serverPort = stoi(pickedServer.substr(colon + 1)); } catch (...) {} }
         connectArgs = "-connecturl altv://connect/" + pickedServer;
+
+        // FiveM parity: if connecting to a local server that is not running, start it
+        EnsureLocalServerRunning(baseDir, serverIp, serverPort);
+
+        // GTA path must be valid before the client starts - ask NOW, not at startup,
+        // so the picker appears exactly when the user tries to connect
+        if (!EnsureGtaPathConfigured(baseDir, true)) {
+            MessageBoxW(NULL,
+                L"NSM could not find your GTA V installation.\nPress Connect again and choose your GTA5.exe in the folder picker that appears.",
+                L"NSM - GTA V location", MB_ICONWARNING | MB_OK);
+            if (hasConnect) break;
+            continue;
+        }
 
         if (initDiscord) {
             StartDiscordPolling(serverIp);
@@ -911,7 +1124,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             continue;
         }
 
-        MarkForDeleteOnReboot(targetDir);
+        // NOTE: the game runtime in %LOCALAPPDATA% is intentionally NOT wiped on
+        // reboot anymore. Files persist; anything missing is re-installed from the
+        // local altv-runtime folder - no 230MB pack download is ever needed.
 
         string skinBinPath = targetDir + "\\cache\\skin.bin";
         ifstream skinIn(skinBinPath, ios::binary);
@@ -932,6 +1147,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 }
             }
         }
+
+        // Make sure the game runtime is fully present (fresh install or after a
+        // reboot). Installs add-only from the altv-runtime folder shipped in the ZIP.
+        EnsureRuntimeInstalled(baseDir, targetDir);
 
         // Load proxy.dll and start proxy
         string proxyPath = targetDir + "\\proxy\\proxy.dll";
@@ -967,6 +1186,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 }
             }
             FreeLibrary(hConfig);
+        }
+
+        // Show the NSM host window - the game window is embedded into it
+        if (ReadConfigValue(baseDir, "embed_game_window", "true") != "false") {
+            ShowHostWindow(("NSM - " + (pickedName.empty() ? pickedServer : pickedName)).c_str());
         }
 
         // Start altv.exe
@@ -1027,6 +1251,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             FreeLibrary(hProxy);
             hProxy = NULL;
         }
+
+        // Session over: hide the game host window - the server browser is the app again
+        HideHostWindow();
 
         // If launcher was invoked directly with command-line -connect, exit after game closes.
         if (hasConnect) {
