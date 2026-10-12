@@ -80,3 +80,10 @@ Wine integration test: FAILED - see client-new/tests/ notes; shipped anyway (str
 IMPORTANT for testers: delete old extracted copies, download the ZIP fresh,
 run client-new\NSM.exe. Game must be Windowed/Borderless (exclusive
 fullscreen cannot be embedded).
+
+## UPDATE 2026-10-12 (e) - step-traced embed
+
+try_embed now re-parents FIRST (touching nothing else if SetParent fails),
+logs every step to nsm-embed-debug.log, and no longer uses
+AttachThreadInput (the previous run's trace showed the thread going silent
+inside it under Wine). Wine integration test: FAILED - see trace.

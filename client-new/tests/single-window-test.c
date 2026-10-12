@@ -20,8 +20,8 @@ static int run_host(void)
 {
     WNDCLASSA wc; HWND host = NULL, game = NULL; HMODULE dll;
     ULONGLONG t0 = GetTickCount64();
-    int detected=0, parented=0, borderless=0, filled=0;
-    int resized=0, game_gone=0, host_alive=0, did_resize=0;
+    int detected=0, parented=0, borderless=0, filled=0, via_dll=1;
+    int resized=0, game_gone=0, host_alive=0, did_resize=0, tried_fb=0;
     RECT hc; POINT tl; RECT gr;
 
     memset(&wc, 0, sizeof wc);
@@ -45,7 +45,12 @@ static int run_host(void)
             if (game) { detected = 1; printf("[PASS] DETECTED\n"); }
         } else if (!parented) {
             if (!IsWindow(game)) { printf("[FAIL] game gone early\n"); break; }
-            if (GetParent(game) == host) { parented = 1; printf("[PASS] PARENTED\n"); }
+            if (GetParent(game) == host) { parented = 1; printf("[PASS] PARENTED%s\n", via_dll ? "" : " (harness fallback)"); }
+            else if (now - t0 > 25000 && !tried_fb) {
+                HWND r = SetParent(game, host);
+                tried_fb = 1; via_dll = 0;
+                printf("[host] fallback SetParent=%p err=%lu\n", r, (unsigned long)GetLastError());
+            }
             else if (now - t0 > 40000) { printf("[FAIL] never re-parented\n"); break; }
         } else {
             LONG_PTR st = GetWindowLongPtrA(game, GWL_STYLE);
@@ -78,11 +83,12 @@ static int run_host(void)
         }
         Sleep(100);
     }
-    printf("RESULT: %s (det=%d par=%d bor=%d fil=%d res=%d gone=%d alive=%d)\n",
-           (detected && parented && borderless && filled && resized && game_gone && host_alive)
+    printf("DLL_EMBED=%d RESULT: %s (det=%d par=%d bor=%d fil=%d res=%d gone=%d alive=%d)\n",
+           via_dll,
+           (detected && parented && borderless && filled && resized && game_gone && host_alive && via_dll)
                ? "PASS" : "FAIL",
            detected, parented, borderless, filled, resized, game_gone, host_alive);
-    return (detected && parented && borderless && filled && resized && game_gone && host_alive) ? 0 : 1;
+    return (detected && parented && borderless && filled && resized && game_gone && host_alive && via_dll) ? 0 : 1;
 }
 
 static int run_game(int seconds)

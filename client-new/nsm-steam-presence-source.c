@@ -211,7 +211,6 @@ static LRESULT CALLBACK host_subclass_proc(HWND hwnd, UINT msg, WPARAM wp, LPARA
 static void try_embed(HWND gameWnd)
 {
     struct OwnCtx oc;
-    DWORD hostThread, gameThread;
     LONG_PTR st;
     HWND host;
     char line[128];
@@ -220,35 +219,34 @@ static void try_embed(HWND gameWnd)
     EnumWindows(enum_own_cb, (LPARAM)&oc);
     host = oc.wnd;
     if (!host) { dblog("embed: no own window yet\r\n"); return; }
-    if (IsIconic(host)) ShowWindow(host, SW_RESTORE);
+    dblog("embed: own window found\r\n");
+    if (IsIconic(host)) { ShowWindow(host, SW_RESTORE); dblog("embed: host restored\r\n"); }
+
+    /* re-parent FIRST - if this fails, touch nothing else */
+    if (SetParent(gameWnd, host) == NULL) {
+        _snprintf(line, sizeof line, "embed: SetParent failed err=%lu\r\n",
+                  (unsigned long)GetLastError());
+        dblog(line);
+        return;
+    }
+    dblog("embed: SetParent ok\r\n");
 
     st = GetWindowLongPtrA(gameWnd, GWL_STYLE);
     SetWindowLongPtrA(gameWnd, GWL_STYLE,
         (st & ~(LONG_PTR)(WS_POPUP | WS_CAPTION | WS_THICKFRAME |
                           WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU))
         | (LONG_PTR)WS_CHILD);
+    dblog("embed: child style set\r\n");
 
-    hostThread = GetWindowThreadProcessId(host, NULL);
-    gameThread = GetWindowThreadProcessId(gameWnd, NULL);
-    if (hostThread != gameThread) AttachThreadInput(hostThread, gameThread, TRUE);
-
-    if (SetParent(gameWnd, host) != NULL) {
-        if (!g_origProc)
-            g_origProc = (WNDPROC)SetWindowLongPtrA(host, GWLP_WNDPROC,
-                                                    (LONG_PTR)host_subclass_proc);
-        g_hostWnd = host;
-        g_gameWnd = gameWnd;
-        fit_game();
-        SetFocus(gameWnd);
-        dblog("embed: game window re-parented OK\r\n");
-    } else {
-        SetWindowLongPtrA(gameWnd, GWL_STYLE, st);  /* graceful fallback */
-        _snprintf(line, sizeof line, "embed: SetParent failed (err=%lu)\r\n",
-                  (unsigned long)GetLastError());
-        dblog(line);
-    }
-
-    if (hostThread != gameThread) AttachThreadInput(hostThread, gameThread, FALSE);
+    if (!g_origProc)
+        g_origProc = (WNDPROC)SetWindowLongPtrA(host, GWLP_WNDPROC,
+                                                (LONG_PTR)host_subclass_proc);
+    g_hostWnd = host;
+    g_gameWnd = gameWnd;
+    fit_game();
+    dblog("embed: fitted\r\n");
+    if (!SetFocus(gameWnd)) dblog("embed: SetFocus failed (cosmetic)\r\n");
+    dblog("embed: DONE\r\n");
 }
 
 /* the game may re-assert its own style/size; re-apply while embedded */
