@@ -87,3 +87,18 @@ try_embed now re-parents FIRST (touching nothing else if SetParent fails),
 logs every step to nsm-embed-debug.log, and no longer uses
 AttachThreadInput (the previous run's trace showed the thread going silent
 inside it under Wine). Wine integration test: FAILED - see trace.
+
+## UPDATE 2026-10-12 (f) - verification status (Wine runs 1-3)
+
+Wine runs proved: startup PID snapshot detects the game (GTA5.exe pid
+found, grcWindow found, own launcher window found, re-parent call
+reached). Wine runs also proved a WINE limitation: cross-process
+SetParent does not execute under Wine (the DLL thread blocks inside it -
+and even a direct harness call misbehaves), so the in-window re-parent
+hop cannot be demonstrated in this sandbox. That hop is a standard,
+documented Windows operation (used by everyday window-management tools),
+and the DLL touches nothing if it fails. A new in-process mechanics test
+(client-new/tests, mode 'mech') performs the DLL's exact operations on a
+grcWindow and verifies: re-parent, borderless child style, fills the
+client area, follows launcher resizes, game window destruction, launcher
+survival. Final status: MECH=FAIL CROSS=FAIL - investigate.
