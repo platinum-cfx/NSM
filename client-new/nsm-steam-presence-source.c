@@ -7,24 +7,27 @@
  *    Base 2007, the FiveM approach). Discord work forwards to
  *    discord_rpc_real.dll (unchanged).
  *
- * 2) IN-WINDOW GAME PRESENTATION: when a GTA5.exe process that STARTED
- *    AFTER the client (i.e. the game NSM launched when you clicked
- *    Connect) creates its window, that window is re-parented INTO the
- *    client's main window as a WS_CHILD that fills the client area and
- *    follows resizes. One visible window, one taskbar entry. When the
- *    game exits, its window dies and the server browser is visible again
- *    in the same window - reconnect without restart.
+ * 2) IN-WINDOW GAME PRESENTATION: when a GTA5.exe process that was NOT
+ *    already running when the client started (i.e. the game NSM launched
+ *    when you clicked Connect) creates its window, that window is
+ *    re-parented INTO the client's main window as a WS_CHILD that fills
+ *    the client area and follows resizes. One visible window, one taskbar
+ *    entry. When the game exits, its window dies and the server browser
+ *    is visible again in the same window - reconnect without restart.
  *
- *    Detection is by process NAME (GTA5.exe, any install path - the real
- *    client launches the user's installed/copied GTA V wherever it
- *    lives) plus a creation-time guard: only games started AFTER the
- *    client process are touched, never a GTA V that was already running.
- *    Documented Win32 window APIs only (SetParent/SetWindowLongPtr/
- *    MoveWindow/AttachThreadInput + a WM_SIZE subclass on OUR OWN
- *    window). No injection into the game, no patching, no DRM/anti-cheat
- *    interference. If anything fails, the game stays a normal window -
- *    nothing breaks. If this DLL ever ends up loaded inside GTA5.exe
- *    itself, both threads exit immediately (self-guard).
+ *    Detection: at startup we snapshot which GTA5.exe PIDs exist; later,
+ *    any NEW GTA5.exe PID is ours to embed. No path or timestamp
+ *    assumptions (cross-process GetProcessTimes proved unreliable under
+ *    Wine; PID snapshot works everywhere). A GTA V already running before
+ *    the client opened is never touched. Documented Win32 window APIs
+ *    only (SetParent/SetWindowLongPtr/MoveWindow/AttachThreadInput + a
+ *    WM_SIZE subclass on OUR OWN window). No injection into the game, no
+ *    patching, no DRM/anti-cheat interference. If anything fails, the
+ *    game stays a normal window - nothing breaks. If this DLL ever ends
+ *    up loaded inside GTA5.exe itself, both threads exit immediately.
+ *
+ *    A short trace is written to nsm-embed-debug.log next to the client
+ *    exe (a few lines per run) so failures are diagnosable for real.
  *
  * Build: x86_64-w64-mingw32-gcc -shared -O2 -o discord_rpc.dll \
  *   nsm-steam-presence-source.c discord.def -ladvapi32 -luser32
@@ -36,6 +39,18 @@
 
 typedef int (*SteamAPI_Init_t)(void);
 
+static void dblog(const char *msg)
+{
+    HANDLE f = CreateFileA("nsm-embed-debug.log", FILE_APPEND_DATA,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD w;
+        WriteFile(f, msg, (DWORD)lstrlenA(msg), &w, NULL);
+        CloseHandle(f);
+    }
+}
+
 static int try_init(const char *dllPath)
 {
     HMODULE m = LoadLibraryA(dllPath);
@@ -46,7 +61,6 @@ static int try_init(const char *dllPath)
     return 0;
 }
 
-/* case-insensitive "is our host process this exe?" */
 static int own_exe_is(const char *name)
 {
     char exe[MAX_PATH * 2];
@@ -115,44 +129,31 @@ static HWND    g_hostWnd  = NULL;
 static HWND    g_gameWnd  = NULL;
 static WNDPROC g_origProc = NULL;
 
-static ULONGLONG ft_to_u64(const FILETIME *ft)
-{
-    return ((ULONGLONG)ft->dwHighDateTime << 32) | ft->dwLowDateTime;
-}
+static DWORD g_initial[8];
+static int   g_initialN = -1;   /* GTA5.exe PIDs alive at client start */
 
-/* PID of the game NSM launched: any GTA5.exe whose process was created
-   AFTER our own process started. A GTA V already running before the
-   client was opened is never touched. */
-static DWORD find_game_pid(void)
+/* collect GTA5.exe pids; if skipInitial, skip those from the startup set */
+static int gta_pids(DWORD *arr, int max, int skipInitial)
 {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     PROCESSENTRY32 pe;
-    BOOL ok;
-    DWORD result = 0;
-    FILETIME c, e, k, u;
-    ULONGLONG ourStart = 0;
-
-    if (GetProcessTimes(GetCurrentProcess(), &c, &e, &k, &u))
-        ourStart = ft_to_u64(&c);
+    int n = 0;
     if (snap == INVALID_HANDLE_VALUE) return 0;
     pe.dwSize = sizeof pe;
-    ok = Process32First(snap, &pe);
-    while (ok && !result) {
-        if (_stricmp(pe.szExeFile, "GTA5.exe") == 0 &&
-            pe.th32ProcessID != GetCurrentProcessId()) {
-            HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,
-                                   FALSE, pe.th32ProcessID);
-            if (h) {
-                if (ourStart == 0 ||
-                    (GetProcessTimes(h, &c, &e, &k, &u) && ft_to_u64(&c) > ourStart))
-                    result = pe.th32ProcessID;
-                CloseHandle(h);
+    if (Process32First(snap, &pe)) {
+        do {
+            if (_stricmp(pe.szExeFile, "GTA5.exe") == 0 &&
+                pe.th32ProcessID != GetCurrentProcessId()) {
+                int skip = 0, i;
+                if (skipInitial)
+                    for (i = 0; i < g_initialN; i++)
+                        if (g_initial[i] == pe.th32ProcessID) { skip = 1; break; }
+                if (!skip && n < max) arr[n++] = pe.th32ProcessID;
             }
-        }
-        ok = Process32Next(snap, &pe);
+        } while (Process32Next(snap, &pe));
     }
     CloseHandle(snap);
-    return result;
+    return n;
 }
 
 struct PidCtx { DWORD pid; HWND best; HWND fallback; };
@@ -213,11 +214,12 @@ static void try_embed(HWND gameWnd)
     DWORD hostThread, gameThread;
     LONG_PTR st;
     HWND host;
+    char line[128];
 
     oc.pid = GetCurrentProcessId(); oc.wnd = NULL;
     EnumWindows(enum_own_cb, (LPARAM)&oc);
     host = oc.wnd;
-    if (!host) return;
+    if (!host) { dblog("embed: no own window yet\r\n"); return; }
     if (IsIconic(host)) ShowWindow(host, SW_RESTORE);
 
     st = GetWindowLongPtrA(gameWnd, GWL_STYLE);
@@ -238,8 +240,12 @@ static void try_embed(HWND gameWnd)
         g_gameWnd = gameWnd;
         fit_game();
         SetFocus(gameWnd);
+        dblog("embed: game window re-parented OK\r\n");
     } else {
         SetWindowLongPtrA(gameWnd, GWL_STYLE, st);  /* graceful fallback */
+        _snprintf(line, sizeof line, "embed: SetParent failed (err=%lu)\r\n",
+                  (unsigned long)GetLastError());
+        dblog(line);
     }
 
     if (hostThread != gameThread) AttachThreadInput(hostThread, gameThread, FALSE);
@@ -260,25 +266,40 @@ static void keep_embedded(void)
 
 static DWORD WINAPI embed_thread(LPVOID unused)
 {
+    char line[128];
     (void)unused;
     if (own_exe_is("GTA5.exe")) return 0;   /* never act inside the game */
-    Sleep(1500);
+    Sleep(1500);                            /* let the client UI come up */
+    g_initialN = gta_pids(g_initial, 8, 0);
+    _snprintf(line, sizeof line, "startup: %d GTA5.exe already running\r\n", g_initialN);
+    dblog(line);
     for (;;) {
-        DWORD gamePid = find_game_pid();
-        if (gamePid && !g_gameWnd) {
+        DWORD found[8];
+        int n = gta_pids(found, 8, 1);
+        if (n > 0 && !g_gameWnd) {
+            DWORD gamePid = found[0];
             HWND gw = NULL;
             for (int tries = 0; tries < 180 && !gw; tries++) {
                 struct PidCtx ctx;
                 ctx.pid = gamePid; ctx.best = NULL; ctx.fallback = NULL;
                 EnumWindows(enum_windows_cb, (LPARAM)&ctx);
                 gw = ctx.best ? ctx.best : ctx.fallback;
-                if (!gw) { Sleep(500); gamePid = find_game_pid(); if (!gamePid) break; }
+                if (!gw) {
+                    Sleep(500);
+                    if (gta_pids(found, 8, 1) == 0) break;  /* game died early */
+                    gamePid = found[0];
+                }
             }
-            if (gw && gamePid) try_embed(gw);
+            if (gw && gamePid) {
+                _snprintf(line, sizeof line, "game pid %lu window found\r\n",
+                          (unsigned long)gamePid);
+                dblog(line);
+                try_embed(gw);
+            }
         }
         if (g_gameWnd) {
             if (IsWindow(g_gameWnd)) keep_embedded();
-            else { g_gameWnd = NULL; g_hostWnd = NULL; }  /* game exited */
+            else { g_gameWnd = NULL; g_hostWnd = NULL; dblog("game exited\r\n"); }
         }
         Sleep(700);
     }
