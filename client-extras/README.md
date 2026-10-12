@@ -7,11 +7,15 @@ you as playing it.
 
 ## Do the same for NSM / gtamp
 
-1. Copy `steam_appid.txt` from this folder into the folder with the exe you
-   launch to play (the gtamp launcher/client exe — the one you double-click).
-2. Make sure Steam is running, then launch the game as usual.
-3. Your Steam status (and friends' view) now says **Source SDK Base 2007**,
-   exactly like FiveM.
+**Easy way:** double-click `SETUP-STEAM.bat` in this folder. A file picker
+opens — select the gtamp client exe you launch to play. The script places
+`steam_appid.txt` next to it (backing up any existing one first).
+
+**By hand:** copy `steam_appid.txt` from this folder into the folder with the
+exe you launch to play (the gtamp launcher/client exe — the one you
+double-click). Make sure Steam is running, then launch the game as usual.
+Your Steam status (and friends' view) now says **Source SDK Base 2007**,
+exactly like FiveM.
 
 ### If the status doesn't change
 - Also copy the file next to the main game/client exe if the launcher runs
