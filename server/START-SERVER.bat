@@ -29,6 +29,10 @@ if not exist "mysql.json" (
 )
 
 echo.
+echo === Steam presence (one-time, automatic) ===
+powershell -NoProfile -ExecutionPolicy Bypass -File setup-steam-presence.ps1
+
+echo.
 echo === Starting gtamp-server.exe ===
 gtamp-server.exe
 pause

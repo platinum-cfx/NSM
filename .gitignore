@@ -8,3 +8,6 @@ masterlist/data/
 # fivem-compat runtime artifacts
 fivem-compat-kvp.json
 node_modules/
+
+# runtime marker written by setup-steam-presence.ps1 (one-time Steam presence)
+steam-presence.txt
