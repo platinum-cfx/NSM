@@ -102,3 +102,9 @@ and the DLL touches nothing if it fails. A new in-process mechanics test
 grcWindow and verifies: re-parent, borderless child style, fills the
 client area, follows launcher resizes, game window destruction, launcher
 survival. Final status: MECH=FAIL CROSS=FAIL - investigate.
+
+## UPDATE 2026-10-12 (g) - correction + real results
+
+The previous note's "MECH=FAIL CROSS=FAIL" was a test-script path bug
+(the test exe was built to one directory and copied from another - no
+test actually ran). Re-run with fixed paths: PASS - in-process mechanics fully verified (re-parent, child style, fill, resize-follow, game-exit, launcher survival) AND cross-process detection verified against the shipped DLL; the single step Wine cannot execute (cross-process SetParent) is a standard Windows API, confirmable on the user's machine via nsm-embed-debug.log.
