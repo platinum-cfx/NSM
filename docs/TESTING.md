@@ -69,3 +69,40 @@ stay green; CI clones the frameworks explicitly.
   ports with temp `DATA_DIR`s and drive them over real HTTP.
 - New fixes require a regression check in the matching suite before the
   milestone is called done (rule applied in `0c387bd`: 46 new checks).
+
+---
+
+## UPDATE 2026-10-12 (`01ed635`) — current status and what is still owed
+
+**Suite counts as of the ESX work** (all in-sandbox, Node ≥ 18): server
+**116/116**, client runtime **70/70** (+1 runtime meta-test), multiplayer
+**36/36**, db **20/20**, qbcore client **19/19**, selftest **11/11**,
+transform **62/62**, live-exports **17/17**, esx-client **15/26** (the 11
+failures are mock-environment causes documented in the run output: fengari
+integer error in es_extended compat.lua, mock-only missing natives, server
+`esx-probe:double` callbacks not found, no users-row join flow, ESX.PlayerLoaded
+never true). **None of these suites run a real GTA V client** — they are
+mock-transport/VM tests and are labeled as such.
+
+**New real (non-mock) verifications:**
+
+- `nsm-masterlist` live HTTP test (in-sandbox, real Node http server + curl):
+  `/servers` correct JSON + CORS + live player count from the real
+  `server/.cfg` values; `/api/launcher/ping`, `/api/player/leave`,
+  `POST /announce` merge all verified.
+- **Steam presence verified on a real Windows machine with real Steam**
+  (2026-10-12, user-confirmed): NSM.exe → status "Playing Source SDK Base
+  2007" via AppID 218.
+
+**Still owed — the Windows acceptance run** (cannot be executed in this
+environment; needs a Windows PC with GTA V):
+
+1. `START-SERVER.bat` → note the `[nsm-masterlist]` line
+2. Open `client-new\NSM.exe` → confirm the server appears in the list
+3. Click it → confirm the CONNECTING overlay → the game launches → you spawn
+4. Copy the **server console connect lines** (incl. any
+   `fivem-client ready: player N`) into the report
+5. Note any `[fivem-client]` lines/errors from the client side
+
+Until items 2–5 pass on real hardware, the launcher→game flow is
+"implemented and source-audited", **not proven**.

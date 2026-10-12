@@ -111,3 +111,22 @@ framework milestones will pin exact commits.
   rebuild from source.
 - **Ports in use**: game 7788, masterlist 8080, website 3000, wrapper local
   services 7799/7898/7899. Only 7788/8080/3000 need to be public.
+
+---
+
+## UPDATE 2026-10-12 (`01ed635`) — corrections and new components
+
+**Correction:** the table above lists `masterlist` and `website` components
+(`node server.js`, `NSMwebsite.exe`). Those are **not part of this repository**
+(stale notes carried over from the upstream GTAMP project). The real masterlist
+in this repo is the resource below.
+
+| Component | Build | Status |
+|---|---|---|
+| `server/resources/nsm-masterlist` | none (plain JS resource, Node http) | verified live in-sandbox (curl: /servers, ping, leave, announce merge, CORS) |
+| `client-new/discord_rpc.dll` (Steam-presence wrapper) | `x86_64-w64-mingw32-gcc -shared -O2 -o discord_rpc.dll nsm-steam-presence-source.c discord.def -ladvapi32` (run in `client-new/`) | built + verified on a real Windows machine; the real library ships renamed as `discord_rpc_real.dll` |
+| Client bundle rebuild | `cd server/resources/fivem-compat && npm install --no-save esbuild && node tools/build-client-bundle.mjs --esbuild "npx --no-install esbuild"` | unchanged; build lingers 600–900 s after "done." (Lua timers) — output files are complete |
+| `client-extras/CHECK-STEAM.bat` | none (self-reading PowerShell-in-batch) | diagnostic tool; writes STEAM-CHECK.txt to Desktop + Downloads and opens it |
+
+Note: the `nsm-game.exe` launcher-shim experiment from `2025af4` was fully
+reverted in `9bd5e27` — `NSM.exe` is the original untouched client binary again.

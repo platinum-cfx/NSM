@@ -128,3 +128,31 @@ in your alt:V `server.cfg` resources so clients download it.
 
 Report back the F8 console output + the §7 checklist results and the fixes go into
 the next iteration.
+
+---
+
+## UPDATE 2026-10-12 (`01ed635`) — the FiveM-style launcher flow is real
+
+New since the text above was written:
+
+- **Server list is live.** The `nsm-masterlist` resource runs with your game
+  server and feeds the NSM.exe browser: your server is always listed with a
+  live player count (name/description/language/tags come from `server/.cfg`).
+- **Steam presence works** (verified on a real Windows machine): open
+  `client-new\NSM.exe` with Steam running → status shows
+  **Playing Source SDK Base 2007**, exactly like FiveM. Requirements: the free
+  218 license on the account (check Library → Tools; no install needed).
+  Mechanism: `discord_rpc.dll` wrapper (source: `nsm-steam-presence-source.c`)
+  initializes Steamworks inside the client process and forwards Discord
+  RPC untouched.
+
+**Current click-path (single machine):**
+
+1. `server\SETUP-DB.bat` once (MariaDB), fill `server\mysql.json`
+2. `server\START-SERVER.bat` → wait for `[nsm-masterlist] server list is LIVE`
+3. Open `client-new\NSM.exe` → Steam status flips on → browser home appears
+4. Your server is in the list → click it → CONNECTING overlay → in game
+5. Leave the game → back on the browser list
+
+Rename your server via `name = '...'` at the top of `server/.cfg` (also shown
+in the list). Friends on other PCs: point them at your IP, port 7788 open.
