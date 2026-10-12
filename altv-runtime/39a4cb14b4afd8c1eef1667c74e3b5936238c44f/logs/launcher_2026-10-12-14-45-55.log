@@ -1,0 +1,31 @@
+[14:45:55] [info] Starting gtamp Launcher 16.3.7
+[14:45:55] [info] Launcher location: C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[14:45:55] [info] [rml] Loaded font face 'Inter' [weight=100] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Inter' [weight=200] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Inter' [weight=300] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Inter' [regular] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Inter' [weight=500] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Inter' [weight=600] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Inter' [bold] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Inter' [weight=800] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Inter' [weight=900] from 'Inter.ttf'.
+[14:45:55] [info] [rml] Loaded font face 'Microsoft YaHei' [regular] from 'file://C:/Windows/Fonts/msyh.ttc'.
+[14:45:55] [info] [rml] Loaded font face 'Tahoma' [regular] from 'file://C:/Windows/Fonts/tahoma.ttf'.
+[14:45:55] [info] Using global cdn
+[14:45:56] [info] [rml] Loaded OpenGL 3.3.
+[14:45:57] [error] HTTP Request failed, curl code 7
+[14:46:02] [error] HTTP Request failed, curl code 7
+[14:46:08] [error] HTTP Request failed, curl code 7
+[14:46:08] [error] Network error: Failed to fetch update information (0x30,007)
+
+http://127.0.0.1:9988//launcher/release/x64_win32/update.json
+
+Possible solutions:
+- Check your internet connection
+- Make sure that your antivirus does not block gtamp
+- Try changing your DNS (e.g. to Cloudflare DNS)
+- Try using a VPN
+- Use offline mode
+ HTTP 0, CURL 7
+Failed to connect to 127.0.0.1 port 9988 after 2048 ms: Couldn't connect to server
+[14:46:08] [info] [rml] Loaded OpenGL 3.3.

@@ -1,0 +1,203 @@
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] /api/tokens/default/skin -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /api/heartbeat -> 200
+[GET] /api/localserver -> 200
+[GET] /api/launcher/ping -> 404
+[GET] /api/ping -> 200
+[GET] /api/launcher/ping -> 404
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+[GET] /api/launcher/ping -> 404
+[GET] /api/localserver -> 200
+[GET] /api/heartbeat -> 200
+[GET] /api/ping -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] /api/tokens/default/skin -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] /api/tokens/default/skin -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] /api/tokens/default/skin -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] /api/tokens/default/skin -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] /api/tokens/default/skin -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] /api/tokens/default/skin -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] /api/tokens/default/skin -> 200
+=== Stopping Proxy Servers ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9988 ===
+=== CLIENT Proxy Server listening on http://127.0.0.1:9 ===
+[GET] //launcher/release/x64_win32/update.json -> 200
+[GET] /api/tokens/default/skin/hash -> 200
+[GET] //client/release/x64_win32/update.json -> 200
+[GET] //backup/update.json -> 200
+[GET] /ui/index.html -> 200
+[GET] /ui/favicon.svg -> 404
+=== Stopping Proxy Servers ===

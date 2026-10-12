@@ -1,0 +1,152 @@
+[2026-10-08 21:29:44] Extracting mp1...
+[2026-10-08 21:29:44] Failed to decrypt mp1.pack
+[2026-10-09 00:48:22] Starting connect.exe
+[2026-10-09 00:48:22] Target directory exists, verifying files...
+[2026-10-09 00:48:22] Verification failed (size mismatch): C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\proxy\proxy.dll
+[2026-10-09 00:48:22] Extracting packs (directory did not exist or verification failed)...
+[2026-10-09 00:48:22] Extracting mp1...
+[2026-10-09 00:48:22] Failed to decrypt mp1.pack
+[2026-10-10 21:58:51] Starting connect.exe
+[2026-10-10 21:58:51] Target directory exists, verifying files...
+[2026-10-10 21:58:51] Verification failed (size mismatch): C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\proxy\proxy.dll
+[2026-10-10 21:58:51] Extracting packs (directory did not exist or verification failed)...
+[2026-10-10 21:58:51] Extracting mp1...
+[2026-10-10 21:58:51] Failed to decrypt mp1.pack
+[2026-10-10 22:05:47] Starting connect.exe
+[2026-10-10 22:05:47] Target directory exists, verifying files...
+[2026-10-10 22:05:47] Verification failed (size mismatch): C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\proxy\proxy.dll
+[2026-10-10 22:05:47] Extracting packs (directory did not exist or verification failed)...
+[2026-10-10 22:05:47] Extracting mp1...
+[2026-10-10 22:05:47] Failed to decrypt mp1.pack
+[2026-10-10 22:06:39] Starting connect.exe
+[2026-10-10 22:06:39] Target directory exists, verifying files...
+[2026-10-10 22:06:39] Verification failed (size mismatch): C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\proxy\proxy.dll
+[2026-10-10 22:06:39] Extracting packs (directory did not exist or verification failed)...
+[2026-10-10 22:06:39] Extracting mp1...
+[2026-10-10 22:06:43] Extracting mp2...
+[2026-10-10 22:06:45] Extracting mp3...
+[2026-10-10 22:06:46] Extracting mp4...
+[2026-10-10 22:06:47] Extracting mp5...
+[2026-10-10 22:06:50] Extracting mp6...
+[2026-10-10 22:06:50] Extracting mp7...
+[2026-10-10 22:06:51] Extraction complete.
+[2026-10-10 22:20:48] Starting connect.exe
+[2026-10-10 22:20:48] Target directory exists, verifying files...
+[2026-10-10 22:20:49] Verification successful.
+[2026-10-10 22:20:49] Target directory exists. Skipping extraction.
+[2026-10-10 23:46:21] Starting connect.exe
+[2026-10-10 23:46:21] Target directory exists, verifying files...
+[2026-10-10 23:46:22] Verification successful.
+[2026-10-10 23:46:22] Target directory exists. Skipping extraction.
+[2026-10-11 00:27:09] Starting connect.exe
+[2026-10-11 00:27:09] Target directory exists, verifying files...
+[2026-10-11 00:27:11] Verification successful.
+[2026-10-11 00:27:11] Target directory exists. Skipping extraction.
+[2026-10-11 00:41:02] Starting connect.exe
+[2026-10-11 00:41:02] Target directory exists, verifying files...
+[2026-10-11 00:41:04] Verification successful.
+[2026-10-11 00:41:04] Target directory exists. Skipping extraction.
+[2026-10-11 00:41:34] Starting connect.exe
+[2026-10-11 00:41:34] Target directory exists, verifying files...
+[2026-10-11 00:41:35] Verification successful.
+[2026-10-11 00:41:35] Target directory exists. Skipping extraction.
+[2026-10-11 00:50:45] Starting connect.exe
+[2026-10-11 00:50:45] Target directory exists, verifying files...
+[2026-10-11 00:50:46] Verification successful.
+[2026-10-11 00:50:46] Target directory exists. Skipping extraction.
+[2026-10-11 01:00:49] Starting connect.exe
+[2026-10-11 01:00:49] Target directory exists, verifying files...
+[2026-10-11 01:00:51] Verification successful.
+[2026-10-11 01:00:51] Target directory exists. Skipping extraction.
+[2026-10-11 01:01:00] Starting connect.exe
+[2026-10-11 01:01:00] Target directory exists, verifying files...
+[2026-10-11 01:01:00] Verification successful.
+[2026-10-11 01:01:00] Target directory exists. Skipping extraction.
+[2026-10-11 01:02:30] Starting connect.exe
+[2026-10-11 01:02:30] Target directory exists, verifying files...
+[2026-10-11 01:02:31] Verification successful.
+[2026-10-11 01:02:31] Target directory exists. Skipping extraction.
+[2026-10-11 01:31:05] Starting connect.exe
+[2026-10-11 01:31:05] Target directory exists, verifying files...
+[2026-10-11 01:31:06] Verification successful.
+[2026-10-11 01:31:06] Target directory exists. Skipping extraction.
+[2026-10-11 03:35:54] Starting connect.exe / NSM.exe
+[2026-10-11 03:35:54] Target directory exists, verifying files...
+[2026-10-11 03:35:56] Verification successful.
+[2026-10-11 03:36:57] Starting connect.exe / NSM.exe
+[2026-10-11 03:36:57] Target directory exists, verifying files...
+[2026-10-11 03:36:58] Verification successful.
+[2026-10-11 03:41:03] Starting connect.exe / NSM.exe
+[2026-10-11 03:41:03] Target directory exists, verifying files...
+[2026-10-11 03:41:04] Verification successful.
+[2026-10-11 03:44:08] Starting connect.exe / NSM.exe
+[2026-10-11 03:52:23] Starting connect.exe / NSM.exe
+[2026-10-11 03:52:53] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 04:00:41] Starting connect.exe / NSM.exe -> connecting to: 127.0.0.1
+[2026-10-11 04:00:41] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 04:04:02] Starting connect.exe / NSM.exe -> connecting to: 127.0.0.1
+[2026-10-11 04:04:02] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 09:30:16] Starting connect.exe / NSM.exe
+[2026-10-11 09:30:56] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 09:30:56] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 09:51:25] Starting connect.exe / NSM.exe
+[2026-10-11 10:52:23] Starting connect.exe / NSM.exe
+[2026-10-11 13:20:19] Starting connect.exe / NSM.exe
+[2026-10-11 16:10:11] Starting connect.exe / NSM.exe
+[2026-10-11 16:32:07] Starting connect.exe / NSM.exe
+[2026-10-11 16:55:09] Starting connect.exe / NSM.exe
+[2026-10-11 16:55:48] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 16:55:48] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 16:56:03] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 16:56:03] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 18:10:01] Starting connect.exe / NSM.exe
+[2026-10-11 18:10:07] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 18:10:07] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 18:10:39] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 18:10:39] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 18:31:03] Starting connect.exe / NSM.exe
+[2026-10-11 18:31:06] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 18:31:06] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 18:31:15] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 18:31:15] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 18:43:04] Starting connect.exe / NSM.exe
+[2026-10-11 18:43:40] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 18:43:40] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 19:02:47] Starting connect.exe / NSM.exe
+[2026-10-11 19:08:43] Starting connect.exe / NSM.exe
+[2026-10-11 19:09:19] Starting connect.exe / NSM.exe
+[2026-10-11 19:13:24] Starting connect.exe / NSM.exe
+[2026-10-11 19:13:29] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 19:13:29] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 19:16:11] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-11 19:16:11] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-11 20:20:58] Starting connect.exe / NSM.exe
+[2026-10-11 20:24:53] Starting connect.exe / NSM.exe
+[2026-10-12 12:17:35] Starting connect.exe / NSM.exe
+[2026-10-12 12:34:58] Starting connect.exe / NSM.exe
+[2026-10-12 12:45:38] Starting connect.exe / NSM.exe
+[2026-10-12 12:46:42] Starting connect.exe / NSM.exe
+[2026-10-12 13:03:43] Starting connect.exe / NSM.exe
+[2026-10-12 13:10:16] Starting connect.exe / NSM.exe
+[2026-10-12 13:22:52] Starting connect.exe / NSM.exe
+[2026-10-12 13:34:07] Starting connect.exe / NSM.exe
+[2026-10-12 13:37:02] Starting connect.exe / NSM.exe
+[2026-10-12 13:37:58] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-12 13:37:58] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-12 13:38:17] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-12 13:38:17] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-12 13:54:13] Starting connect.exe / NSM.exe
+[2026-10-12 13:54:18] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-12 13:54:19] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-12 13:54:34] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-12 13:54:34] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-12 14:04:24] Starting connect.exe / NSM.exe
+[2026-10-12 14:05:36] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-12 14:05:36] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-12 14:05:44] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-12 14:05:44] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-12 14:42:11] Starting connect.exe / NSM.exe
+[2026-10-12 14:42:26] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-12 14:42:26] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+[2026-10-12 14:42:34] Game files verified and ready in C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[2026-10-12 14:42:34] Launching: "C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html

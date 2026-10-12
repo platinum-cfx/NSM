@@ -1,0 +1,35 @@
+[14:42:34] [info] Starting gtamp Launcher 16.3.7
+[14:42:34] [info] Launcher location: C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[14:42:34] [info] [rml] Loaded font face 'Inter' [weight=100] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Inter' [weight=200] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Inter' [weight=300] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Inter' [regular] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Inter' [weight=500] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Inter' [weight=600] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Inter' [bold] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Inter' [weight=800] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Inter' [weight=900] from 'Inter.ttf'.
+[14:42:34] [info] [rml] Loaded font face 'Microsoft YaHei' [regular] from 'file://C:/Windows/Fonts/msyh.ttc'.
+[14:42:34] [info] [rml] Loaded font face 'Tahoma' [regular] from 'file://C:/Windows/Fonts/tahoma.ttf'.
+[14:42:35] [info] Using global cdn
+[14:42:35] [info] Updating skin
+[14:42:35] [info] Skin is valid
+[14:42:35] [info] Using global cdn
+[14:42:35] [info] [rml] Loaded OpenGL 3.3.
+[14:42:36] [info] Using global cdn
+[14:42:36] [info] Backup file steam_api64.dll is valid
+[14:42:36] [info] Backup file copied
+[14:42:36] [info] Backup file GTA5.exe is valid
+[14:42:38] [info] Starting gtamp patches injection
+[14:42:39] [info] Injected gtamp patches successfully
+[14:42:55] [info] gtamp patches executed
+[14:42:55] [info] Launcher patch completed
+[14:42:55] [info] Starting gtamp injection
+[14:42:55] [info] Changing DLL directory in the remote process
+[14:42:55] [info] Injecting gtamp client
+[14:43:02] [info] Injected DLL successfully
+[14:43:02] [info] Connect address is: 127.0.0.1:7788. Using password: NO
+[14:43:02] [info] Looking for gtamp entrypoint
+[14:43:02] [info] Calling the entrypoint
+[14:43:05] [info] Injection finished
+[14:43:05] [info] Waiting for the window

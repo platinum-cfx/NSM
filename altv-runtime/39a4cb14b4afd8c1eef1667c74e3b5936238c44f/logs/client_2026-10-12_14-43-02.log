@@ -1,0 +1,461 @@
+[14:43:02] Logger initialized
+[14:43:02] MinHook initialized
+[14:43:02] Hooking game unpack
+[14:43:02] Game unpack hooked
+[14:43:02] Configs:
+[14:43:02] crashOnFatalError false
+[14:43:02] heapSize 1024
+[14:43:02] AMD gpu detected. Disabling CEF hardware acceleration.
+[14:43:02] cefUseHardwareAcceleration true
+[14:43:02] disableForcedRawInput false
+[14:43:02] Registering natives
+[14:43:02] Natives registered
+[14:43:02] Connect URL: 127.0.0.1:7788
+[14:43:02] Connect password: no
+[14:43:02] Connect id: 
+[14:43:02] Connect name: 
+[14:43:02] Injected
+[14:43:02] alt:V build #16.4.39, branch release
+[14:43:02] eNet initialized
+[14:43:02] Unsuspending threads
+[14:43:02] Unsuspending thread 41940 with suspend count 15
+[14:43:02] Unpacking game
+[14:43:05] Game unpacked in 3161 ms
+[14:43:05] Initing alt:V
+[14:43:05] HTTP Client inited
+[14:43:05] DXHook inited
+[14:43:05] Initializing CGame
+[14:43:05] netManager initialized
+[14:43:05] Loading runtimes
+[14:43:06][C#] Main thread is 41940
+[14:43:06][C#] Starting initialization
+[14:43:06][C#] Constructing CoreCLR
+[14:43:06][C#] CSharp runtime initialized
+[14:43:06][C#] Initialized successfully
+[14:43:06] resourceManager initialized
+[14:43:06] Volume is \\?\Volume{cde45cb2-6e5c-4348-893d-24c4fb88de93}
+[14:43:06] Resource checker inited with 16 threads
+[14:43:06] Resource downloader inited with 1 threads
+[14:43:06] resourceDownloader initialized
+[14:43:06] connectionManager initialized
+[14:43:06] WebSocket client initialized
+[14:43:06] BASS: Device initialized
+[14:43:06] =====================LOADED DLLS=====================
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\backup\GTA5.exe
+[14:43:06] C:\WINDOWS\SYSTEM32\ntdll.dll
+[14:43:06] C:\WINDOWS\System32\KERNEL32.DLL
+[14:43:06] C:\WINDOWS\System32\KERNELBASE.dll
+[14:43:06] C:\WINDOWS\System32\USER32.dll
+[14:43:06] C:\WINDOWS\System32\win32u.dll
+[14:43:06] C:\WINDOWS\System32\GDI32.dll
+[14:43:06] C:\WINDOWS\System32\gdi32full.dll
+[14:43:06] C:\WINDOWS\System32\msvcp_win.dll
+[14:43:06] C:\WINDOWS\System32\ucrtbase.dll
+[14:43:06] C:\WINDOWS\System32\PSAPI.DLL
+[14:43:06] C:\WINDOWS\System32\WS2_32.dll
+[14:43:06] C:\WINDOWS\System32\RPCRT4.dll
+[14:43:06] C:\WINDOWS\System32\CRYPT32.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\VERSION.dll
+[14:43:06] C:\WINDOWS\System32\WINTRUST.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\DSOUND.dll
+[14:43:06] C:\WINDOWS\System32\msvcrt.dll
+[14:43:06] C:\WINDOWS\System32\advapi32.dll
+[14:43:06] C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\GFSDK_ShadowLib.win64.dll
+[14:43:06] C:\WINDOWS\System32\IMM32.dll
+[14:43:06] C:\WINDOWS\System32\sechost.dll
+[14:43:06] C:\WINDOWS\System32\bcrypt.dll
+[14:43:06] C:\WINDOWS\System32\SHLWAPI.dll
+[14:43:06] C:\WINDOWS\System32\combase.dll
+[14:43:06] C:\WINDOWS\System32\SHELL32.dll
+[14:43:06] C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\bink2w64.dll
+[14:43:06] C:\WINDOWS\System32\ole32.dll
+[14:43:06] C:\WINDOWS\System32\wintypes.dll
+[14:43:06] C:\WINDOWS\System32\OLEAUT32.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\WININET.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\WINMM.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\MF.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\MFPlat.DLL
+[14:43:06] C:\WINDOWS\SYSTEM32\msdmo.dll
+[14:43:06] C:\WINDOWS\System32\shcore.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\MFReadWrite.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\PROPSYS.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\WTSAPI32.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\ResampleDmo.DLL
+[14:43:06] C:\WINDOWS\SYSTEM32\D3DCOMPILER_43.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\d3d9.dll
+[14:43:06] C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\GFSDK_TXAA_AlphaResolve.win64.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\XINPUT1_4.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\DINPUT8.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\IPHLPAPI.DLL
+[14:43:06] C:\WINDOWS\SYSTEM32\powrprof.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\winmmbase.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\cfgmgr32.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\d3dx9_43.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\OPENGL32.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\dwmapi.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\DEVOBJ.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\MFCORE.DLL
+[14:43:06] C:\WINDOWS\SYSTEM32\GLU32.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\dxcore.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\UMPDC.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\kernel.appcore.dll
+[14:43:06] C:\WINDOWS\System32\bcryptPrimitives.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\RTWorkQ.DLL
+[14:43:06] C:\WINDOWS\SYSTEM32\MSASN1.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\inputhost.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\CoreMessaging.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\altv-client.dll
+[14:43:06] C:\WINDOWS\System32\WLDAP32.dll
+[14:43:06] C:\WINDOWS\System32\Normaliz.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\discord_game_sdk.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\bass.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\D3DCOMPILER_47.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\bassmix.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\VCRUNTIME140.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\MSVCP140.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\MSWSOCK.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\CONCRT140.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\dxgi.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\DWrite.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\VCRUNTIME140_1.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\d2d1.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\BASS_FX.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\dbghelp.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\zlib1.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\freetype.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\ktmw32.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\MSACM32.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\CRYPTBASE.DLL
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\libce2.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\USERENV.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\Secur32.dll
+[14:43:06] C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\chrome_elf.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\WINHTTP.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\dhcpcsvc.DLL
+[14:43:06] C:\WINDOWS\SYSTEM32\WINSPOOL.DRV
+[14:43:06] C:\WINDOWS\SYSTEM32\DPAPI.DLL
+[14:43:06] C:\WINDOWS\SYSTEM32\SSPICLI.DLL
+[14:43:06] C:\WINDOWS\SYSTEM32\ncrypt.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\NTASN1.dll
+[14:43:06] C:\WINDOWS\system32\PCPKsp.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\tbs.dll
+[14:43:06] C:\WINDOWS\System32\setupapi.dll
+[14:43:06] C:\WINDOWS\system32\IconCodecService.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\WindowsCodecs.dll
+[14:43:06] C:\WINDOWS\system32\uxtheme.dll
+[14:43:06] C:\WINDOWS\System32\clbcatq.dll
+[14:43:06] C:\WINDOWS\System32\MMDevApi.dll
+[14:43:06] C:\Program Files (x86)\Steam\gameoverlayrenderer64.dll
+[14:43:06] C:\WINDOWS\SYSTEM32\d3d11.dll
+[14:43:06] =====================================================
+[14:43:24] Game inited
+[14:43:24] alt:V inited
+[14:43:24] Game inited
+[14:43:30] GPU: AMD Radeon RX 6800S
+[14:43:30] Dedicated VRAM: 7 GB
+[14:43:30] GPU Vendor: 1002
+[14:43:32] Replaced x64/data/control/settings.meta
+[14:43:32] Replaced common/data/control/settings.meta
+[14:43:32] [WEB] Remote debugging is open on http://localhost:9222
+[14:43:33] [WEB] Initialized Web API
+[14:43:33] AMD gpu detected. Enabling always full copy of CEF texture.
+[14:43:33] Add view store entry { Impl: 000001AE1C5E9AF0, View: 000001AE1C5AA520 }
+[14:43:33] WebApp started
+[14:43:33] alt:V Multiplayer started
+[14:43:33] Game path: C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V
+[14:43:33] Client path: C:\Users\austi\AppData\Local\39a4cb14b4afd8c1eef1667c74e3b5936238c44f
+[14:43:33] Game version: 3337 on Social Club
+[14:43:33][Warning] Rpf version: 3889 differs from alt rpf version: 3521
+[14:43:34][Error] HTTP Request failed, curl code: 3
+[14:43:34][Error] Failed to load RSS feed from 
+[14:43:34] Connect 127.0.0.1 7788 
+[14:43:39][Warning] Failed to connect to https://127.0.0.1:7788 via HTTPS. Status code: -28
+[14:43:39][Warning] CDN Host is neither specified nor available, trying to use CDN Host Fallback
+[14:43:39][Warning] CDN Host Fallback is neither specified nor available, using default server host
+[14:43:39] Downloading resource from: http://127.0.0.1:7788/69babaa58bc42c38.resource
+[14:43:39] Downloading resource from: http://127.0.0.1:7788/19229d7e0c63639d.resource
+[14:43:39] Downloaded and validated resource 69babaa58bc42c38 succesfully 
+[14:43:39] Finished downloading all resources
+[14:43:39] Download finished
+[14:43:39] Downloaded and validated resource 19229d7e0c63639d succesfully 
+[14:43:39] Game config data setup
+[14:43:44][Warning] Pattern 40 53 55 56 57 48 83 ec 48  not found!
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpBeach/
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpBusiness/
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpChristmas/
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpValentines/
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpBusiness2/
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpHipster/
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpIndependence/
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpPilot/
+[14:43:44] Loading game DLC: platform:/dlcPacks/spUpgrade/
+[14:43:44] Loading game DLC: platform:/dlcPacks/mpLTS/
+[14:43:44] Loading game DLC: dlcpacks:/mpheist/
+[14:43:44] Loading game DLC: dlcpacks:/mppatchesng/
+[14:43:44] Loading game DLC: dlcpacks:/patchday1ng/
+[14:43:44] Loading game DLC: dlcpacks:/patchday2ng/
+[14:43:44] Loading game DLC: dlcpacks:/mpchristmas2/
+[14:43:44] Loading game DLC: dlcpacks:/patchday2bng/
+[14:43:44] Loading game DLC: dlcpacks:/patchday3ng/
+[14:43:44] Loading game DLC: dlcpacks:/patchday4ng/
+[14:43:44] Loading game DLC: dlcpacks:/mpluxe/
+[14:43:44] Loading game DLC: dlcpacks:/patchday5ng/
+[14:43:44] Loading game DLC: dlcpacks:/mpluxe2/
+[14:43:44] Loading game DLC: dlcpacks:/patchday6ng/
+[14:43:44] Loading game DLC: dlcpacks:/mpreplay/
+[14:43:44] Loading game DLC: dlcpacks:/patchday7ng/
+[14:43:44] Loading game DLC: dlcpacks:/mplowrider/
+[14:43:44] Loading game DLC: dlcpacks:/mphalloween/
+[14:43:44] Loading game DLC: dlcpacks:/patchday8ng/
+[14:43:44] Loading game DLC: dlcpacks:/mpapartment/
+[14:43:44] Loading game DLC: dlcpacks:/mpxmas_604490/
+[14:43:44] Loading game DLC: dlcpacks:/mplowrider2/
+[14:43:44] Loading game DLC: dlcpacks:/mpjanuary2016/
+[14:43:44] Loading game DLC: dlcpacks:/mpvalentines2/
+[14:43:44] Loading game DLC: dlcpacks:/patchday9ng/
+[14:43:44] Loading game DLC: dlcpacks:/mpexecutive/
+[14:43:44] Loading game DLC: dlcpacks:/patchday10ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpstunt/
+[14:43:45] Loading game DLC: dlcpacks:/patchday11ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpimportexport/
+[14:43:45] Loading game DLC: dlcpacks:/mpbiker/
+[14:43:45] Loading game DLC: dlcpacks:/patchday12ng/
+[14:43:45] Loading game DLC: dlcpacks:/patchday13ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpspecialraces/
+[14:43:45] Loading game DLC: dlcpacks:/mpgunrunning/
+[14:43:45] Loading game DLC: dlcpacks:/mpairraces/
+[14:43:45] Loading game DLC: dlcpacks:/mpsmuggler/
+[14:43:45] Loading game DLC: dlcpacks:/mpchristmas2017/
+[14:43:45] Loading game DLC: dlcpacks:/mpassault/
+[14:43:45] Loading game DLC: dlcpacks:/mpbattle/
+[14:43:45] Loading game DLC: dlcpacks:/patchday14ng/
+[14:43:45] Loading game DLC: dlcpacks:/patchday15ng/
+[14:43:45] Loading game DLC: dlcpacks:/patchday16ng/
+[14:43:45] Loading game DLC: dlcpacks:/patchday17ng/
+[14:43:45] Loading game DLC: dlcpacks:/patchday18ng/
+[14:43:45] Loading game DLC: dlcpacks:/patchday19ng/
+[14:43:45] Loading game DLC: dlcpacks:/patchday20ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpchristmas2018/
+[14:43:45] Loading game DLC: dlcpacks:/patchday21ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpvinewood/
+[14:43:45] Loading game DLC: dlcpacks:/patchday22ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpheist3/
+[14:43:45] Loading game DLC: dlcpacks:/mpsum/
+[14:43:45] Loading game DLC: dlcpacks:/patchday23ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpheist4/
+[14:43:45] Loading game DLC: dlcpacks:/patchday24ng/
+[14:43:45] Loading game DLC: dlcpacks:/mptuner/
+[14:43:45] Loading game DLC: dlcpacks:/patchday25ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpsecurity/
+[14:43:45] Loading game DLC: dlcpacks:/patchday26ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpg9ec/
+[14:43:45] Loading game DLC: dlcpacks:/patchdayg9ecng/
+[14:43:45] Loading game DLC: dlcpacks:/mpsum2/
+[14:43:45] Loading game DLC: dlcpacks:/patchday27ng/
+[14:43:45] Loading game DLC: dlcpacks:/mpsum2_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/patchday27g9ecng/
+[14:43:45] Loading game DLC: dlcpacks:/mpchristmas3/
+[14:43:45] Loading game DLC: dlcpacks:/mpchristmas3_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/patchday28ng/
+[14:43:45] Loading game DLC: dlcpacks:/patchday28g9ecng/
+[14:43:45] Loading game DLC: dlcpacks:/mp2023_01/
+[14:43:45] Loading game DLC: dlcpacks:/patch2023_01/
+[14:43:45] Loading game DLC: dlcpacks:/patch2023_01_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/mp2023_01_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/mp2023_02/
+[14:43:45] Loading game DLC: dlcpacks:/patch2023_02/
+[14:43:45] Loading game DLC: dlcpacks:/mp2023_02_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/mp2024_01/
+[14:43:45] Loading game DLC: dlcpacks:/patch2024_01/
+[14:43:45] Loading game DLC: dlcpacks:/patch2024_01_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/mp2024_01_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/mp2024_02/
+[14:43:45] Loading game DLC: dlcpacks:/mp2024_02_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/patch2024_02/
+[14:43:45] Loading game DLC: dlcpacks:/mp2025_01/
+[14:43:45] Loading game DLC: dlcpacks:/patch2025_01/
+[14:43:45] Loading game DLC: dlcpacks:/mp2025_01_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/mp2025_02/
+[14:43:45] Loading game DLC: dlcpacks:/patch2025_02/
+[14:43:45] Loading game DLC: dlcpacks:/patch2025_02_g9ec/
+[14:43:45] Loading game DLC: dlcpacks:/mp2025_02_g9ec/
+[14:43:45] Loading extra DLC: dlcpacks:/mp2026_01/
+[14:43:45] Loading extra DLC: dlcpacks:/mp2026_01_g9ec/
+[14:43:45] Loading extra DLC: dlcpacks:/patch2026_01/
+[14:43:45] Updated DLC list
+[14:43:45] Replaced x64/data/control/default.meta
+[14:43:45] Replaced x64/data/control/fixed.meta
+[14:43:45] Replaced common/data/control/common.meta
+[14:43:45] Replaced common/data/control/southpaw_fps_alternate.meta
+[14:43:45] Replaced common/data/control/southpaw_fps.meta
+[14:43:45] Replaced common/data/control/southpaw_tps.meta
+[14:43:45] Replaced common/data/control/southpaw_trigger_swap_fps_alternate.meta
+[14:43:45] Replaced common/data/control/southpaw_trigger_swap_fps.meta
+[14:43:45] Replaced common/data/control/southpaw_trigger_swap_tps.meta
+[14:43:45] Replaced common/data/control/southpaw_trigger_swap.meta
+[14:43:45] Replaced common/data/control/southpaw.meta
+[14:43:45] Replaced common/data/control/standard_accept_cancel.meta
+[14:43:45] Replaced common/data/control/standard_fps_alternate.meta
+[14:43:45] Replaced common/data/control/standard_fps.meta
+[14:43:45] Replaced common/data/control/standard_tps.meta
+[14:43:45] Replaced common/data/control/standard.meta
+[14:43:45] Replaced common/data/control/trigger_swap_fps_alternate.meta
+[14:43:45] Replaced common/data/control/trigger_swap_fps.meta
+[14:43:45] Replaced common/data/control/trigger_swap_tps.meta
+[14:43:45] Replaced common/data/control/trigger_swap.meta
+[14:43:48] Callstack:
+[14:43:48] --  00007FF7DEE78AE2
+[14:43:48] --  00007FF7DDB51349
+[14:43:48] --  00007FF7DEE90271
+[14:43:48] --  00007FF7DEE90347
+[14:43:48] --  00007FF7DEEC7F0A
+[14:43:48] --  00007FF7DEEC7B18
+[14:43:48] --  00007FF7DDD02622
+[14:43:48] --  00007FFFF36C3ADA
+[14:43:48] --  00007FF7DDCDEC4F
+[14:43:48] --  00007FFFF36AAC35
+[14:43:48] --  00007FF7DDB66155
+[14:43:48] --  00007FF7DDB6730F
+[14:43:48] --  00007FFFF36B0004
+[14:43:48] --  00007FF7DF1A5F4C
+[14:43:48] --  00007FF7DDB51494
+[14:43:48] --  00007FF7DEE77377
+[14:43:48] --  00007FF7DF39CEEC
+[14:43:48] --  00007FF9131F259D
+[14:43:48] --  00007FF913C8AF78
+[14:43:48][Error] ERR_MEM_MULTIALLOC_FREE happened. Error message: Game memory error. Please reboot and restart the game.
+
+[14:43:51][Error] HTTP Request failed, curl code: 6
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpBeach/
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpBusiness/
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpChristmas/
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpValentines/
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpBusiness2/
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpHipster/
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpIndependence/
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpPilot/
+[14:44:01] Loading game DLC: platform:/dlcPacks/spUpgrade/
+[14:44:01] Loading game DLC: platform:/dlcPacks/mpLTS/
+[14:44:01] Loading game DLC: dlcpacks:/mpheist/
+[14:44:01] Loading game DLC: dlcpacks:/mppatchesng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday1ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday2ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpchristmas2/
+[14:44:01] Loading game DLC: dlcpacks:/patchday2bng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday3ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday4ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpluxe/
+[14:44:01] Loading game DLC: dlcpacks:/patchday5ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpluxe2/
+[14:44:01] Loading game DLC: dlcpacks:/patchday6ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpreplay/
+[14:44:01] Loading game DLC: dlcpacks:/patchday7ng/
+[14:44:01] Loading game DLC: dlcpacks:/mplowrider/
+[14:44:01] Loading game DLC: dlcpacks:/mphalloween/
+[14:44:01] Loading game DLC: dlcpacks:/patchday8ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpapartment/
+[14:44:01] Loading game DLC: dlcpacks:/mpxmas_604490/
+[14:44:01] Loading game DLC: dlcpacks:/mplowrider2/
+[14:44:01] Loading game DLC: dlcpacks:/mpjanuary2016/
+[14:44:01] Loading game DLC: dlcpacks:/mpvalentines2/
+[14:44:01] Loading game DLC: dlcpacks:/patchday9ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpexecutive/
+[14:44:01] Loading game DLC: dlcpacks:/patchday10ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpstunt/
+[14:44:01] Loading game DLC: dlcpacks:/patchday11ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpimportexport/
+[14:44:01] Loading game DLC: dlcpacks:/mpbiker/
+[14:44:01] Loading game DLC: dlcpacks:/patchday12ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday13ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpspecialraces/
+[14:44:01] Loading game DLC: dlcpacks:/mpgunrunning/
+[14:44:01] Loading game DLC: dlcpacks:/mpairraces/
+[14:44:01] Loading game DLC: dlcpacks:/mpsmuggler/
+[14:44:01] Loading game DLC: dlcpacks:/mpchristmas2017/
+[14:44:01] Loading game DLC: dlcpacks:/mpassault/
+[14:44:01] Loading game DLC: dlcpacks:/mpbattle/
+[14:44:01] Loading game DLC: dlcpacks:/patchday14ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday15ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday16ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday17ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday18ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday19ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday20ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpchristmas2018/
+[14:44:01] Loading game DLC: dlcpacks:/patchday21ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpvinewood/
+[14:44:01] Loading game DLC: dlcpacks:/patchday22ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpheist3/
+[14:44:01] Loading game DLC: dlcpacks:/mpsum/
+[14:44:01] Loading game DLC: dlcpacks:/patchday23ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpheist4/
+[14:44:01] Loading game DLC: dlcpacks:/patchday24ng/
+[14:44:01] Loading game DLC: dlcpacks:/mptuner/
+[14:44:01] Loading game DLC: dlcpacks:/patchday25ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpsecurity/
+[14:44:01] Loading game DLC: dlcpacks:/patchday26ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpg9ec/
+[14:44:01] Loading game DLC: dlcpacks:/patchdayg9ecng/
+[14:44:01] Loading game DLC: dlcpacks:/mpsum2/
+[14:44:01] Loading game DLC: dlcpacks:/patchday27ng/
+[14:44:01] Loading game DLC: dlcpacks:/mpsum2_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/patchday27g9ecng/
+[14:44:01] Loading game DLC: dlcpacks:/mpchristmas3/
+[14:44:01] Loading game DLC: dlcpacks:/mpchristmas3_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/patchday28ng/
+[14:44:01] Loading game DLC: dlcpacks:/patchday28g9ecng/
+[14:44:01] Loading game DLC: dlcpacks:/mp2023_01/
+[14:44:01] Loading game DLC: dlcpacks:/patch2023_01/
+[14:44:01] Loading game DLC: dlcpacks:/patch2023_01_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/mp2023_01_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/mp2023_02/
+[14:44:01] Loading game DLC: dlcpacks:/patch2023_02/
+[14:44:01] Loading game DLC: dlcpacks:/mp2023_02_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/mp2024_01/
+[14:44:01] Loading game DLC: dlcpacks:/patch2024_01/
+[14:44:01] Loading game DLC: dlcpacks:/patch2024_01_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/mp2024_01_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/mp2024_02/
+[14:44:01] Loading game DLC: dlcpacks:/mp2024_02_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/patch2024_02/
+[14:44:01] Loading game DLC: dlcpacks:/mp2025_01/
+[14:44:01] Loading game DLC: dlcpacks:/patch2025_01/
+[14:44:01] Loading game DLC: dlcpacks:/mp2025_01_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/mp2025_02/
+[14:44:01] Loading game DLC: dlcpacks:/patch2025_02/
+[14:44:01] Loading game DLC: dlcpacks:/patch2025_02_g9ec/
+[14:44:01] Loading game DLC: dlcpacks:/mp2025_02_g9ec/
+[14:44:01] Loading extra DLC: dlcpacks:/mp2026_01/
+[14:44:01] Loading extra DLC: dlcpacks:/mp2026_01_g9ec/
+[14:44:01] Loading extra DLC: dlcpacks:/patch2026_01/
+[14:44:01] Updated DLC list
+[14:44:16] Loaded font face 'rmlui-fallback-font' [regular] from 'memory'.
+[14:44:16] Loaded font face 'rmlui-fallback-font' [italic] from 'memory'.
+[14:44:20] Game Started in 78680 ms
+[14:44:20] Connecting to: [::ffff:127.0.0.1]:7788 MTU: 1392
+[14:44:20] Connected with id: 1
+[14:44:21] Loading resource 69babaa58bc42c38
+[14:44:21][js] [V8] Starting script client.js
+[14:44:21][Warning][js] Resource 69babaa58bc42c38 update takes too long(221158922ms since last update)
+Trace: 
+  at copyPropsRenamed ([eval]:68)
+  at eval ([eval]:203)
+  at eval ([eval]:199)
+  at [anonymous] (<bootstrapper>:8)
+
+[14:44:21][Error][js] [V8] Unhandled promise rejection at 69babaa58bc42c38:<bootstrapper>:18 (ReferenceError: process is not defined)
+[14:44:21][Error][js]   at [anonymous] (<bootstrapper>:18)
+
+[14:44:21][js] [V8] Started script client.js
+[14:44:21] Loaded resource 69babaa58bc42c38
+[14:44:21] Loading resource 19229d7e0c63639d
+[14:44:21][js] [V8] Starting script client.js
+[14:44:21] Add view store entry { Impl: 000001AF74934540, View: 000001AF53B45300 }
+[14:44:21][js] [vMenu] vMenu Client Initialized. Press M or F1 in-game to toggle.
+[14:44:21][js] [V8] Started script client.js
+[14:44:21] Loaded resource 19229d7e0c63639d
+[14:44:21][Warning] Packet failed to send 20
+[14:44:22][js] [vMenu] CEF UI loaded and ready.
+[14:44:28] Shutting down
+[14:44:29] Removing cef impl from store 000001AE1C5E9AF0
+[14:44:29] Removing cef impl from store 000001AF74934540

@@ -1,0 +1,7 @@
+[14:42:39] [info] Initializing alt:V Launcher patcher
+[14:42:39] [info] Initialization finished
+[14:42:55] [info] Performing patches
+[14:42:55] [info] Main thread suspend count: 15
+[14:42:55] [info] Patching finished! Reporting success to launcher
+[14:44:33] [info] Unloading alt:V Launcher patcher
+[14:44:33] [info] Unload finished, closing log file

@@ -1,0 +1,146 @@
+{
+    "files": [
+        {
+            "actionType": 1,
+            "directory": "",
+            "downloadInfo": {
+                "finalHash": "60694b13a70d4081",
+                "finalSize": 58082288,
+                "parts": [
+                    {
+                        "filename": "3307/EAC7B9E177254512ACD11423A28AABDD",
+                        "hash": "60694b13a70d4081",
+                        "size": 58082288
+                    }
+                ]
+            },
+            "filename": "GTA5.exe",
+            "validationParam1": "60694b13a70d4081",
+            "validationParam2": "53d19b38a5e258c0",
+            "verificationType": 0
+        },
+        {
+            "actionType": 3,
+            "directory": "update",
+            "downloadInfo": {
+                "finalHash": "c7597bde6770b862",
+                "finalSize": 1432735744,
+                "parts": [
+                    {
+                        "filename": "3411/A6806CF7FEF149C1AEAC3CBDCD0F7789",
+                        "hash": "c3505a3dde5662f1",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/25D6BC610B734D3A989A94A2B85705B7",
+                        "hash": "264b4545bcdd40ab",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/9567981558B04A359A0A29E5CD2B8108",
+                        "hash": "6c0467c8a9f459c0",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/E191916C6C384319A5E5B8211B4EEA27",
+                        "hash": "8067363f46d0b058",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/0A4D979105C649B48F313D06CA21DDD1",
+                        "hash": "f56289a32b8b7245",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/87E4A3CDF1074B62A5D055CCD36273A7",
+                        "hash": "1b932d2b05233863",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/44F0A45D46914C798DC7A40F677E6380",
+                        "hash": "b8ac1acdc8ec729f",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/082876E5914648E6811E7417207B0272",
+                        "hash": "67eed7a707b51a8b",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/DBAAB29B8FEC4F61A18FD380C4B221CE",
+                        "hash": "c3f1af8b67526e33",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/4F87DC25E05249EC962B23FCD9217D03",
+                        "hash": "bcae841cda10d2fe",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/CAC8B52ADE7A4A8F81A6DEAA4B1BF920",
+                        "hash": "57dafb69a10c0b31",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/85B38A2A8D3E42E694888DCA8ECF3988",
+                        "hash": "b44551d52ef28a06",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/D8BC0B6E2170420C8BCEEAB81B854E8C",
+                        "hash": "b79403b0716dfaf8",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/91886E85DDB640DAB324715A55DB097A",
+                        "hash": "dccca4f3522a4f1d",
+                        "size": 69586944
+                    }
+                ]
+            },
+            "filename": "update.rpf",
+            "validationParam1": "common/data/dlclist.xml",
+            "validationParam2": "<Item>dlcpacks:/patch2024_02/</Item>",
+            "verificationType": 3
+        },
+        {
+            "actionType": 3,
+            "directory": "update",
+            "downloadInfo": {
+                "finalHash": "4c38287c23a35071",
+                "finalSize": 440010752,
+                "parts": [
+                    {
+                        "filename": "3411/AC7685FAF58741AFA9A0498D264E4DE6",
+                        "hash": "c672c4b98949bf4f",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/D2DB477C10C04BEDB093CCB3A9B1A406",
+                        "hash": "6d92bd49b712db3",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/237DEF27023D44C5807DAC8D2007C00E",
+                        "hash": "7cbc003e610b8631",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/DDE482B745E34291871B79BE91E8E656",
+                        "hash": "2fd1103f6cd79c47",
+                        "size": 104857600
+                    },
+                    {
+                        "filename": "3411/40A05BA3093D4AF4B285AF0B0E0936A2",
+                        "hash": "14ec258aa89b77fd",
+                        "size": 20580352
+                    }
+                ]
+            },
+            "filename": "update2.rpf",
+            "validationParam1": "common/data/version.txt",
+            "validationParam2": "3411-dev_ng_Live",
+            "verificationType": 3
+        }
+    ]
+}
