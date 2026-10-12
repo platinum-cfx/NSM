@@ -1,0 +1,220 @@
+-- ESX glue over the generic xLib.cache.
+-- ped and weapon are tracked by the lib cache; this module mirrors them into
+-- ESX.PlayerData, re-emits the legacy esx: events resources depend on, and keeps
+-- the vehicle enter/exit state machine that produces the richer vehicle events.
+
+Actions = {}
+Actions._index = Actions
+
+Actions.inVehicle = false
+Actions.enteringVehicle = false
+Actions.inPauseMenu = false
+
+function Actions:GetSeatPedIsIn()
+    for i = -1, 16 do
+        if GetPedInVehicleSeat(self.vehicle, i) == ESX.PlayerData.ped then
+            return i
+        end
+    end
+    return -1
+end
+
+function Actions:GetVehicleData()
+    if not DoesEntityExist(self.vehicle) then
+        return
+    end
+
+    local vehicleModel = GetEntityModel(self.vehicle)
+    local displayName = GetDisplayNameFromVehicleModel(vehicleModel)
+    local netId = NetworkGetEntityIsNetworked(self.vehicle) and VehToNet(self.vehicle) or self.vehicle
+    local plate = GetVehicleNumberPlateText(self.vehicle)
+
+    return displayName, netId, plate
+end
+
+function Actions:SetVehicleStatus()
+    ESX.SetPlayerData("vehicle", self.vehicle)
+    ESX.SetPlayerData("seat", self.seat)
+end
+
+function Actions:TrackPedCoordsOnce()
+    CreateThread(function()
+        while not ESX.IsPlayerLoaded() do
+            Wait(250)
+        end
+
+        ESX.PlayerData.coords = nil
+
+        setmetatable(ESX.PlayerData, {
+            __index = function(_, key)
+                if key ~= "coords" then
+                    return
+                end
+
+                local coords = GetEntityCoords(ESX.PlayerData.ped)
+
+                return coords
+            end
+        })
+    end)
+end
+
+function Actions:TrackPauseMenu()
+    local isActive = IsPauseMenuActive()
+
+    if isActive ~= self.inPauseMenu then
+        self.inPauseMenu = isActive
+        TriggerEvent("esx:pauseMenuActive", isActive)
+
+        if Config.EnableDebug then
+            print("[DEBUG] Pause menu active:", isActive)
+        end
+    end
+end
+
+function Actions:EnterVehicle()
+    self.seat = GetSeatPedIsTryingToEnter(ESX.PlayerData.ped)
+
+    local _, netId, plate = self:GetVehicleData()
+
+    self.enteringVehicle = true
+    TriggerEvent("esx:enteringVehicle", self.vehicle, plate, self.seat, netId)
+    TriggerServerEvent("esx:enteringVehicle", plate, self.seat, netId)
+
+    self:SetVehicleStatus()
+
+    if Config.EnableDebug then
+        print("[DEBUG] Entering vehicle:", self.vehicle, plate, self.seat, netId)
+    end
+end
+
+function Actions:ResetVehicleData()
+    self.enteringVehicle = false
+    self.vehicle = false
+    self.seat = false
+    self.inVehicle = false
+
+    self:SetVehicleStatus()
+end
+
+function Actions:EnterAborted()
+    self:ResetVehicleData()
+
+    TriggerEvent("esx:enteringVehicleAborted")
+    TriggerServerEvent("esx:enteringVehicleAborted")
+
+    if Config.EnableDebug then
+        print("[DEBUG] Entering vehicle aborted")
+    end
+end
+
+function Actions:WarpEnter()
+    self.enteringVehicle = false
+    self.inVehicle = true
+
+    self.seat = self:GetSeatPedIsIn()
+
+    local displayName, netId, plate = self:GetVehicleData()
+
+    self:SetVehicleStatus()
+    TriggerEvent("esx:enteredVehicle", self.vehicle, plate, self.seat, displayName, netId)
+    TriggerServerEvent("esx:enteredVehicle", plate, self.seat, displayName, netId)
+
+    if Config.EnableDebug then
+        print("[DEBUG] Entered vehicle:", self.vehicle, plate, self.seat, displayName, netId)
+    end
+end
+
+function Actions:ExitVehicle()
+    local currentVehicle = GetVehiclePedIsIn(ESX.PlayerData.ped, false)
+
+    if currentVehicle ~= self.vehicle or ESX.PlayerData.dead then
+        local displayName, netId, plate = self:GetVehicleData()
+
+        TriggerEvent("esx:exitedVehicle", self.vehicle, plate, self.seat, displayName, netId)
+        TriggerServerEvent("esx:exitedVehicle", plate, self.seat, displayName, netId)
+
+        if Config.EnableDebug then
+            print("[DEBUG] Exited vehicle:", self.vehicle, plate, self.seat, displayName, netId)
+        end
+
+        self:ResetVehicleData()
+    end
+end
+
+function Actions:TrackVehicle()
+    if not self.inVehicle and not ESX.PlayerData.dead then
+        local tempVehicle = GetVehiclePedIsTryingToEnter(ESX.PlayerData.ped)
+
+        if DoesEntityExist(tempVehicle) and not self.enteringVehicle then
+            self.vehicle = tempVehicle
+            self:EnterVehicle()
+        elseif not DoesEntityExist(tempVehicle) and not IsPedInAnyVehicle(ESX.PlayerData.ped, true) and self.enteringVehicle then
+            self:EnterAborted()
+        elseif IsPedInAnyVehicle(ESX.PlayerData.ped, false) then
+            self.vehicle = GetVehiclePedIsIn(ESX.PlayerData.ped, false)
+            self:WarpEnter()
+        end
+    elseif self.inVehicle then
+        self:ExitVehicle()
+        self:TrackSeat()
+    end
+end
+
+function Actions:TrackSeat()
+    if not self.inVehicle then
+        return
+    end
+
+    local newSeat = self:GetSeatPedIsIn()
+    if newSeat ~= self.seat then
+        self.seat = newSeat
+        ESX.SetPlayerData("seat", self.seat)
+        TriggerEvent("esx:vehicleSeatChanged", self.seat)
+
+        if Config.EnableDebug then
+            print("[DEBUG] Vehicle seat changed:", self.seat)
+        end
+    end
+end
+
+function Actions:SlowLoop()
+    CreateThread(function()
+        while ESX.PlayerLoaded do
+            self:TrackPauseMenu()
+            self:TrackVehicle()
+            Wait(500)
+        end
+    end)
+end
+
+function Actions:Init()
+    -- Re-seed the cached values on every (re)login. The change handlers below are
+    -- registered once at file load so a relogin never stacks duplicate handlers.
+    ESX.SetPlayerData("ped", xLib.cache.ped)
+    ESX.SetPlayerData("weapon", xLib.cache.weapon)
+
+    self:SlowLoop()
+    self:TrackPedCoordsOnce()
+end
+
+-- Mirror the lib cache into ESX.PlayerData and re-emit the legacy esx: events.
+AddEventHandler("xLib:cache:ped", function(ped)
+    ESX.SetPlayerData("ped", ped)
+    TriggerEvent("esx:playerPedChanged", ped)
+
+    if Config.EnableDebug then
+        print("[DEBUG] Player ped changed:", ped)
+    end
+end)
+
+AddEventHandler("xLib:cache:weapon", function(weapon)
+    ESX.SetPlayerData("weapon", weapon)
+    TriggerEvent("esx:weaponChanged", weapon)
+
+    if Config.EnableDebug then
+        print("[DEBUG] Weapon changed:", weapon)
+    end
+end)
+
+Actions:Init()

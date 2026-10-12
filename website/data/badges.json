@@ -1,0 +1,114 @@
+[
+  {
+    "id": "b_owner",
+    "name": "Owner",
+    "desc": "Website & Project Owner",
+    "icon": "👑",
+    "color": "#ffaa00",
+    "role": "staff"
+  },
+  {
+    "id": "b_basic",
+    "name": "Basic User",
+    "desc": "Standard Community Member",
+    "icon": "👤",
+    "color": "#9ea4bd",
+    "role": "user"
+  },
+  {
+    "id": "b_verified",
+    "name": "Verified",
+    "desc": "Official GTAMP team / confirmed identity",
+    "icon": "✔",
+    "color": "#3ddc84",
+    "role": "staff"
+  },
+  {
+    "id": "b_staff",
+    "name": "Staff",
+    "desc": "Member of the GTAMP team",
+    "icon": "🛠",
+    "color": "#8b6cff",
+    "role": "staff"
+  },
+  {
+    "id": "b_admin",
+    "name": "Administrator",
+    "desc": "GTAMP administrator",
+    "icon": "⚙",
+    "color": "#e05050",
+    "role": "staff"
+  },
+  {
+    "id": "b_dev",
+    "name": "Developer",
+    "desc": "Contributed code to GTAMP",
+    "icon": "⌨",
+    "color": "#6ac6ff",
+    "role": "achievement"
+  },
+  {
+    "id": "b_founder",
+    "name": "Founder",
+    "desc": "Founded / owns GTAMP",
+    "icon": "★",
+    "color": "#ffb83d",
+    "role": "staff"
+  },
+  {
+    "id": "b_host_1",
+    "name": "Server Host",
+    "desc": "Hosted a public server for 7 days",
+    "icon": "🖥",
+    "color": "#30a060",
+    "role": "achievement"
+  },
+  {
+    "id": "b_host_2",
+    "name": "Dedicated Host",
+    "desc": "Hosted a public server for 30 days",
+    "icon": "🖥",
+    "color": "#30c080",
+    "role": "achievement"
+  },
+  {
+    "id": "b_author_1",
+    "name": "Author",
+    "desc": "Published 1 marketplace asset",
+    "icon": "📦",
+    "color": "#a050e0",
+    "role": "achievement"
+  },
+  {
+    "id": "b_author_5",
+    "name": "Prolific Author",
+    "desc": "Published 5 marketplace assets",
+    "icon": "📦",
+    "color": "#c070ff",
+    "role": "achievement"
+  },
+  {
+    "id": "b_patron",
+    "name": "Patron",
+    "desc": "Boosted a server via upvotes",
+    "icon": "💜",
+    "color": "#e05aa0",
+    "role": "patron"
+  },
+  {
+    "id": "b_early",
+    "name": "Early Adopter",
+    "desc": "Joined GTAMP during early access",
+    "icon": "🚀",
+    "color": "#6ac6ff",
+    "role": "achievement"
+  },
+  {
+    "id": "b_contributor",
+    "name": "Community Contributor",
+    "desc": "Helped others on the forum",
+    "icon": "💬",
+    "color": "#8ab0ff",
+    "role": "achievement"
+  }
+]

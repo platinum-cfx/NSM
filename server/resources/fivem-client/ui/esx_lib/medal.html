@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head><script>(function installNuiCompatPage(window, alt, resource) {
+  const GETPARENT = function GetParentResourceName() { return resource; };
+  if (!window.GetParentResourceName) window.GetParentResourceName = GETPARENT;
+
+  // SendNUIMessage -> window 'message' event (FiveM semantics)
+  alt.on('fivem:nui', (payloadJson) => {
+    let data = payloadJson;
+    try { data = JSON.parse(payloadJson); } catch (e) { /* pass through raw */ }
+    window.dispatchEvent(new window.MessageEvent('message', { data: data }));
+  });
+
+  // RegisterNUICallback <- fetch('https://resource/name')
+  const origFetch = window.fetch && window.fetch.bind(window);
+  let nextToken = 1;
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const m = /^https:\/\/([^\/]+)\/(.*)$/.exec(url);
+    if (!m || m[1] !== resource) {
+      return origFetch ? origFetch(input, init) : Promise.reject(new Error('fetch unavailable'));
+    }
+    const cbName = m[2];
+    const token = resource + ':' + (nextToken++);
+    const body = (init && init.body) || (input && input.body) || '';
+    return new Promise(function (resolve, reject) {
+      const timeout = window.setTimeout(function () {
+        resolve(new window.Response('{}', { status: 200 }));
+      }, 10000);
+      alt.on('fivem:nuiResp:' + token, function (respJson) {
+        window.clearTimeout(timeout);
+        resolve(new window.Response(respJson === undefined || respJson === null ? '{}' : respJson, { status: 200 }));
+      });
+      alt.emit('fivem:nuiCb', cbName, typeof body === 'string' ? body : JSON.stringify(body || {}), token);
+    });
+  };
+})(window, alt, "esx_lib");</script>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src http://localhost:12665 http://127.0.0.1:12665">
+</head>
+<body>
+    <script src="medal.js"></script>
+</body>
+</html>

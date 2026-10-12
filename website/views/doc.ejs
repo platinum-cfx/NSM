@@ -1,0 +1,42 @@
+<%- include('partials/head') %>
+<%
+  var cats = {};
+  docs.forEach(d => { (cats[d.cat] = cats[d.cat] || []).push(d); });
+  var catNames = Object.keys(cats);
+%>
+<div class="docs-layout">
+  <aside class="docs-nav">
+    <div class="docs-search">
+      <input type="text" id="docs-filter" placeholder="Filter documentation…" oninput="filterDocs(this.value)">
+    </div>
+    <% catNames.forEach(function(c){ %>
+      <div class="navGroup">
+        <div class="navGroupTitle"><%= c %></div>
+        <% cats[c].forEach(function(d){ %>
+          <a class="docLink <%= doc.id === d.id ? 'active' : '' %>" href="/docs/<%= d.id %>"><%= d.title %></a>
+        <% }) %>
+      </div>
+    <% }) %>
+  </aside>
+  <main class="docs-content">
+    <p style="margin-bottom:12px"><a href="/docs" class="muted">← Documentation</a></p>
+    <h1><%= doc.title %></h1>
+    <div class="body">
+      <p class="muted" style="margin-bottom:20px"><%= doc.cat %> · GTAMP v<%= (settings && settings.version) || '1.6.0' %></p>
+      <p><%= doc.body %></p>
+    </div>
+  </main>
+</div>
+<script>
+function filterDocs(q){
+  q=(q||'').toLowerCase();
+  document.querySelectorAll('.docLink').forEach(a=>{
+    a.style.display = !q || a.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  document.querySelectorAll('.navGroup').forEach(g=>{
+    const any=[...g.querySelectorAll('.docLink')].some(a=>a.style.display!=='none');
+    g.style.display=any?'':'none';
+  });
+}
+</script>
+<%- include('partials/foot') %>

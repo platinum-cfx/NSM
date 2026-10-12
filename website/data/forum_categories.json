@@ -1,0 +1,43 @@
+[
+  {
+    "id": "announcements",
+    "name": "Announcements",
+    "desc": "GTAMP news and updates",
+    "role": "announce"
+  },
+  {
+    "id": "general",
+    "name": "General Discussion",
+    "desc": "Talk about GTAMP and multiplayer"
+  },
+  {
+    "id": "gtamp-discussion",
+    "name": "GTAMP Discussion",
+    "desc": "Discussion about GTAMP itself"
+  },
+  {
+    "id": "client-support",
+    "name": "GTAMP Client Support",
+    "desc": "Help with the launcher and client"
+  },
+  {
+    "id": "server-support",
+    "name": "Server Support",
+    "desc": "Help running your own server"
+  },
+  {
+    "id": "scripting",
+    "name": "Scripting",
+    "desc": "Lua/JS scripting help"
+  },
+  {
+    "id": "showcases",
+    "name": "Showcases",
+    "desc": "Show off your servers and assets"
+  },
+  {
+    "id": "marketplace-talk",
+    "name": "Marketplace",
+    "desc": "Buy, sell, and discuss assets"
+  }
+]

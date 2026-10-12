@@ -1,0 +1,26 @@
+{
+  "name": "gtamp-website",
+  "version": "1.0.0",
+  "description": "GTAMP community website - server browser, forums, marketplace, docs, badges",
+  "main": "server.js",
+  "bin": "server.js",
+  "pkg": {
+    "assets": [
+      "views/**/*",
+      "public/**/*",
+      "lib/**/*"
+    ]
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js --dev"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "ws": "^8.17.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,34 @@
+<%- include('partials/head') %>
+<div class="wrap" style="padding:44px 24px;max-width:900px">
+  <h1 class="section-title">Keymaster</h1>
+  <p class="section-sub">Manage your server license keys and marketplace assets.</p>
+  <div class="card mt">
+    <h3>Your licenses</h3>
+    <% if (!licenses.length) { %><p class="muted mt">No license keys yet.</p><% } %>
+    <% licenses.forEach(function(l){ %><div class="post mt"><%= l.key %> <span class="tag"><%= l.type %></span></div><% }) %>
+  </div>
+  <div class="card mt">
+    <h3>Create an asset</h3>
+    <p class="muted" style="margin:6px 0 12px">Publish your work to the marketplace. After creating, hit publish.</p>
+    <form method="POST" action="/keymaster/assets/new">
+      <div class="form-row"><label>Title</label><input type="text" name="title" required></div>
+      <div class="form-row"><label>Description</label><textarea name="desc"></textarea></div>
+      <div class="form-row"><label>Price (USD, 0 = free)</label><input type="number" name="price" value="0" min="0" step="0.01"></div>
+      <div class="form-row"><label>Category</label><select name="cat">
+        <option value="script">Script</option><option value="car">Vehicle</option><option value="map">Map</option><option value="weapon">Weapon</option><option value="clothing">Clothing</option><option value="misc">Misc</option></select></div>
+      <button class="btn btn-accent">CREATE</button>
+    </form>
+  </div>
+  <h3 class="mt">Your assets</h3>
+  <% assets.forEach(function(a){ %>
+    <div class="post">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div><b><%= a.title %></b> <span class="tag"><%= a.published?'published':'draft' %></span> <span class="muted">$<%= a.price||0 %></span></div>
+        <% if (!a.published) { %>
+          <form method="POST" action="/keymaster/assets/<%= a.id %>/publish"><button class="btn btn-accent btn-sm">PUBLISH</button></form>
+        <% } %>
+      </div>
+    </div>
+  <% }) %>
+</div>
+<%- include('partials/foot') %>

@@ -1,0 +1,18 @@
+[
+  {
+    "uid": 5,
+    "bid": "b_owner"
+  },
+  {
+    "uid": 5,
+    "bid": "b_admin"
+  },
+  {
+    "uid": 5,
+    "bid": "b_founder"
+  },
+  {
+    "uid": 5,
+    "bid": "b_verified"
+  }
+]

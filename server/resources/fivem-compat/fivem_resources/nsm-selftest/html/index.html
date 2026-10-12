@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>NSM selftest</title>
+<style>
+  html, body { margin: 0; background: transparent; font-family: monospace; }
+  #log { position: fixed; top: 8px; left: 8px; color: #9fef00; font-size: 12px;
+         text-shadow: 0 0 4px #000; white-space: pre; }
+</style>
+</head>
+<body>
+<div id="log">NSM selftest page loaded</div>
+<script>
+// The NUI compat shim (injected at build time) provides:
+//   GetParentResourceName(), fetch('https://nsm-selftest/<cb>'), message events.
+window.addEventListener('load', function () {
+  var el = document.getElementById('log');
+  try {
+    fetch('https://' + GetParentResourceName() + '/ready', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page: 'loaded', ua: (navigator.userAgent || '').slice(0, 60) })
+    }).then(function (r) { return r.text(); })
+      .then(function (t) { el.textContent += '\nNUI round-trip: ' + t; })
+      .catch(function (e) { el.textContent += '\nNUI round-trip ERR: ' + e; });
+  } catch (e) {
+    el.textContent += '\npage JS ERR: ' + e;
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Node modules & scratch
+node_modules/
+*.log
+
+# Runtime data (masterlist keys / runtime state must never be committed)
+masterlist/data/
+
+# fivem-compat runtime artifacts
+fivem-compat-kvp.json
+node_modules/
