@@ -156,3 +156,12 @@ New since the text above was written:
 
 Rename your server via `name = '...'` at the top of `server/.cfg` (also shown
 in the list). Friends on other PCs: point them at your IP, port 7788 open.
+
+## UPDATE 2026-10-12 (later) — masterlist.exe is the list, not the server
+
+Correction to the update above: the server no longer runs any masterlist
+resource. The list comes from the standalone **`masterlist\masterlist.exe`**
+(double-click, keep the window open). For your server to appear in it:
+`server\.cfg` `[masterlist]` → `announce = true` + a `server_key` minted by
+your masterlist, or run the masterlist with `OPEN_ANNOUNCE=1` (dev mode).
+Click-path: masterlist.exe → START-SERVER.bat → NSM.exe → list → Connect.

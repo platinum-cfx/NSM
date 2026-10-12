@@ -83,3 +83,12 @@ code or assets are copied**; NSM's UI is its own implementation):
 4. **`altv://` deep links** — referenced by the UI's direct-connect box; whether
    the protocol handler is registered on a clean machine is **not verified**.
 5. Accounts, server favorites sync, server-side purchase history — not present.
+
+## UPDATE 2026-10-12 (later) — masterlist is the standalone masterlist.exe
+
+The `nsm-masterlist` server resource described above has been removed. The
+masterlist is `masterlist/masterlist.exe` (upstream GTAMP component, in-repo):
+open it separately, keep it running; game servers announce to it every 30 s
+(key-protected, or OPEN_ANNOUNCE=1 for dev) and the launcher reads
+`http://127.0.0.1:8080/servers` from it. `server/.cfg` `[masterlist]` feeds
+the announce. The server binary itself starts no masterlist.

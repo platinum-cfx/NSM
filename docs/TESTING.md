@@ -106,3 +106,13 @@ environment; needs a Windows PC with GTA V):
 
 Until items 2–5 pass on real hardware, the launcher→game flow is
 "implemented and source-audited", **not proven**.
+
+## UPDATE 2026-10-12 (later)
+
+The `nsm-masterlist` server resource referenced above was removed — it
+duplicated the in-repo `masterlist/` component (`masterlist.exe` +
+`server.js`, key-based announce model) that predates it. The live HTTP test
+results (endpoints, CORS, JSON shape) were produced against that now-removed
+resource; the launcher's contract it verified (`/servers`,
+`/api/launcher/ping`, `/api/player/leave`) matches the endpoints the real
+masterlist/ implements for the same launcher.

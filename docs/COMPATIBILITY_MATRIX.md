@@ -44,3 +44,10 @@
 | Direct connect (`ip:port`, `altv://connect/…`, `>ip:port` in search, F8 `connect`) | Implemented in `launcher/index.html` |
 | CONNECTING overlay + return-to-list on exit | Implemented (driven by `/api/gamestate` polling) |
 | First-run GTA V picker, updater, accounts | Not implemented — see LAUNCH_FLOW.md "Remaining gaps" |
+
+## UPDATE 2026-10-12 (later)
+
+Server-list row correction: the masterlist is the standalone
+`masterlist/masterlist.exe` component (upstream GTAMP, in-repo: key-based
+announces, port probing, heartbeat expiry). The `nsm-masterlist` server
+resource mentioned above was removed — the game server runs no masterlist.

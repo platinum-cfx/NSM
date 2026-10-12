@@ -55,3 +55,12 @@ creates the databases/tables.
 
 No passwords/tokens are included in any of these except `mysql.json` (server
 side only — do not paste that file publicly).
+
+## UPDATE 2026-10-12 (later) — empty list now points at masterlist.exe
+
+The masterlist is the standalone `masterlist\masterlist.exe` (the game server
+no longer serves the list). Checklist for an empty list: 1) is masterlist.exe
+running? 2) did your server announce? (`[masterlist]` in `server\.cfg`:
+`announce = true` + `server_key`, or masterlist started with
+`OPEN_ANNOUNCE=1`); 3) the masterlist TCP-probes the game port before listing
+it — the server must be up (`VERIFY_PORT=0` disables probing, e.g. NAT dev).

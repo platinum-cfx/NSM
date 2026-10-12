@@ -130,3 +130,16 @@ in this repo is the resource below.
 
 Note: the `nsm-game.exe` launcher-shim experiment from `2025af4` was fully
 reverted in `9bd5e27` — `NSM.exe` is the original untouched client binary again.
+
+## CORRECTION 2026-10-12 (later) — masterlist/ is real; my "stale" note was wrong
+
+The earlier update above claimed the `masterlist` and `website` rows were
+"stale upstream notes". That was wrong for `masterlist/`: the component IS in
+this repo (`masterlist/masterlist.exe`, `masterlist/server.js`,
+`masterlist/start.bat`, `masterlist/README.md`). The earlier "does not exist"
+check was fooled by the sparse checkout hiding it from the working tree.
+
+The `nsm-masterlist` server resource added in `01ed635` was therefore a
+duplicate of an existing component and has been **removed**: the server runs
+no masterlist at all. Use `masterlist/masterlist.exe` (see its README:
+servers announce with keys, launcher reads /servers).
