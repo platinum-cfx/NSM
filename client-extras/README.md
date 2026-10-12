@@ -1,56 +1,39 @@
 # Client extras — Steam presence (the FiveM trick)
 
-FiveM shows up in Steam as "Playing Source SDK Base 2007" because it ships a
-`steam_appid.txt` containing AppID 244310 (a free Source engine app everyone
-owns) next to its exe. Steam then treats the process as that game and shows
-you as playing it.
+FiveM shows up in Steam as "Playing Source SDK Base 2007" because its exe
+initializes the Steamworks API with AppID 244310 (a free Source app) while it
+runs. **NSM now does exactly the same thing, the same way.**
 
-## Do the same for NSM / gtamp
+## How it works in this download
 
-Fresh downloads already carry `steam_appid.txt` inside `client-new/` next to
-the client exe (same as FiveM's download carries it). If your copy predates
-this or the file is missing:
+- `client-new/NSM.exe` — a tiny launcher (full source: `client-new/nsm-shim-source.c`).
+  On double-click it registers with Steam as AppID 244310, then starts the real
+  client (`nsm-game.exe`) and holds the status until you close the game.
+- `client-new/nsm-game.exe` — the actual game client (unchanged binary).
+- `client-new/connect.exe` — server browser. Launching through `NSM.exe` is
+  what carries the Steam status.
+- `client-new/steam_appid.txt` — contains `244310`; the launcher reads it.
 
-1. Copy `steam_appid.txt` from this folder into the folder with the exe you
-   launch to play (the gtamp launcher/client exe — the one you double-click).
-2. Make sure Steam is running, then launch the game as usual.
-3. Your Steam status (and friends' view) now says **Source SDK Base 2007**,
-   exactly like FiveM.
+No files are copied into hidden folders and nothing is modified in your Steam
+install. The launcher loads `steam_api64.dll` from any installed Steam game
+(Grand Theft Auto V first) purely to make the "I'm playing" call.
 
-### If the status doesn't change
-- Also copy the file next to the main game/client exe if the launcher runs
-  from a different folder (the trick must sit beside the process Steam sees).
-- Restart Steam once (it caches app state).
-- Note: this only affects the *status text*. It does not launch anything
-  through Steam and needs no Steam features.
+## Requirements (once per machine)
 
-### Prefer your own name instead?
-Steam -> Add a Non-Steam Game -> pick the gtamp exe -> rename the library
-entry to "NSM" -> always launch it from Steam. Friends then see
-"Playing NSM".
+1. Steam installed and running.
+2. Your account must own Source SDK Base 2007 (free):
+   Steam → Library → dropdown "Games" → Tools → Source SDK Base 2007 → Install.
+3. Fully restart Steam once after installing it (Steam → Exit, not the window X).
 
-## Discord
-The NSM server already runs a DiscordRPC service (`discord_presence = true`
-in server/.cfg; "Starting DiscordRPC server on [::]:7899" in the console).
-With Discord open while you play, your profile can advertise the server.
+## First run notes
 
-## IMPORTANT — the launcher is not the exe Steam watches
+- Windows may show a firewall prompt for `nsm-game.exe` → Allow (it's the game).
+- `NSM.exe` is unsigned. If SmartScreen shows "Windows protected your PC":
+  More info → Run anyway. The complete source ships next to it.
+- If Steam isn't running or the AppID isn't owned, the game still runs — you
+  just don't get the status. Presence never blocks playing.
 
-The client exe you double-click is only the menu/launcher. When you join a
-server, the real game process starts from a hidden runtime folder that the
-client downloads/creates on first run. THAT is the process Steam has to see
-the appid file next to. So place `steam_appid.txt` in BOTH places:
+## Troubleshooting
 
-1. Next to the client exe you launch (as above), and
-2. In the client's runtime folder:
-   - Press Win+R, type `%LOCALAPPDATA%`, press Enter
-   - Look for a folder whose name is a long hex string (e.g.
-     `39a4cb14...`) that contains `altv.exe` — also check folders like
-     `Programs\gtamp-launcher` if present
-   - Copy `steam_appid.txt` into it (next to `altv.exe`)
-
-Also note: Steam only shows the badge for apps your Steam account owns.
-If it still doesn't show after both copies are in place:
-- Steam -> Library -> dropdown "Games" -> Tools -> search
-  "Source SDK Base 2007" -> Install it (tiny download), then fully
-  restart Steam (Steam -> Exit, not the window X).
+Run `CHECK-STEAM.bat` (in this folder) while the game is open and send back
+the `STEAM-CHECK.txt` it produces.
