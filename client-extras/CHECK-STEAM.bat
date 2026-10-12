@@ -4,16 +4,16 @@ set "NSMCHK=%~f0"
 echo.
 echo  NSM Steam presence check - only LOOKS, changes nothing.
 echo  Best: keep nsm.exe open while running this.
-echo  Takes 20-60 seconds, then saves STEAM-CHECK.txt to your Desktop.
+echo  Takes up to about a minute, then OPENS the report for you automatically.
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$c=[IO.File]::ReadAllText($env:NSMCHK); $m='# --- PS START ---'; $i=$c.IndexOf($m); Invoke-Expression $c.Substring($i+$m.Length)"
 echo.
-echo  Finished. STEAM-CHECK.txt should now be on your Desktop.
+echo  Finished - the report should have opened in Notepad by itself.
 pause
 goto :eof
 # --- PS START ---
 $ErrorActionPreference = 'SilentlyContinue'
-Write-Host 'Check running, please wait...'
+Write-Host 'Check is running... (searching messages appear below)'
 $out  = New-Object System.Collections.Generic.List[string]
 function Add-Line([string]$s) { $script:out.Add($s) }
 
@@ -137,12 +137,16 @@ Get-ChildItem $desk -Filter '*.lnk' | ForEach-Object {
 }
 if ($hits -eq 0) { Add-Line "   (no game shortcuts on the Desktop)" }
 
-# ---- 6. Write the report ----------------------------------------------------
-$report = Join-Path $desk 'STEAM-CHECK.txt'
-$out | Set-Content -Path $report -Encoding ASCII
+# ---- 6. Write the report (Desktop + Downloads) and OPEN it ------------------
+if (-not $desk) { $desk = Join-Path $env:USERPROFILE 'Desktop' }
+$report  = Join-Path $desk 'STEAM-CHECK.txt'
+$report2 = Join-Path $env:USERPROFILE 'Downloads\STEAM-CHECK.txt'
+$out | Set-Content -Path $report  -Encoding ASCII
+$out | Set-Content -Path $report2 -Encoding ASCII
 Write-Host ''
 Write-Host '================================================'
-Write-Host ' Done. Report saved on your Desktop:'
-Write-Host (' ' + $report)
-Write-Host ' Open it and send the whole contents back.'
+Write-Host ' DONE - opening the report for you now.'
+Write-Host (' Saved: ' + $report)
+Write-Host (' Also:  ' + $report2)
 Write-Host '================================================'
+Invoke-Item $report
