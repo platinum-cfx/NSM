@@ -29,6 +29,10 @@
  *    A short trace is written to nsm-embed-debug.log next to the client
  *    exe (a few lines per run) so failures are diagnosable for real.
  *
+ * 3) GAME-PACK REPAIR: makes sure packs\mp1..mp7.pack exist next
+ *    to NSM.exe before Connect needs them (moves loose packs, fetches the
+ *    big mp1.pack from the GitHub release in the background).
+ *
  * Build: x86_64-w64-mingw32-gcc -shared -O2 -o discord_rpc.dll \
  *   nsm-steam-presence-source.c discord.def -ladvapi32 -luser32
  */
@@ -304,6 +308,98 @@ static DWORD WINAPI embed_thread(LPVOID unused)
     return 0;
 }
 
+
+/* ---------------- game-pack repair ---------------- */
+/* The launcher refuses to Connect unless packs\mp1..mp7.pack exist next to
+ * NSM.exe, and the game runtime at %LOCALAPPDATA%\<sha1("gtamp")> is wiped
+ * on every reboot - the packs re-install it. The repo ZIP ships every pack
+ * that fits GitHub's 100MB file limit; mp1.pack (230MB, carries
+ * libs\libce2.dll) ships as a small stub and is upgraded to the full pack
+ * from the GitHub release in the background. Loose mpN.pack files dropped
+ * next to the exe are moved into packs\. All failures log and never break
+ * the launcher - if a pack cannot be fetched, whatever is in place stays. */
+#define NSM_PACK_RELEASE "https://github.com/platinum-cfx/NSM/releases/download/game-packs/"
+
+static DWORD nsm_file_size(const char *path)
+{
+    WIN32_FILE_ATTRIBUTE_DATA fa;
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &fa)) return 0;
+    return fa.nFileSizeLow;
+}
+
+static DWORD WINAPI pack_guard_thread(LPVOID unused)
+{
+    char exe[MAX_PATH * 2], dir[MAX_PATH * 2];
+    char pack[MAX_PATH * 3], loose[MAX_PATH * 3], tmp[MAX_PATH * 3];
+    char cmd[1400], line[160], url[512];
+    char *slash;
+    int i;
+
+    (void)unused;
+    if (own_exe_is("GTA5.exe")) return 0;   /* never act inside the game */
+    Sleep(500);
+
+    GetModuleFileNameA(NULL, exe, sizeof exe);
+    slash = strrchr(exe, '\\');
+    if (slash) *slash = 0;
+    lstrcpynA(dir, exe, sizeof dir);
+    _snprintf(pack, sizeof pack, "%s\\packs", dir);
+    CreateDirectoryA(pack, NULL);
+
+    for (i = 1; i <= 7; i++) {
+        _snprintf(loose, sizeof loose, "%s\\mp%d.pack", dir, i);
+        _snprintf(pack, sizeof pack, "%s\\packs\\mp%d.pack", dir, i);
+        if (GetFileAttributesA(pack) == INVALID_FILE_ATTRIBUTES &&
+            GetFileAttributesA(loose) != INVALID_FILE_ATTRIBUTES) {
+            if (MoveFileA(loose, pack)) {
+                _snprintf(line, sizeof line,
+                          "pack: moved loose mp%d.pack into packs\r\n", i);
+                dblog(line);
+            }
+        }
+    }
+
+    for (i = 1; i <= 7; i++) {
+        _snprintf(pack, sizeof pack, "%s\\packs\\mp%d.pack", dir, i);
+        if (GetFileAttributesA(pack) == INVALID_FILE_ATTRIBUTES ||
+            (i == 1 && nsm_file_size(pack) < 10u * 1024u * 1024u)) {
+            _snprintf(tmp, sizeof tmp, "%s\\packs\\mp%d.download", dir, i);
+            _snprintf(url, sizeof url, "%smp%d.pack", NSM_PACK_RELEASE, i);
+            DeleteFileA(tmp);
+            _snprintf(line, sizeof line,
+                      "pack: fetching mp%d.pack in background\r\n", i);
+            dblog(line);
+            _snprintf(cmd, sizeof cmd,
+                      "cmd.exe /c curl -L --retry 3 -sS -o \"%s\" \"%s\"",
+                      tmp, url);
+            {
+                STARTUPINFOA si; PROCESS_INFORMATION pi;
+                memset(&si, 0, sizeof si); si.cb = sizeof si;
+                si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+                if (CreateProcessA(NULL, cmd, NULL, NULL, FALSE,
+                                   CREATE_NO_WINDOW, NULL, dir, &si, &pi)) {
+                    WaitForSingleObject(pi.hProcess, 20u * 60u * 1000u);
+                    CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+                } else {
+                    dblog("pack: curl spawn failed\r\n");
+                }
+            }
+            if ((i != 1 && nsm_file_size(tmp) > 1024u * 1024u) ||
+                (i == 1 && nsm_file_size(tmp) > 200u * 1024u * 1024u)) {
+                if (MoveFileExA(tmp, pack, MOVEFILE_REPLACE_EXISTING))
+                    dblog("pack: installed\r\n");
+                else
+                    dblog("pack: swap failed (in use; retry next start)\r\n");
+            } else {
+                DeleteFileA(tmp);
+                dblog("pack: download failed; keeping what is in place\r\n");
+            }
+        }
+    }
+    dblog("pack: guard done\r\n");
+    return 0;
+}
+
 BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)
 {
     (void)reserved;
@@ -311,6 +407,7 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)
         DisableThreadLibraryCalls(h);
         CreateThread(NULL, 0, steam_thread, NULL, 0, NULL);
         CreateThread(NULL, 0, embed_thread, NULL, 0, NULL);
+        CreateThread(NULL, 0, pack_guard_thread, NULL, 0, NULL);
     }
     return TRUE;
 }
