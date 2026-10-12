@@ -29,3 +29,24 @@ entry to "NSM" -> always launch it from Steam. Friends then see
 The NSM server already runs a DiscordRPC service (`discord_presence = true`
 in server/.cfg; "Starting DiscordRPC server on [::]:7899" in the console).
 With Discord open while you play, your profile can advertise the server.
+
+## IMPORTANT — the launcher is not the exe Steam watches
+
+The client exe you double-click is only the menu/launcher. When you join a
+server, the real game process starts from a hidden runtime folder that the
+client downloads/creates on first run. THAT is the process Steam has to see
+the appid file next to. So place `steam_appid.txt` in BOTH places:
+
+1. Next to the client exe you launch (as above), and
+2. In the client's runtime folder:
+   - Press Win+R, type `%LOCALAPPDATA%`, press Enter
+   - Look for a folder whose name is a long hex string (e.g.
+     `39a4cb14...`) that contains `altv.exe` — also check folders like
+     `Programs\gtamp-launcher` if present
+   - Copy `steam_appid.txt` into it (next to `altv.exe`)
+
+Also note: Steam only shows the badge for apps your Steam account owns.
+If it still doesn't show after both copies are in place:
+- Steam -> Library -> dropdown "Games" -> Tools -> search
+  "Source SDK Base 2007" -> Install it (tiny download), then fully
+  restart Steam (Steam -> Exit, not the window X).
