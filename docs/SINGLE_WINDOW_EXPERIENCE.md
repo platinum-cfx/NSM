@@ -12,16 +12,19 @@ server list is back → reconnect without restart.
 
 ## How it works (fix/embedding branch)
 
-1. `client-new\NSM.exe` starts, sets up logging FIRST, silently detects the
-   GTA V install (registry / Steam / common paths) and — if the masterlist URL
-   points at localhost and nothing is listening — starts
-   `masterlist\masterlist.exe` itself.
+1. `client-new\NSM.exe` starts, sets up logging FIRST and silently detects
+   the GTA V install (registry / Steam / common paths). The launcher is a
+   CLIENT ONLY: it never starts a masterlist and never starts a game server.
+   The masterlist runs on the VPS at the configured `masterlist_url`;
+   `gtamp-server.exe` is run independently by server owners (the FXServer
+   model).
 2. The **NSM host window** (class `NSMMainWindow`, owned by NSM.exe) is
    created hidden at startup. It is the application window the game is
    embedded into.
 3. On Connect:
-   - If the server address is local (`127.0.0.1`) and nothing answers,
-     NSM starts `server\gtamp-server.exe` itself and waits for its port.
+   - The selected server is checked for reachability first. If it is
+     offline, a clear "Connection Error" dialog is shown and NSM returns
+     to the browser - it NEVER starts a server locally.
    - If the GTA path is still not known, the GTA5.exe folder picker appears
      NOW (never at startup), and the choice is saved to `.config`.
    - The game packs are checked/extracted as before.
@@ -68,7 +71,7 @@ the game opens in its own window exactly like a plain launcher.
 ## Diagnostics
 
 - `%LOCALAPPDATA%\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\logs\connect.log`
-  — launcher decisions (GTA detection, server/masterlist auto-start, pack
+  — launcher decisions (GTA detection, server reachability check, pack
   extraction, runtime install, game launch).
 - `nsm-embed-debug.log` next to NSM.exe — every embedding step:
   `startup: N GTA5.exe already running` → `game pid N window found` →
@@ -79,13 +82,12 @@ the game opens in its own window exactly like a plain launcher.
 
 ## Verification (2026-10-12, Wine test rig, real launcher binaries)
 
-Mock game (real `grcWindow`-class window), mock server/masterlist, real
-NSM.exe + wrapper DLL from this branch, driven through the real launcher
-HTTP API:
+TEST MODE (mocks started by the test script itself - the launcher never
+spawns them): mock game (real `grcWindow`-class window), separately running
+mock server + mock masterlist, real NSM.exe + wrapper DLL from this branch,
+driven through the real launcher HTTP API:
 
     Starting connect.exe / NSM.exe
-    Starting local masterlist... / Local masterlist is running.
-    Starting local game server (gtamp-server.exe)... / Local game server is running.
     Extracting game packs into ... / Packs successfully extracted.
     Installing game runtime from: ...\altv-runtime\39a4... / Game runtime install complete.
     Launching: "...altv.exe" -connecturl altv://connect/127.0.0.1:7788 ...
@@ -96,7 +98,9 @@ HTTP API:
 
 Full cycle proven twice in one NSM process: connect → `in_game` → game
 exit → `idle` (browser back) → connect again → `in_game` → exit → `idle`.
-Second connect logged `Local game server already running` (no double start).
+Production-behavior phase verified separately: NSM opens with no services
+running, spawns no masterlist/gtamp-server processes, and an offline server
+produces a clear connection error instead of starting anything.
 
 Remaining for the owner's machine: one real GTA V run (real alt:V client,
 real game process, real input/F8) — see the acceptance checklist below.
@@ -104,7 +108,7 @@ real game process, real input/F8) — see the acceptance checklist below.
 ## Acceptance checklist (real machine)
 
 1. Fresh ZIP of this branch → extract → run `client-new\NSM.exe`
-2. Server list appears (local masterlist auto-starts)
+2. Server list appears from the configured VPS masterlist
 3. Connect → GTA V appears INSIDE the NSM window
 4. Game fills the window and follows resizing
 5. Mouse/keyboard work; F8 opens the client console; `disconnect` leaves
@@ -126,6 +130,11 @@ from the test rig.
 - `client-new/discord_rpc.dll` - built wrapper (forwards Discord to
   discord_rpc_real.dll)
 - `client-new/tests/single-window-test.c` - older in-process mechanics rig
+- `client-new/tests/e2e-production.sh` - two-phase Wine E2E: Phase A proves
+  PRODUCTION MODE (no services spawned, offline server = clear error),
+  Phase B proves the online flow against separately-running TEST MODE mocks
+- `client-new/tests/mocks/` - mock masterlist / gtamp-server / altv / GTA5
+  sources (TEST ONLY - built and started by the test script, never by NSM)
 - `sources/cpp/connect.cpp` - launcher: logging-first startup, connect-time
-  GTA picker, local server/masterlist auto-start, direct runtime install,
-  NSM host window
+  GTA picker, server reachability check + clear offline error, direct runtime
+  install, NSM host window
