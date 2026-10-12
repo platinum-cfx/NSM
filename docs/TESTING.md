@@ -116,3 +116,12 @@ results (endpoints, CORS, JSON shape) were produced against that now-removed
 resource; the launcher's contract it verified (`/servers`,
 `/api/launcher/ping`, `/api/player/leave`) matches the endpoints the real
 masterlist/ implements for the same launcher.
+
+## UPDATE 2026-10-12 (later) — single-window build status
+
+The in-window presentation (Win32 re-parent in the discord_rpc.dll wrapper)
+and the F8 `disconnect` command are implemented and compiled clean, but were
+built WITHOUT access to a Windows machine: they are NOT verified. The
+acceptance checklist in docs/SINGLE_WINDOW_EXPERIENCE.md is the required
+real-machine test. The wrapper's Steam-presence half remains
+Windows-verified (AppID 218).

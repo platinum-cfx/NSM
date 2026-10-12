@@ -165,3 +165,12 @@ resource. The list comes from the standalone **`masterlist\masterlist.exe`**
 `server\.cfg` `[masterlist]` → `announce = true` + a `server_key` minted by
 your masterlist, or run the masterlist with `OPEN_ANNOUNCE=1` (dev mode).
 Click-path: masterlist.exe → START-SERVER.bat → NSM.exe → list → Connect.
+
+## UPDATE 2026-10-12 (later) — single-window play
+
+The game now presents INSIDE the main NSM window: one visible window, one
+taskbar entry; the server list returns in the same window when the game
+closes. Requirement: GTA V graphics must be **Windowed or Borderless**
+(exclusive fullscreen cannot be embedded — it is skipped safely). The F8
+console gained `disconnect` (leave server, return to the list). Details and
+the acceptance checklist: `docs/SINGLE_WINDOW_EXPERIENCE.md`.

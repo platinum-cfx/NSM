@@ -64,3 +64,14 @@ running? 2) did your server announce? (`[masterlist]` in `server\.cfg`:
 `announce = true` + `server_key`, or masterlist started with
 `OPEN_ANNOUNCE=1`); 3) the masterlist TCP-probes the game port before listing
 it — the server must be up (`VERIFY_PORT=0` disables probing, e.g. NAT dev).
+
+## UPDATE 2026-10-12 (later) — single-window issues
+
+- **Game opens as a separate window instead of inside NSM:** GTA V is in
+  exclusive fullscreen — set graphics to Windowed or Borderless (exclusive
+  fullscreen cannot be embedded and is skipped safely).
+- **NSM window did not come back after the game closed:** restart NSM.exe
+  (window state is per-run; the browser itself was never closed).
+- **F8 console:** the browser-side console (with `disconnect`) is available
+  on the server list; an in-game console overlay belongs to the client
+  runtime, which is compiled and not part of this repo.

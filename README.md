@@ -113,3 +113,12 @@ ADMIN_KEY=$(openssl rand -hex 24) PORT=8080 node masterlist/server.js
 - [ ] Player accounts / identity tokens
 - [ ] Code signing
 - [ ] FiveM script compatibility shim (JS only; Lua/ESX/QBCore are out of scope — different runtime)
+
+## Single-window experience (2026-10-12)
+
+NSM now aims for the FiveM-style single window: the game is presented inside
+the main NSM window (re-parented as a child view) while you play, and the
+server browser returns in the same window when you leave. See
+`docs/SINGLE_WINDOW_EXPERIENCE.md` for architecture, constraints (the game
+must be windowed/borderless), and the acceptance checklist. Steam presence
+("Playing Source SDK Base 2007") is included and verified on Windows.

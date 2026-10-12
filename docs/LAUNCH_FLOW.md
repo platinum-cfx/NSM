@@ -92,3 +92,13 @@ open it separately, keep it running; game servers announce to it every 30 s
 (key-protected, or OPEN_ANNOUNCE=1 for dev) and the launcher reads
 `http://127.0.0.1:8080/servers` from it. `server/.cfg` `[masterlist]` feeds
 the announce. The server binary itself starts no masterlist.
+
+## UPDATE 2026-10-12 (later) — in-window game presentation
+
+On connect, the NSM-spawned game's window (GTA5.exe under AppData\Local,
+class `grcWindow`) is re-parented into the NSM main window as a WS_CHILD
+that fills it and follows resizes (implemented in the discord_rpc.dll
+wrapper; documented Win32 APIs only; graceful degradation if anything
+fails; exclusive fullscreen is skipped). One visible window during play;
+the browser returns automatically when the game exits. See
+docs/SINGLE_WINDOW_EXPERIENCE.md.
