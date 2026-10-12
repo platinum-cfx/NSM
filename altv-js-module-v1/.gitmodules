@@ -1,3 +1,0 @@
-[submodule "shared/deps/cpp-sdk"]
-	path = shared/deps/cpp-sdk
-	url = https://github.com/xxshady/cpp-sdk.git

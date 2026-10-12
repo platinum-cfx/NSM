@@ -174,3 +174,10 @@ closes. Requirement: GTA V graphics must be **Windowed or Borderless**
 (exclusive fullscreen cannot be embedded — it is skipped safely). The F8
 console gained `disconnect` (leave server, return to the list). Details and
 the acceptance checklist: `docs/SINGLE_WINDOW_EXPERIENCE.md`.
+
+## UPDATE 2026-10-12 (final) - first-run GTA V selection is native
+
+Proven from the real launcher binary (altv-runtime/): if NSM cannot
+auto-find your GTA V (Steam/Rockstar), the launcher itself asks you to
+"Select the GTA V folder", validates it, and remembers it in altv.toml
+(gtapath). You only ever pick it once, and you can change it later.

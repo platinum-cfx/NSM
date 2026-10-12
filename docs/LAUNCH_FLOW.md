@@ -102,3 +102,12 @@ wrapper; documented Win32 APIs only; graceful degradation if anything
 fails; exclusive fullscreen is skipped). One visible window during play;
 the browser returns automatically when the game exits. See
 docs/SINGLE_WINDOW_EXPERIENCE.md.
+
+## UPDATE 2026-10-12 (final) - verified launch chain (from real logs)
+
+NSM.exe (bootstrap) -> %LOCALAPPDATA%\<hash>\altv.exe (gtamp Launcher:
+validates GTA5.exe + steam_api64.dll backups, patches, injects client)
+-> GTA5.exe runs as its own process -> our wrapper re-parents its window
+into the NSM window for the single-window experience -> game exit
+returns the browser in the same window. First-run GTA V selection is the
+launcher's native picker (see SINGLE_WINDOW_EXPERIENCE.md).

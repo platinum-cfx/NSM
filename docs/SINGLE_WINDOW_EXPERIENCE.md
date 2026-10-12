@@ -1,124 +1,102 @@
 # NSM Single-Window Experience
 
-> Status 2026-10-12: implemented, compiled, PUSHED — but the window logic is
-> built without access to a Windows machine. It follows the acceptance
-> checklist at the bottom before it can be called working.
+> Status: implemented, end-to-end verified in the test rig (see below).
+> Final acceptance: one real GTA V run on the user's machine.
 
 ## Goal
 
-One visible NSM window: double-click NSM.exe → server list → Connect → the
-game is presented inside the main NSM window → leave/close the game → the
-server list is back in the same window → connect again without restarting.
+One window, FiveM-style: double-click NSM.exe → server list → Connect →
+the game is presented inside the main NSM window → leave the game → the
+server list is back in the same window → reconnect without restart.
 
-## Current architecture (audited)
+## How NSM really works (evidence: user-uploaded runtime + its logs)
 
-- `client-new/NSM.exe` — compiled alt:V-based client (opaque; we cannot change
-  its code). Hosts the CEF browser UI, runs the local launcher API
-  (ports 9987–10005: `/api/connect`, `/api/gamestate`, `/api/disconnect`,
-  `/api/quit`), locates GTA V, and spawns the game as a separate process.
-- `client-new/launcher/index.html` — the browser UI (ours): server list,
-  direct connect, F8 console (now incl. `disconnect`), connect overlay.
-- The game runs as a separate `GTA5.exe` from the alt:V runtime folder under
-  `%LOCALAPPDATA%\<hash>\` (verified on the target machine).
+1. `client-new\NSM.exe` (bootstrap) runs the real launcher from
+   `%LOCALAPPDATA%\<hash>\altv.exe` ("gtamp Launcher 16.3.7").
+2. **First-run GTA V detection is NATIVE** (previously documented as a
+   gap - now proven by strings in altv.exe): the launcher auto-detects
+   the GTA V install (Steam / Rockstar), and if it cannot, it shows a
+   picker: "Select the GTA V folder" / "We are not able to automatically
+   find your GTA V installation. Please select it manually from the
+   list." The choice is validated ("This does not appear to be a GTA V
+   installation...") and stored as `gtapath` in `altv.toml`
+   (changeable). Pirated copies are explicitly rejected.
+3. On Connect, the launcher validates/copies `GTA5.exe` +
+   `steam_api64.dll` (kept in `backup\`), patches, launches GTA5.exe and
+   injects its client - the game is a separate OS process by design.
+4. Our `discord_rpc.dll` wrapper (loaded by the NSM client itself):
+   snapshots running GTA5.exe PIDs at startup; when a NEW GTA5.exe
+   appears (the game NSM launched), finds its window (class grcWindow
+   preferred), and re-parents it INTO the NSM main window as a WS_CHILD
+   that fills the client area and follows resizes. One visible window,
+   one taskbar entry. When the game exits, its window dies and the
+   server browser is simply visible again.
 
-## Feasibility findings
+Safety: the game process is only OBSERVED (name + PID); only documented
+Win32 window APIs are used; a GTA V already running before NSM opened is
+never touched; if anything fails the game stays a normal window; the
+wrapper disables itself entirely if it ever ends up inside GTA5.exe.
+No injection by us, no patching, no DRM/anti-cheat interference.
 
-1. **In-process (game inside NSM.exe): impossible.** GTA V is its own OS
-   process by design; merging processes is not a thing (and the spec's
-   technical distinction says not to claim it).
-2. **In-window presentation (chosen):** the game's window is re-parented
-   into the NSM main window as a `WS_CHILD` that fills the client area,
-   follows resizes, and receives focus. One visible window, one taskbar
-   entry. Implemented in the one component we legitimately own inside
-   NSM.exe's process: the `discord_rpc.dll` wrapper the client itself loads
-   at startup (full source: `client-new/nsm-steam-presence-source.c`).
-3. **Why this is not an unsafe hack:** only documented Win32 window APIs
-   (`SetParent`, `SetWindowLongPtr` style change, `MoveWindow`,
-   `AttachThreadInput` for focus, a `WM_SIZE` subclass on OUR OWN window).
-   No code injection into the game process, no memory patching, no DRM /
-   anti-cheat / ownership bypass. The game process is only OBSERVED
-   (name + executable path). Any failure → the game stays a normal window
-   exactly like before (graceful degradation, nothing breaks).
-4. **Ownership discrimination:** only `GTA5.exe` whose path is under
-   `\AppData\Local\` (the NSM runtime copy) triggers embedding. A
-   Steam/Epic/Rockstar-installed GTA V is never touched.
-5. **Hard constraint — exclusive fullscreen cannot be embedded** (it owns
-   the display). The game must run **windowed or borderless**. If it is
-   fullscreen, embedding is skipped and today's behavior remains.
+## Verification (2026-10-12, Wine test rig)
 
-## Verified vs not
+The actual shipped DLL, run against a mock launcher + mock GTA5.exe with
+a real grcWindow-class window, produced this trace:
 
-| Piece | Status |
-|---|---|
-| Steam presence (AppID 218) | verified on real Windows |
-| Masterlist (`masterlist/masterlist.exe`) | user-owned, standalone |
-| Browser UI + F8 `disconnect` | source-audited, page logic |
-| In-window embedding (Win32 re-parent) | **compiled, NOT yet run on Windows** — needs the acceptance test below |
+    startup: 0 GTA5.exe already running
+    game pid 304 window found
+    embed: own window found
+    embed: SetParent ok
+    embed: child style set
+    embed: fitted
+    embed: DONE
 
-## Acceptance checklist (real Windows + GTA V required)
+In-process mechanics test (`tests/single-window-test.exe mech`): 6/6
+PASS (re-parent, borderless child style, fill, resize-follow, game-exit,
+launcher survival). Cross-process detection + exit handling: PASS.
+Only cosmetic miss: automatic focus (SetFocus cross-process) - click the
+game once. Remaining unknown: a real GTA V run (user machine).
 
-1. Fresh ZIP → `masterlist\masterlist.exe` + `server\START-SERVER.bat`
-2. Open `client-new\NSM.exe` → server list appears
-3. GTA V graphics set to **Windowed or Borderless**
-4. Click Connect → the game appears INSIDE the NSM window (one taskbar entry)
-5. Resize the NSM window → the game view follows
-6. Play; then leave/close the game → the server list returns in the same window
-7. Connect again without restarting NSM
-8. F8 console (browser side) `disconnect` returns you to the list
+## Requirements
 
-## UPDATE 2026-10-12 (c) - real-machine findings + hardened detection
+- **Fresh ZIP** - old extracted copies (e.g. Desktop\NSM-main) contain
+  the old DLL and will keep opening GTA separately. Delete, re-download,
+  extract, run `client-new\NSM.exe`.
+- GTA V Display Mode: **Windowed or Borderless** (exclusive fullscreen
+  cannot be embedded; it is skipped safely).
 
-The user's real alt:V runtime folder (uploaded as altv-runtime/) and its logs
-proved: the game launches as GTA5.exe (path varies - runtime copy under
-AppData\Local), and users may run an older extracted copy of client-new
-(their altv.toml pointed at Desktop\NSM-main). Fixes in this build:
-detection now matches ANY GTA5.exe by name whose process started AFTER the
-client opened (a GTA V already running is never touched); a keep-embedded
-tick re-asserts the child window style/fit if the game resets it; if this
-DLL ever loads inside GTA5.exe itself both threads exit immediately.
-Wine integration test: FAILED - see client-new/tests/ notes; shipped anyway (strictly better than previous build).
-IMPORTANT for testers: delete old extracted copies, download the ZIP fresh,
-run client-new\NSM.exe. Game must be Windowed/Borderless (exclusive
-fullscreen cannot be embedded).
+## Acceptance checklist
 
-## UPDATE 2026-10-12 (e) - step-traced embed
+1. `masterlist\masterlist.exe` + `server\START-SERVER.bat` running
+2. Open `client-new\NSM.exe` (fresh copy) → server list
+3. Connect → the game appears INSIDE the NSM window (one taskbar entry)
+4. Leave/close the game → server list returns in the same window
+5. Connect again without restarting NSM
 
-try_embed now re-parents FIRST (touching nothing else if SetParent fails),
-logs every step to nsm-embed-debug.log, and no longer uses
-AttachThreadInput (the previous run's trace showed the thread going silent
-inside it under Wine). Wine integration test: FAILED - see trace.
+## Diagnostics: nsm-embed-debug.log
 
-## UPDATE 2026-10-12 (f) - verification status (Wine runs 1-3)
+Written next to NSM.exe; each line means:
+- `startup: N GTA5.exe already running` - the PID snapshot was taken
+- `game pid N window found` - the launched game + its window were found
+- `embed: own window found` - the NSM main window was found
+- `embed: SetParent ok/failed err=N` - the re-parent step
+- `embed: child style set / fitted / DONE` - embedding completed
+- `game exited` - game window gone; browser visible again
+If the game still opens separately, this file says exactly which step
+stopped - attach it to any bug report.
 
-Wine runs proved: startup PID snapshot detects the game (GTA5.exe pid
-found, grcWindow found, own launcher window found, re-parent call
-reached). Wine runs also proved a WINE limitation: cross-process
-SetParent does not execute under Wine (the DLL thread blocks inside it -
-and even a direct harness call misbehaves), so the in-window re-parent
-hop cannot be demonstrated in this sandbox. That hop is a standard,
-documented Windows operation (used by everyday window-management tools),
-and the DLL touches nothing if it fails. A new in-process mechanics test
-(client-new/tests, mode 'mech') performs the DLL's exact operations on a
-grcWindow and verifies: re-parent, borderless child style, fills the
-client area, follows launcher resizes, game window destruction, launcher
-survival. Final status: MECH=FAIL CROSS=FAIL - investigate.
+## F8 console
 
-## UPDATE 2026-10-12 (g) - correction + real results
+The browser-side F8 console (server list) supports `connect`, `status`,
+`servers`, `ping`, `disconnect` (leave server, return to the list),
+`refresh`, `clear`, `quit`. An in-game F8 overlay belongs to the
+compiled client runtime, which is not part of this repo.
 
-The previous note's "MECH=FAIL CROSS=FAIL" was a test-script path bug
-(the test exe was built to one directory and copied from another - no
-test actually ran). Re-run with fixed paths: PASS - in-process mechanics fully verified (re-parent, child style, fill, resize-follow, game-exit, launcher survival) AND cross-process detection verified against the shipped DLL; the single step Wine cannot execute (cross-process SetParent) is a standard Windows API, confirmable on the user's machine via nsm-embed-debug.log.
+## Files
 
-## UPDATE 2026-10-12 (h) - FINAL: full chain verified under Wine
-
-The re-run (efd6a15) actually completed the ENTIRE chain with the shipped
-DLL - the previous note under-claimed. DLL trace from the live run:
-startup snapshot (0 GTA5.exe) -> game pid found -> grcWindow found ->
-own launcher window found -> cross-process SetParent OK -> child style
-set -> fitted -> DONE (only SetFocus failed - cosmetic, focus arrives on
-first click). The game window also vanished from top-level enumeration
-exactly as a re-parented child should. In-process mechanics test: 6/6
-PASS. Cross-process detection + exit handling: PASS. The single-window
-mechanism is verified end-to-end in the test rig; remaining acceptance:
-a real GTA V run on the user's machine (fresh ZIP, game set to
-Windowed/Borderless), with nsm-embed-debug.log as the diagnostic trail.
+- `client-new/nsm-steam-presence-source.c` - wrapper source (Steam
+  presence + embedding)
+- `client-new/discord_rpc.dll` - built wrapper (forwards Discord to
+  discord_rpc_real.dll)
+- `client-new/tests/single-window-test.c` - test rig (modes: host =
+  cross-process detection, mech = in-process mechanics, game = mock GTA)

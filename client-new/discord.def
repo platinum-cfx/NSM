@@ -1,3 +1,0 @@
-LIBRARY discord_rpc
-EXPORTS
-    InitDiscordRPC=discord_rpc_real.InitDiscordRPC
