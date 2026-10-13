@@ -1068,9 +1068,9 @@ bool EnsureGameFilesReady(const string& baseDir, const string& targetDir, string
     }
     if (libce2MissingStub && uncoveredCount == 0) {
         WriteLog("Post-extraction verification: libs\\libce2.dll is unavailable - mp1.pack is the STUB.");
-        WriteLog("The full mp1.pack (226,614,288 B) downloads automatically in the background (see nsm-embed-debug.log: 'pack: mp1.pack upgraded').");
+        WriteLog("The full mp1.pack (228,682,672 B) downloads automatically in the background (see nsm-embed-debug.log: 'pack: mp1.pack upgraded').");
         if (failReasonOut) *failReasonOut =
-            "SOFT:The game file libs\\libce2.dll is not available yet.\n\n" + selDir + "\\mp1.pack is the small STUB pack - it cannot provide libce2.dll.\n\nThe full mp1.pack (226,614,288 B) is downloading automatically in the background. Press Connect again once nsm-embed-debug.log shows 'pack: mp1.pack upgraded' (usually within a minute).\n\nManual fix: download mp1.pack from github.com/platinum-cfx/NSM/releases (game-packs) and place it in:\n" + selDir;
+            "SOFT:The game file libs\\libce2.dll is not available yet.\n\n" + selDir + "\\mp1.pack is the small STUB pack - it cannot provide libce2.dll.\n\nThe full mp1.pack (228,682,672 B) is downloading automatically in the background. Press Connect again once nsm-embed-debug.log shows 'pack: mp1.pack upgraded' (usually within a minute).\n\nManual fix: download mp1.pack from github.com/platinum-cfx/NSM/releases (game-packs) and place it in:\n" + selDir;
         return false;
     }
     if (uncoveredCount > 0) {
