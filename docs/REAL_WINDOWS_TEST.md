@@ -68,8 +68,17 @@ channel. Fixed by:
 1. the `game-packs` release (real mp1.pack + standalone libce2.dll,
    SHA1-verified against the client's hashList), and
 2. the wrapper's pack-guard, which detects the stub mp1.pack at startup
-   and downloads the full pack in the background (verified in the Wine
-   rig: 949,824 B stub auto-upgraded to the 226,614,288 B full pack).
+   and downloads the full pack in the background.
+
+UPDATE (2026-10-13): the pack served on the release until this date
+(226,614,288 B) was encrypted with an incompatible key and could never be
+decrypted by the launcher - placing it in packs\\ produced the false
+"mp1.pack not found" error. The release now serves a REBUILT full pack
+(228,682,672 B, SHA1 2b75525b54e0880b9d42b3518e6598bec3ab5770), verified
+end to end in Wine (stub -> guard download -> Connect -> game files
+verified, real libce2.dll 226,394,112 B). If your machine still has the
+old 226,614,288 B mp1.pack, delete it (or just start NSM.exe - the guard
+replaces it automatically).
 
 Manual quick fix if you prefer not to wait for the background download:
 download `libce2.dll` from the game-packs release and place it in

@@ -82,20 +82,26 @@ rm -rf wineprefix wineprefix2 wineprefix-svc
 # client (40-60MB payloads), which cannot run under Wine. If they were
 # installed into the rig, the real client would shadow the MOCK client and
 # Phase B could only test the timeout path. The rig therefore generates
-# small dummy packs with the SAME format (IV + AES-256-CBC/PKCS7, the key
-# from connect.cpp DecryptDataAES): extraction succeeds, no altv.exe comes
-# from the packs, and EnsureRuntimeInstalled installs the MOCK client from
-# the rig's altv-runtime dir. Production packs are never touched.
+# dummy packs with the SAME format as production (IV + AES-256-CBC/PKCS7 with
+# the key from connect.cpp DecryptDataAES) whose payload is a REAL PE DLL
+# exporting RunExtractor - so the launcher's actual decrypt, LoadLibrary,
+# RunExtractor and post-extraction manifest-verification paths all run.
+# The dummy extractor (mocks/mp_ext.dll, built from mock_pack_extractor.c +
+# the auto-generated mock_pack_manifest.h) creates every manifest file except
+# \altv.exe and \cache\skin.bin at the exact expected size; the rig installs
+# its MOCK client from the altv-runtime folder instead. Production packs are
+# never touched.
 rm -rf testpacks && mkdir -p testpacks
 python3 - <<'PYEOF'
 import subprocess, secrets
 key = bytes([0x2B,0x7E,0x15,0x16,0x28,0xAE,0xD2,0xA6,0xAB,0xF7,0x15,0x88,0x09,0xCF,0x4F,0x3C,
              0x76,0x2E,0x71,0x60,0xF3,0x8B,0x4D,0xA5,0x6A,0x78,0x4D,0x90,0x45,0x19,0x0C,0xFE]).hex()
+dll = open("mocks/mp_ext.dll", "rb").read()
+assert len(dll) > 1000 and b"RunExtractor" in dll, "mocks/mp_ext.dll missing - build it first"
 for i in range(1, 8):
-    # mp1 dummy is 12MB: bigger than the 10MB stub threshold so the wrapper's
-    # background full-pack download never fires inside the test rig
-    size = 12000000 if i == 1 else 900000
-    pt = (f"NSM E2E dummy test pack mp{i} - placeholder. ".encode() * 300000)[:size]
+    # mp1 dummy is padded to 12MB: bigger than the 10MB stub threshold so the
+    # wrapper's background full-pack download never fires inside the test rig
+    pt = dll if i != 1 else dll + b"\x00" * (12000000 - len(dll))
     iv = secrets.token_bytes(16)
     ct = subprocess.run(["openssl","enc","-aes-256-cbc","-K",key,"-iv",iv.hex()],
                         input=pt, capture_output=True, check=True).stdout

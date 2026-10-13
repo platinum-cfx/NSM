@@ -420,15 +420,25 @@ static DWORD WINAPI pack_guard_thread(LPVOID unused)
  * All failures just log and leave whatever is in place. */
     {
         char mp1[MAX_PATH * 3];
+        DWORD psz;
         _snprintf(mp1, sizeof mp1, "%s\\mp1.pack", pack);
-        if (nsm_file_size(mp1) < 10 * 1024 * 1024) {
+        psz = nsm_file_size(mp1);
+        if (psz == 226614288UL) {
+            /* OLD game-packs release asset: encrypted with an incompatible
+             * key, the launcher can never decrypt it. Replace it with the
+             * fixed pack from the same release. */
+            dblog("pack: mp1.pack is a KNOWN-BAD old full pack (incompatible encryption) - replacing it with the fixed pack in the background...\r\n");
+        } else if (psz < 10 * 1024 * 1024) {
             HMODULE um = LoadLibraryA("urlmon.dll");
             if (um) {
                 typedef HRESULT (WINAPI *PDLT)(void*, LPCSTR, LPCSTR, DWORD, void*);
                 PDLT dl = (PDLT)GetProcAddress(um, "URLDownloadToFileA");
                 _snprintf(tmp, sizeof tmp, "%s\\mp1.pack.tmp", pack);
                 _snprintf(url, sizeof url, "%smp1.pack", NSM_PACK_RELEASE);
-                dblog("pack: mp1.pack is the small stub - downloading the full pack in the background...\r\n");
+                if (psz >= 10 * 1024 * 1024)
+                    dblog("pack: downloading the fixed mp1.pack in the background...\r\n");
+                else
+                    dblog("pack: mp1.pack is the small stub - downloading the full pack in the background...\r\n");
                 if (dl && dl(NULL, url, tmp, 0, NULL) == S_OK &&
                     nsm_file_size(tmp) > 200 * 1024 * 1024) {
                     if (MoveFileExA(tmp, mp1, MOVEFILE_REPLACE_EXISTING)) {

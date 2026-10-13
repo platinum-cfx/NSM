@@ -160,3 +160,61 @@ SHA1-verified libce2.dll), the wrapper pack-guard background download
 (stub -> full pack swap, verified in the Wine rig: 949,824 B stub
 auto-upgraded to 226,614,288 B), and an explicit launcher WARNING when
 libce2.dll is missing after pack extraction.
+
+## 8. "mp1.pack not found although the file exists" - root cause (2026-10-13)
+
+The owner reported: Connect shows an error claiming `packs/mp1.pack` cannot
+be found although the file sits in the expected folder.
+
+Investigation (Wine rig with the real repo packs + an isolated CryptoAPI
+reproducer, `client-new/tests/mocks/test_decrypt.c`):
+
+1. The full `mp1.pack` previously served on the `game-packs` release
+   (226,614,288 B, SHA1 6bb251b7..., recovered from the original gtamp
+   distribution) is encrypted with a key that does NOT match the launcher's
+   hardcoded key in `DecryptDataAES`. Decrypting it produces pure noise and
+   `CryptDecrypt` fails on the final block (0x80090008). That file can NEVER
+   decrypt, no matter where it is placed or how often it is re-downloaded.
+2. The old `EnsureGameFilesReady` mapped EVERY failure - missing file,
+   decryption failure, extractor failure - to one generic dialog:
+   "GTAMP game packs (packs/mp1.pack) not found in launcher directory."
+   A user who had placed the (undecryptable) full pack exactly where the
+   docs told them to was told the file was "not found". That was the report.
+3. Enabler: `sources/cpp/packer.cpp` derives its key from
+   SHA-256("GTAMP_SECURE_KEY_2026_!@#") and writes no IV - a format the
+   launcher has never been able to read.
+
+Fixes shipped (each verified in the Wine rig; see
+`client-new/tests/test-packfix-matrix.sh` and `client-new/tests/mocks/`):
+
+- `connect.cpp` `EnsureGameFilesReady` rewritten: every path resolves from
+  the NSM.exe location (never the working directory); the exe path, baseDir,
+  every candidate pack directory, every per-file probe (absolute path,
+  size, Windows error code) and the selected directory are logged; ALL
+  SEVEN packs are validated in a candidate BEFORE it is selected (no
+  directory switching mid-extraction); failures name the exact item
+  (missing pack by name+path / decryption failure with reason / extractor
+  DLL load failure / entry point missing / post-extraction manifest
+  verification failure) in both the log and a dialog showing the
+  running-from path.
+- `DecryptDataAES` now reports precise reasons, rejects non-block-aligned
+  files as truncated, and accepts packs without standard PKCS7 padding
+  (retries the final block without the padding check, IV state restored).
+- The stub `mp1.pack` is skipped at extraction time and reported honestly:
+  Connect fails with "full pack downloading in the background - press
+  Connect again" instead of letting the client crash with 0xC0000005.
+- Post-extraction verification against `manifest.h`: every required file
+  (including `libs\\libce2.dll`) must be present, or installable from the
+  local altv-runtime folder, or the launcher reports exactly which are
+  missing and fails honestly.
+- The `game-packs` release now serves the REBUILT full `mp1.pack`
+  (228,682,672 B, SHA1 2b75525b54e0880b9d42b3518e6598bec3ab5770), built
+  from `sources/cpp/mp1_extractor.cpp` + the authentic libce2.dll (SHA1
+  verified against the client hashList) + `sources/cpp/packer_fixed.cpp`.
+  Verified end to end in Wine: stub -> guard download -> Connect #2 ->
+  game files verified, real libce2.dll at exactly 226,394,112 B.
+- The wrapper pack-guard replaces BOTH the stub (<10 MB) AND the known-bad
+  old full pack (exactly 226,614,288 B) automatically, so existing
+  installations self-heal.
+- Every binary logs its build id (`NSM build:`) and running path at
+  startup, so a log always proves which EXE produced it.
