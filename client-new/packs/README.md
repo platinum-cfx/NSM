@@ -17,10 +17,16 @@ embedded RCDATA payloads.
 ## What ships here
 
 - `mp1.pack` - STUB (no payload). The real one is 230MB (carries
-  `libs\libce2.dll`) and exceeds GitHub's 100MB file limit, so the launcher
-  (`discord_rpc.dll` pack-guard thread) downloads it from the
-  `game-packs` GitHub release in the background and swaps it in. The stub
-  passes the launcher gate immediately, so nothing blocks on the download.
+  `libs\libce2.dll`) and exceeds GitHub's 100MB file limit.
+
+  UPDATE (2026-10-13, verified against the code): the background download
+  of the full mp1.pack was REMOVED from the wrapper's pack-guard thread -
+  the runtime now installs from the local `altv-runtime\<hash>\` folder
+  instead. Consequence: **`libs\libce2.dll` is currently in NO distribution
+  channel** (mp1 is a stub, altv-runtime does not carry it, no download).
+  The real client has been observed requesting it. Whether the client
+  hard-requires it on a real machine is UNVERIFIED - the real-Windows
+  acceptance run (docs/REAL_WINDOWS_TEST.md) must watch for it.
 - `mp2.pack` - full: carries `backup\GTA5.exe` recovered from the runtime
   upload.
 - `mp3..mp7.pack` - full payloads recovered from the user's runtime upload,
