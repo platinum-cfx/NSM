@@ -1,113 +1,78 @@
-# NSM Launch Flow — audit and design
+# NSM Launch Flow — current architecture (2026-10-13)
 
-> Updated 2026-10-12 at commit `01ed635`. Every **confirmed** claim cites a file in
-> this repo or a test that actually ran. **Opaque** = a compiled binary we ship but
-> cannot inspect or modify in this repo. **Not verified** = needs a real Windows +
-> GTA V run (see the acceptance checklist in TESTING.md).
+> Rewritten for the rebuilt launcher (`sources/cpp/connect.cpp`) after the
+> client-architecture correction. The previous version of this file described
+> the old opaque upstream NSM.exe and is superseded. Companion documents:
+> `FIVEM_RESEARCH.md` (reference research), `LAUNCH_FAILURE_AUDIT.md`
+> (process/window map and root-cause analysis of the blank-window bug),
+> `REAL_WINDOWS_TEST.md` (acceptance runbook).
 
 ## Components
 
-| Component | Path | Role | Status |
-|---|---|---|---|
-| NSM.exe (client) | `client-new/NSM.exe` (3.8 MB, sha `27768d5d`, identical blob to `client-new/connect.exe`) | alt:V-based GTAMP client bootstrap: hosts the CEF browser UI, detects GTA V, spawns the game process on connect, runs the local launcher API | **Opaque** (compiled; source lives in the upstream GTAMP project, not vendored here) |
-| Server browser UI | `client-new/launcher/index.html` (ours) | FiveM-style home page, server list, direct connect, F8 console, CONNECTING overlay | Confirmed (source-audited) |
-| Client config | `client-new/.config` | `gta_path` (empty = auto-detect), `masterlist_url`, voice settings | Confirmed |
-| Masterlist service | `server/resources/nsm-masterlist/` (ours) | Serves `http://127.0.0.1:8080/servers` with THIS server always present + live player count; `/api/launcher/ping`, `/api/player/leave`, `POST /announce` | Confirmed (live HTTP test 2026-10-12; runs with the game server, zero extra steps) |
-| Steam presence | `client-new/discord_rpc.dll` (wrapper, source `nsm-steam-presence-source.c`) + `discord_rpc_real.dll` + `steam_appid.txt` (`218`) | Initializes Steamworks inside the client process at startup → Steam shows "Playing Source SDK Base 2007"; forwards Discord RPC untouched | **Verified on a real Windows machine 2026-10-12** (user-confirmed) |
-| Dedicated server | `server/gtamp-server.exe` → `altv-server.exe` + js-module; resources per `server/.cfg`: `nsm-masterlist`, `fivem-compat`, `fivem-client`, `vmenu` | Game server + FiveM-compatible Lua/JS runtime | Confirmed (server suites, see TESTING.md) |
-| Database | MariaDB via `server/mysql.json` (`SETUP-DB.bat`, `START-SERVER.bat` warns if missing) | ESX player persistence | Confirmed (db suite 20/20) |
-
-## The flow
-
-```
- Player        NSM.exe (CEF)      launcher/index.html     local API 9987-10005    masterlist :8080      server :7788
-   |                |                     |                        |                    |                   |
-   |--double-click->|   loads page        |                        |                    |                   |
-   |                |-------------------->|  GET /api/config       |                    |                   |
-   |                |                     |-----GET /servers--------------------------->| live list        |
-   |                |                     |<----[this server + announced]---------------| (player count)   |
-   |--click Connect-|-------------------->|  POST /api/connect {host,port,name}          |                   |
-   |                |  client locates GTA V (Steam registry / .cfg gta_path)              |                   |
-   |                |  spawns the game process and connects -------------------------------------->|
-   |                |                     |<-poll GET /api/gamestate (overlay stays up)  |                   |
-   |== in game =====|                     |                        |                    |                   |
-   |--exit game ----|                     |<-gamestate: finished -> back to browser list |                   |
-```
-
-## Local launcher API (confirmed from `client-new/launcher/index.html`)
-
-| Endpoint | Method | Purpose |
+| Component | Path | Role |
 |---|---|---|
-| `/api/heartbeat` | GET | 5 s keepalive |
-| `/api/config` | GET | version + masterlistUrl |
-| `/api/connect` | POST `{host,port,name}` | join a server (JSON body — no shell string building anywhere) |
-| `/api/gamestate` | GET | polled; "finished" returns the browser to a usable state |
-| `/api/disconnect` | POST | leave server |
-| `/api/quit` | POST | F8 `quit` command |
-| `/api/ping?host&port` | GET | client-side server ping |
+| NSM.exe / connect.exe | built from `sources/cpp/connect.cpp` (identical binaries) | Player launcher: local API + server browser host, GTA V detection, client launch, session supervision, NSM main window |
+| Server browser UI | `client-new/launcher/index.html` | FiveM-style home page, server list from the masterlist, direct connect, F8 console, CONNECTING overlay with live stage detail |
+| Wrapper DLL | `client-new/discord_rpc.dll` (source `nsm-steam-presence-source.c`) | Loaded by NSM.exe: Steam presence, pack guard, and the game-window embed into `NSMMainWindow` |
+| Client runtime | `%LOCALAPPDATA%\<sha1("gtamp")>\altv.exe` | Installed add-only from `altv-runtime/<hash>/` next to the launcher or extracted from `packs/mp*.pack`; owned by the game session |
+| Masterlist | VPS (configured in `.config` `masterlist_url`) | Serves `/servers`; NOT started by the launcher |
+| Game server | `gtamp-server.exe`, run by the server owner | NOT started by the launcher |
 
-## GTA V discovery (confirmed via binary strings in NSM.exe)
+## The flow (verified by `client-new/tests/e2e-production.sh`, 42/42)
 
-Reads `HKCU\Software\Valve\Steam` (`SteamPath`, `SteamAppId`), probes
-`\steamapps\common\Grand Theft Auto V` (+ `libraryfolders.vdf` for extra
-libraries), plus common `Program Files` locations; `client-new/.config`
-`gta_path` overrides. **Not verified:** the failure mode when no GTA V is
-found (opaque binary) — the first-run picker UI for that case is a documented
-gap, see "Remaining gaps".
+```
+Player        NSM.exe                browser UI (Edge/Chrome --app)      masterlist (VPS)     gtamp-server (owner)
+  |  double-click  |                          |                              |                     |
+  |--------------->| log first, detect GTA V  |                              |                     |
+  |                | local API :9987-9988     |                              |                     |
+  |                |-- opens app window ------>|                              |                     |
+  |                |                          |-- GET /servers ------------->| list                |
+  |-- click Connect -------------------------->| POST /api/connect {host,port}|                     |
+  |                |<-- hasConnectPending -----|                              |                     |
+  |                | [state: connecting/detail stages]                        |                     |
+  |                | 1. reachability check (TCP, fast refused-path)           |                     |
+  |                | 2. GTA path check (picker only here, never at startup)   |                     |
+  |                | 3. packs -> runtime (add-only) -> config                 |                     |
+  |                | 4. pre-launch checklist logged                           |                     |
+  |                | 5. CreateProcess altv.exe -connecturl altv://connect/H:P |                     |
+  |                | 6. watch: pid, GTA5.exe appearance, embed log, timeouts  |                     |
+  |                |    wrapper: find grcWindow -> SetParent into NSMMainWindow
+  |                |    -> verify -> fit -> SHOW host (never before!)         |                     |
+  |                | [state: in_game]                                         |                     |
+  |<-- game embedded in the NSM window, one visible app window ------------- |                     |
+  |-- quit game ---| GTA5 gone -> cleanup, hide host window                  |                     |
+  |                | [state: idle] - browser still open, reconnect allowed   |                     |
+```
 
-## How this maps to FiveM (Phase 2 research)
+## Failure paths (each logs a timestamped reason + Win32 error and recovers to idle)
 
-Confirmed from the public citizenfx/fivem source documentation (deepwiki index
-of github.com/citizenfx/fivem; its license restricts code reuse — **no FiveM
-code or assets are copied**; NSM's UI is its own implementation):
+- Server unreachable → `Server H:P is unreachable - not launching the client.` + dialog; nothing started.
+- Client fails to launch → `Failed to launch the client: ... (Windows error N)` + dialog.
+- Client exits before GTA V → real exit code logged and reported.
+- Client alive but no GTA V within `game_start_timeout_sec` (default 120) → client terminated, clear error.
+- GTA V alive but not embedded within `embed_timeout_sec` (default 90) → game continues in its own window (logged); no blank window is ever shown.
+- Duplicate Connect while connecting/in_game → refused (`busy`), a second client can never launch.
 
-- FiveM.exe = launcher personality ("handles updates and bootstrap"); the game
-  runs as a spawned `CitizenFX_SubProcess_game_*` host process; the UI is a CEF
-  subprocess. One umbrella — the player never opens GTA V separately.
-- NSM's shape is the same: NSM.exe hosts the CEF browser (`launcher/index.html`,
-  ours) and spawns the game process on connect via `/api/connect`.
-- Difference: FiveM opens the Rockstar Games Launcher alongside to validate game
-  ownership; NSM/alt:V locates and launches the game directly (registry + game
-  files) with no RGL step.
+## Logs
 
-## Remaining gaps vs the FiveM experience (honest list)
+- `%LOCALAPPDATA%\<sha1("gtamp")>\logs\connect.log` — the complete launch trace
+  (stage details, pre-launch checklist, client pid, GTA5 appearance, embed
+  events, exit codes, timeouts, the Win32-visible host hide).
+- `nsm-embed-debug.log` next to `discord_rpc.dll` — wrapper embed trace
+  (startup snapshot, window found, SetParent, parent verify, host shown, DONE).
 
-1. **First-run GTA V picker** — if the game isn't found there is no browse-to-
-   GTA5.exe UI yet (needs either client API support, or the upstream GTAMP
-   client source, which is not vendored in this repo).
-2. **No auto-updater / signed releases** — files update by re-downloading the
-   ZIP; `START-SERVER.bat` does ship a self-healing js-module fixer.
-3. **Join progress stages** — the overlay's stages are driven by
-   `/api/gamestate` polling; whether the client exposes fine-grained
-   (downloading-resources etc.) events is **not verified**.
-4. **`altv://` deep links** — referenced by the UI's direct-connect box; whether
-   the protocol handler is registered on a clean machine is **not verified**.
-5. Accounts, server favorites sync, server-side purchase history — not present.
+## Configuration (`client-new/.config`)
 
-## UPDATE 2026-10-12 (later) — masterlist is the standalone masterlist.exe
+- `gta_path` — GTA V folder (auto-detected: registry/Rockstar/Epic/Steam + libraryfolders.vdf + drive scan; folder picker at Connect time if missing)
+- `masterlist_url` — the VPS masterlist (production value, not localhost)
+- `embed_game_window` — embed the game into the NSM window (default true)
+- `game_start_timeout_sec`, `embed_timeout_sec` — supervision timeouts
 
-The `nsm-masterlist` server resource described above has been removed. The
-masterlist is `masterlist/masterlist.exe` (upstream GTAMP component, in-repo):
-open it separately, keep it running; game servers announce to it every 30 s
-(key-protected, or OPEN_ANNOUNCE=1 for dev) and the launcher reads
-`http://127.0.0.1:8080/servers` from it. `server/.cfg` `[masterlist]` feeds
-the announce. The server binary itself starts no masterlist.
+## Rockstar / Steam / Epic legitimacy
 
-## UPDATE 2026-10-12 (later) — in-window game presentation
-
-On connect, the NSM-spawned game's window (GTA5.exe under AppData\Local,
-class `grcWindow`) is re-parented into the NSM main window as a WS_CHILD
-that fills it and follows resizes (implemented in the discord_rpc.dll
-wrapper; documented Win32 APIs only; graceful degradation if anything
-fails; exclusive fullscreen is skipped). One visible window during play;
-the browser returns automatically when the game exits. See
-docs/SINGLE_WINDOW_EXPERIENCE.md.
-
-## UPDATE 2026-10-12 (final) - verified launch chain (from real logs)
-
-NSM.exe (bootstrap) -> %LOCALAPPDATA%\<hash>\altv.exe (gtamp Launcher:
-validates GTA5.exe + steam_api64.dll backups, patches, injects client)
--> GTA5.exe runs as its own process -> our wrapper re-parents its window
-into the NSM window for the single-window experience -> game exit
-returns the browser in the same window. First-run GTA V selection is the
-launcher's native picker (see SINGLE_WINDOW_EXPERIENCE.md).
+NSM only *locates* an existing GTA V installation and launches the multiplayer
+client with `SteamAppId=271590`; any ownership/authentication flow belongs to
+the official launcher/Steam/Epic and the client itself. NSM never fakes
+verification and never bypasses ownership checks. `GTA5.exe` (Legacy) must be
+present — GTA V Enhanced-only installs are reported as "GTA V not found" with
+the folder-picker instead of a blank window.

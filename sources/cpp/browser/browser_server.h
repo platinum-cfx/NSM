@@ -249,6 +249,7 @@ inline std::string ContentTypeFor(const std::string& name) {
 
 struct LauncherState {
     std::string gameState = "idle"; // "idle", "connecting", "in_game"
+    std::string stateDetail = "";    // human-readable stage/error text for the UI
     std::string currentServer = "";
     std::string serverName = "";
     std::string clientId = "client_" + std::to_string((unsigned long long)time(nullptr));
@@ -478,6 +479,12 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
         if (port.empty()) port = "7788";
         {
             std::lock_guard<std::mutex> lk(g_launcherState.m);
+            // Duplicate Connect while a session is starting/running: refuse so a
+            // second client can never be launched (FiveM-style g_connected guard).
+            if (g_launcherState.gameState == "connecting" || g_launcherState.gameState == "in_game") {
+                res.set_content("{\"ok\":false,\"busy\":true}", "application/json");
+                return;
+            }
             g_launcherState.pendingConnectAddr = host + ":" + port;
             g_launcherState.pendingServerName = name.empty() ? (host + ":" + port) : name;
             g_launcherState.currentServer = host + ":" + port;
@@ -496,6 +503,7 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
         std::lock_guard<std::mutex> lk(g_launcherState.m);
         std::string json = "{"
             "\"state\":\"" + g_launcherState.gameState + "\","
+            "\"detail\":" + JsonStr(g_launcherState.stateDetail) + ","
             "\"server\":\"" + g_launcherState.currentServer + "\","
             "\"serverName\":" + JsonStr(g_launcherState.serverName) + ","
             "\"clientId\":\"" + g_launcherState.clientId + "\""
@@ -513,6 +521,7 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
             sAddr = g_launcherState.currentServer;
             cid = g_launcherState.clientId;
             g_launcherState.gameState = "idle";
+            g_launcherState.stateDetail = "";
             g_launcherState.currentServer = "";
             g_launcherState.serverName = "";
         }

@@ -801,14 +801,25 @@ static bool NsmTcpConnectable(const string& host, int port, int timeoutMs) {
     a.sin_family = AF_INET; a.sin_port = htons((u_short)port);
     a.sin_addr = ((sockaddr_in*)res->ai_addr)->sin_addr;
     freeaddrinfo(res);
-    connect(s, (sockaddr*)&a, sizeof a);
-    fd_set w; FD_ZERO(&w); FD_SET(s, &w);
-    struct timeval tv; tv.tv_sec = timeoutMs / 1000; tv.tv_usec = (timeoutMs % 1000) * 1000;
+    int rc = connect(s, (sockaddr*)&a, sizeof a);
     bool ok = false;
-    if (select(0, NULL, &w, NULL, &tv) > 0) {
-        int err = 0; int len = sizeof err;
-        getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&err, &len);
-        ok = (err == 0);
+    if (rc == 0) {
+        ok = true;                       // connected instantly
+    } else {
+        int ce = WSAGetLastError();
+        if (ce == WSAECONNREFUSED || ce == WSAEHOSTUNREACH || ce == WSAENETUNREACH) {
+            ok = false;                  // refused instantly - no need to wait
+        } else {
+            // WSAEWOULDBLOCK: wait for the socket to become writable, then
+            // check SO_ERROR (some stacks only surface the error there)
+            fd_set w; FD_ZERO(&w); FD_SET(s, &w);
+            struct timeval tv; tv.tv_sec = timeoutMs / 1000; tv.tv_usec = (timeoutMs % 1000) * 1000;
+            if (select(0, NULL, &w, NULL, &tv) > 0) {
+                int err = 0; int len = sizeof err;
+                getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&err, &len);
+                ok = (err == 0);
+            }
+        }
     }
     closesocket(s);
     return ok;
@@ -820,56 +831,62 @@ static bool NsmServerReachable(const string& host, int port) {
     return NsmTcpConnectable(host, port, 3000);
 }
 
-static void NsmCopyTreeSkipExisting(const string& src, const string& dst) {
-    CreateDirectoryA(dst.c_str(), NULL);
-    string pat = src + "\\*";
-    WIN32_FIND_DATAA fd;
-    HANDLE h = FindFirstFileA(pat.c_str(), &fd);
-    if (h == INVALID_HANDLE_VALUE) return;
-    do {
-        if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, "..")) continue;
-        string s = src + "\\" + fd.cFileName;
-        string d = dst + "\\" + fd.cFileName;
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            NsmCopyTreeSkipExisting(s, d);
-        } else if (GetFileAttributesA(d.c_str()) == INVALID_FILE_ATTRIBUTES) {
-            CopyFileA(s.c_str(), d.c_str(), TRUE);
-        }
-    } while (FindNextFileA(h, &fd));
-    FindClose(h);
-}
-
-static void EnsureRuntimeInstalled(const string& baseDir, const string& targetDir) {
-    string altvExe = targetDir + "\\altv.exe";
-    if (GetFileAttributesA(altvExe.c_str()) != INVALID_FILE_ATTRIBUTES) return; // already present
-    const char* rel[] = { "\\..\\altv-runtime", "\\altv-runtime" };
-    for (const char* r : rel) {
-        string rtRoot = baseDir + r;
-        string pat = rtRoot + "\\*";
-        WIN32_FIND_DATAA fd;
-        HANDLE h = FindFirstFileA(pat.c_str(), &fd);
-        if (h == INVALID_HANDLE_VALUE) continue;
-        do {
-            if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
-            if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, "..")) continue;
-            string sub = rtRoot + "\\" + fd.cFileName;
-            if (GetFileAttributesA((sub + "\\altv.exe").c_str()) == INVALID_FILE_ATTRIBUTES) continue;
-            WriteLog("Installing game runtime from: " + sub);
-            NsmCopyTreeSkipExisting(sub, targetDir);
-            WriteLog("Game runtime install complete.");
-            FindClose(h);
-            return;
-        } while (FindNextFileA(h, &fd));
-        FindClose(h);
-    }
-    WriteLog("No local altv-runtime folder found; relying on pack extraction only.");
-}
-
+static void NsmCopyTreeSkipExisting(const string& src, const string& dst) {
+    CreateDirectoryA(dst.c_str(), NULL);
+    string pat = src + "\\*";
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pat.c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, "..")) continue;
+        string s = src + "\\" + fd.cFileName;
+        string d = dst + "\\" + fd.cFileName;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            NsmCopyTreeSkipExisting(s, d);
+        } else if (GetFileAttributesA(d.c_str()) == INVALID_FILE_ATTRIBUTES) {
+            CopyFileA(s.c_str(), d.c_str(), TRUE);
+        }
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+}
+
+static void EnsureRuntimeInstalled(const string& baseDir, const string& targetDir) {
+    string altvExe = targetDir + "\\altv.exe";
+    if (GetFileAttributesA(altvExe.c_str()) != INVALID_FILE_ATTRIBUTES) return; // already present
+    const char* rel[] = { "\\..\\altv-runtime", "\\altv-runtime" };
+    for (const char* r : rel) {
+        string rtRoot = baseDir + r;
+        string pat = rtRoot + "\\*";
+        WIN32_FIND_DATAA fd;
+        HANDLE h = FindFirstFileA(pat.c_str(), &fd);
+        if (h == INVALID_HANDLE_VALUE) continue;
+        do {
+            if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+            if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, "..")) continue;
+            string sub = rtRoot + "\\" + fd.cFileName;
+            if (GetFileAttributesA((sub + "\\altv.exe").c_str()) == INVALID_FILE_ATTRIBUTES) continue;
+            WriteLog("Installing game runtime from: " + sub);
+            NsmCopyTreeSkipExisting(sub, targetDir);
+            WriteLog("Game runtime install complete.");
+            FindClose(h);
+            return;
+        } while (FindNextFileA(h, &fd));
+        FindClose(h);
+    }
+    WriteLog("No local altv-runtime folder found; relying on pack extraction only.");
+}
+
 // ---- NSM host window: the application window the game is embedded into ----
 static HWND g_nsmHostWnd = NULL;
 
 static LRESULT CALLBACK NsmHostWndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
-    if (m == WM_CLOSE) { ShowWindow(h, SW_HIDE); return 0; }  // hide, never destroy
+    if (m == WM_CLOSE) {
+        if (IsWindowVisible(h)) {
+            ShowWindow(h, SW_HIDE);
+            WriteLog("Host window hidden (win32 IsWindowVisible now false).");
+        }
+        return 0;  // hide, never destroy
+    }
     return DefWindowProcA(h, m, w, l);
 }
 
@@ -893,17 +910,55 @@ static DWORD WINAPI NsmHostWndThread(LPVOID unused) {
     return 0;
 }
 
-static void ShowHostWindow(const char* title) {
+static void HideHostWindow() {
     if (!g_nsmHostWnd) return;
-    SetWindowTextA(g_nsmHostWnd, title);
-    if (IsIconic(g_nsmHostWnd)) ShowWindow(g_nsmHostWnd, SW_RESTORE);
-    else ShowWindow(g_nsmHostWnd, SW_SHOW);
-    SetForegroundWindow(g_nsmHostWnd);
-    SetActiveWindow(g_nsmHostWnd);
+    // The hide must run on the window's OWN thread - a cross-thread
+    // ShowWindow(SW_HIDE) can be ignored (found by the E2E rig: the host
+    // stayed mapped after the session). WM_CLOSE is handled by the host
+    // wndproc as "hide, never destroy", so posting it is thread-correct.
+    PostMessageA(g_nsmHostWnd, WM_CLOSE, 0, 0);
 }
 
-static void HideHostWindow() {
-    if (g_nsmHostWnd) ShowWindow(g_nsmHostWnd, SW_HIDE);
+// ---- launcher state helpers: state + human-readable stage detail ----------
+// The state names (idle/connecting/in_game) are the existing API contract;
+// `detail` carries the sub-stage (FiveM-style explicit lifecycle stages) so
+// the UI can show what is actually happening and errors can be real.
+static void NsmSetState(const char* state, const string& detail) {
+    std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
+    gtamp::g_launcherState.gameState = state;
+    gtamp::g_launcherState.stateDetail = detail;
+}
+static void NsmSetDetail(const string& detail) {
+    std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
+    gtamp::g_launcherState.stateDetail = detail;
+}
+
+// ---- embed-log tailing -----------------------------------------------------
+// The wrapper DLL (loaded inside NSM.exe) appends nsm-embed-debug.log next to
+// itself. The session loop tails it to learn the real embed outcome instead
+// of guessing from process names.
+static string NsmEmbedLogPath(const string& baseDir) { return baseDir + "\\nsm-embed-debug.log"; }
+
+static long long NsmEmbedLogStart(const string& baseDir) {
+    ifstream f(NsmEmbedLogPath(baseDir), ios::binary | ios::ate);
+    if (!f.is_open()) return 0;
+    return (long long)f.tellg();
+}
+
+// Returns the next COMPLETE new line (a partially-written trailing line is
+// left in the file for the next poll). false = nothing new.
+static bool NsmTailEmbedLog(const string& baseDir, long long& offset, string& outLine) {
+    ifstream f(NsmEmbedLogPath(baseDir), ios::binary);
+    if (!f.is_open()) return false;
+    f.seekg((streamoff)offset);
+    if (!f.good()) return false;
+    string line;
+    if (!std::getline(f, line)) return false;
+    if (f.eof()) return false;              // no newline yet - line may be partial
+    offset = (long long)f.tellg();
+    while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
+    outLine = line;
+    return true;
 }
 
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -1011,6 +1066,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             {
                 std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
                 gtamp::g_launcherState.gameState = "idle";
+                gtamp::g_launcherState.stateDetail = "";
                 gtamp::g_launcherState.currentServer = "";
                 gtamp::g_launcherState.serverName = "";
                 gtamp::g_launcherState.disconnectRequested = false;
@@ -1026,6 +1082,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             pickedServer = serverIp;
             pickedName = serverIp;
         }
+
+        NsmSetDetail("connecting to " + pickedServer);
 
         size_t colon = pickedServer.find(':');
         serverIp = (colon != string::npos) ? pickedServer.substr(0, colon) : pickedServer;
@@ -1046,6 +1104,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 gtamp::g_launcherState.gameState = "idle";
                 gtamp::g_launcherState.currentServer = "";
                 gtamp::g_launcherState.hasConnectPending = false;
+                gtamp::g_launcherState.stateDetail = "Server " + serverIp + ":" + to_string(serverPort) + " is unreachable";
             }
             string emsg = "Could not reach the server at " + serverIp + ":" + to_string(serverPort) + ".\n"
                           "Make sure the server is online, then try again.\n"
@@ -1055,6 +1114,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             continue;
         }
 
+        NsmSetDetail("verifying game installation");
         // GTA path must be valid before the client starts - ask NOW, not at startup,
         // so the picker appears exactly when the user tries to connect
         if (!EnsureGtaPathConfigured(baseDir, true)) {
@@ -1078,6 +1138,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             gtamp::g_launcherState.disconnectRequested = false;
         }
 
+        NsmSetDetail("preparing game files");
         // Ensure game engine packs are ready
         if (!EnsureGameFilesReady(baseDir, targetDir)) {
             MessageBoxW(
@@ -1090,6 +1151,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             {
                 std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
                 gtamp::g_launcherState.gameState = "idle";
+                gtamp::g_launcherState.stateDetail = "";
                 gtamp::g_launcherState.currentServer = "";
             }
             if (hasConnect) break;
@@ -1122,15 +1184,20 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
         // Make sure the game runtime is fully present (fresh install or after a
         // reboot). Installs add-only from the altv-runtime folder shipped in the ZIP.
+        NsmSetDetail("preparing client runtime");
         EnsureRuntimeInstalled(baseDir, targetDir);
 
-        // Load proxy.dll and start proxy
+        // ---- client-side preparation (every failure is logged, never silent) ----
+        NsmSetDetail("preparing client configuration");
         string proxyPath = targetDir + "\\proxy\\proxy.dll";
         HMODULE hProxy = LoadLibraryA(proxyPath.c_str());
         if (hProxy) {
             typedef void (*StartProxyFunc)();
             StartProxyFunc startProxy = (StartProxyFunc)GetProcAddress(hProxy, "StartProxyAsync");
             if (startProxy) startProxy();
+        } else {
+            WriteLog("Warning: proxy.dll could not be loaded from " + proxyPath +
+                     " (error " + to_string(GetLastError()) + ") - continuing without the proxy.");
         }
 
         Sleep(100);
@@ -1157,55 +1224,183 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     }
                 }
             }
-            FreeLibrary(hConfig);
+        } else {
+            WriteLog("Warning: config.dll could not be loaded from " + configPath +
+                     " (error " + to_string(GetLastError()) + ") - continuing with the existing client config.");
         }
 
-        // Show the NSM host window - the game window is embedded into it
-        if (ReadConfigValue(baseDir, "embed_game_window", "true") != "false") {
-            ShowHostWindow(("NSM - " + (pickedName.empty() ? pickedServer : pickedName)).c_str());
+        // ---- NSM host window policy (fixes the blank second window) ----------
+        // The launcher NEVER shows NSMMainWindow itself. It stays hidden until
+        // the wrapper has actually embedded the game window into it (the wrapper
+        // calls ShowWindow after verifying the reparent), so an empty NSM window
+        // can no longer appear next to the browser - on success OR on failure.
+        bool embedEnabled = ReadConfigValue(baseDir, "embed_game_window", "true") != "false";
+        if (embedEnabled && g_nsmHostWnd) {
+            SetWindowTextA(g_nsmHostWnd, ("NSM - " + (pickedName.empty() ? pickedServer : pickedName)).c_str());
         }
 
-        // Start altv.exe
+        // Keep the runtime's wrapper DLL in sync with ours: the client loads
+        // discord_rpc.dll from its own directory, and an older copy there could
+        // still carry the legacy embed-into-own-window behavior.
+        {
+            string srcDll = baseDir + "\\discord_rpc.dll";
+            string dstDll = targetDir + "\\discord_rpc.dll";
+            if (GetFileAttributesA(srcDll.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                if (CopyFileA(srcDll.c_str(), dstDll.c_str(), FALSE)) {
+                    WriteLog("Runtime wrapper discord_rpc.dll refreshed.");
+                } else {
+                    WriteLog("Warning: could not refresh discord_rpc.dll in the runtime dir (error " +
+                             to_string(GetLastError()) + ").");
+                }
+            }
+        }
+
+        // ---- pre-launch checklist (diagnostics for real-machine issues) ------
         string altvExe = targetDir + "\\altv.exe";
+        string gtaPathCfg = ReadConfigValue(baseDir, "gta_path", "");
+        {
+            DWORD attr = GetFileAttributesA(altvExe.c_str());
+            WriteLog("Pre-launch: client = " + altvExe +
+                     (attr != INVALID_FILE_ATTRIBUTES ? " [present]" : " [MISSING]"));
+            attr = GetFileAttributesA((gtaPathCfg + "\\GTA5.exe").c_str());
+            WriteLog("Pre-launch: gta_path = " + gtaPathCfg +
+                     (attr != INVALID_FILE_ATTRIBUTES ? " [GTA5.exe present]" : " [GTA5.exe MISSING]"));
+            attr = GetFileAttributesA((baseDir + "\\discord_rpc.dll").c_str());
+            WriteLog(string("Pre-launch: wrapper discord_rpc.dll ") +
+                     (attr != INVALID_FILE_ATTRIBUTES ? "[present]" : "[MISSING - no embed, no Steam presence]"));
+            WriteLog("Pre-launch: working dir = " + targetDir + ", embed_game_window = " +
+                     (embedEnabled ? "true" : "false"));
+        }
+
+        // Start the client
         string cmdLine = "\"" + altvExe + "\" " + connectArgs + " -directlaunch -customui " + customUiStr;
         STARTUPINFOA si = { sizeof(si) };
         PROCESS_INFORMATION pi;
         SetEnvironmentVariableA("SteamAppId", "271590");
 
+        NsmSetDetail("launching client");
         WriteLog("Launching: " + cmdLine);
+        long long embedOffset = NsmEmbedLogStart(baseDir);
 
         if (CreateProcessA(NULL, (LPSTR)cmdLine.c_str(), NULL, NULL, FALSE, 0, NULL, targetDir.c_str(), &si, &pi)) {
             CloseHandle(pi.hThread);
+            WriteLog("Client started (pid " + to_string(pi.dwProcessId) + ").");
 
-            bool gtaStarted = false;
+            int gameStartTimeout = atoi(ReadConfigValue(baseDir, "game_start_timeout_sec", "120").c_str());
+            if (gameStartTimeout < 5) gameStartTimeout = 120;
+            int embedTimeout = atoi(ReadConfigValue(baseDir, "embed_timeout_sec", "90").c_str());
+            if (embedTimeout < 5) embedTimeout = 90;
+
+            auto tStart = chrono::steady_clock::now();
+            auto deadlineNoGta = tStart + chrono::seconds(gameStartTimeout);
+            chrono::steady_clock::time_point deadlineNoEmbed{};
+
+            bool gtaSeen = false, embedSettled = false, embedDone = false, embedFailed = false;
+            bool reportedInGame = false;
+            string failReason = "";
+
+            NsmSetDetail("waiting for GTA V");
+
             while (!gtamp::g_launcherState.disconnectRequested && !gtamp::g_launcherState.shouldQuit) {
-                bool altvRunning = IsProcessRunning("altv.exe");
-                bool gtaRunning = IsProcessRunning("GTA5.exe");
-
-                if (gtaRunning && !gtaStarted) {
-                    gtaStarted = true;
-                    std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
-                    gtamp::g_launcherState.gameState = "in_game";
-                }
-
-                if (!gtaStarted && !altvRunning) {
-                    Sleep(3000);
-                    if (!IsProcessRunning("altv.exe") && !IsProcessRunning("GTA5.exe")) {
-                        break;
+                // 1) real embed outcome from the wrapper (not process-name guesses)
+                string eline;
+                while (NsmTailEmbedLog(baseDir, embedOffset, eline)) {
+                    if (eline.find("window found") != string::npos) {
+                        WriteLog("Embed: " + eline);
+                    } else if (eline.find("embed: DONE") != string::npos) {
+                        embedDone = true; embedSettled = true;
+                        WriteLog("Embed: game window embedded into the NSM window.");
+                    } else if (eline.find("giving up") != string::npos ||
+                               eline.find("verify FAILED") != string::npos ||
+                               eline.find("SetParent failed") != string::npos) {
+                        embedFailed = true; embedSettled = true;
+                        WriteLog("Embed: " + eline);
+                    } else if (eline.find("disabled by config") != string::npos) {
+                        embedSettled = true;
+                        WriteLog("Embed: disabled by .config (embed_game_window = false).");
+                    } else if (eline.find("game exited") != string::npos) {
+                        WriteLog("Embed: game exited.");
+                    } else if (eline.find("embed:") != string::npos) {
+                        WriteLog("Embed: " + eline);
                     }
                 }
 
-                if (gtaStarted && !gtaRunning) {
+                // 2) process truth: our child handle + the game process
+                bool altvRunning = (WaitForSingleObject(pi.hProcess, 0) == WAIT_TIMEOUT);
+                bool gtaRunning = IsProcessRunning("GTA5.exe");
+
+                if (!gtaSeen && gtaRunning) {
+                    gtaSeen = true;
+                    auto tNow = chrono::steady_clock::now();
+                    deadlineNoEmbed = tNow + chrono::seconds(embedTimeout);
+                    WriteLog("GTA5.exe appeared " +
+                             to_string((int)chrono::duration_cast<chrono::seconds>(tNow - tStart).count()) + "s after launch.");
+                    NsmSetDetail("waiting for the game window");
+                }
+
+                // client died before starting the game?
+                if (!altvRunning && !gtaSeen) {
+                    Sleep(3000);                       // tolerate spawn-then-exit launchers
+                    if (IsProcessRunning("GTA5.exe")) continue;
+                    DWORD code = 0; GetExitCodeProcess(pi.hProcess, &code);
+                    WriteLog("Client exited before starting GTA V (exit code " + to_string(code) + ").");
+                    failReason = "The multiplayer client exited before starting GTA V (exit code " +
+                                 to_string(code) + ").";
                     break;
+                }
+
+                // game gone -> session over
+                if (gtaSeen && !gtaRunning) {
+                    bool still = false;
+                    for (int i = 0; i < 4; ++i) { if (IsProcessRunning("GTA5.exe")) { still = true; break; } Sleep(500); }
+                    if (!still) { WriteLog("GTA5.exe is no longer running."); break; }
+                }
+
+                // 3) in_game only with real evidence (embed done, or embed
+                //    settled as unavailable while the game is actually running)
+                if (!reportedInGame && gtaRunning &&
+                    (embedDone || (embedSettled && (embedFailed || !embedEnabled)))) {
+                    reportedInGame = true;
+                    NsmSetState("in_game", embedDone ? ("in game - " + pickedName)
+                                                     : "in game (game window not embedded)");
+                    WriteLog(embedDone ? "In game: embedded in the NSM window."
+                                       : "In game: game window is not embedded (own window).");
+                }
+
+                // 4) timeouts - every stall produces a real error and recovers
+                if (!gtaSeen && chrono::steady_clock::now() > deadlineNoGta) {
+                    failReason = "GTA V did not start within " + to_string(gameStartTimeout) +
+                                 " seconds (the client was still running). The client was closed.";
+                    WriteLog("TIMEOUT: no GTA5.exe within " + to_string(gameStartTimeout) +
+                             "s - terminating the client.");
+                    TerminateProcess(pi.hProcess, 1);
+                    break;
+                }
+                if (gtaSeen && embedEnabled && !embedSettled &&
+                    chrono::steady_clock::now() > deadlineNoEmbed) {
+                    embedSettled = true; embedFailed = true;
+                    WriteLog("TIMEOUT: game window not embedded within " + to_string(embedTimeout) +
+                             "s - continuing without embedding.");
                 }
 
                 Sleep(500);
             }
             CloseHandle(pi.hProcess);
+
+            if (!failReason.empty()) {
+                NsmSetState("idle", failReason);
+                string emsg = failReason + "\n\nFull launch trace: " + g_logFilePath;
+                MessageBoxA(NULL, emsg.c_str(), "NSM - Connection Error", MB_ICONERROR | MB_OK);
+                NsmSetDetail("");
+            }
         } else {
-            string err = "Failed to launch altv.exe from: " + altvExe;
+            DWORD e = GetLastError();
+            string err = "Failed to launch the client: " + altvExe + " (Windows error " + to_string(e) + ")";
             WriteLog(err);
-            MessageBoxA(NULL, err.c_str(), "Error", MB_ICONERROR);
+            NsmSetState("idle", err);
+            MessageBoxA(NULL, (err + "\n\nSee the pre-launch checklist in the log: " + g_logFilePath).c_str(),
+                        "NSM - Connection Error", MB_ICONERROR | MB_OK);
+            NsmSetDetail("");
         }
 
         // Notify leave immediately to update masterlist & server decrements
