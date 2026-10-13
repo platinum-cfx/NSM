@@ -43,9 +43,13 @@
 
 typedef int (*SteamAPI_Init_t)(void);
 
+static char g_dllDir[MAX_PATH * 2] = ".";   /* set in DllMain */
+
 static void dblog(const char *msg)
 {
-    HANDLE f = CreateFileA("nsm-embed-debug.log", FILE_APPEND_DATA,
+    char path[MAX_PATH * 2];
+    _snprintf(path, sizeof path, "%s\\nsm-embed-debug.log", g_dllDir);
+    HANDLE f = CreateFileA(path, FILE_APPEND_DATA,
                            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                            OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (f != INVALID_HANDLE_VALUE) {
@@ -185,21 +189,6 @@ static BOOL CALLBACK enum_windows_cb(HWND hwnd, LPARAM lp)
     return TRUE;
 }
 
-struct OwnCtx { DWORD pid; HWND wnd; };
-
-static BOOL CALLBACK enum_own_cb(HWND hwnd, LPARAM lp)
-{
-    struct OwnCtx *ctx = (struct OwnCtx *)lp;
-    DWORD wpid = 0;
-    GetWindowThreadProcessId(hwnd, &wpid);
-    if (wpid != ctx->pid) return TRUE;
-    if (!IsWindowVisible(hwnd)) return TRUE;
-    if (GetWindow(hwnd, GW_OWNER) != NULL) return TRUE;
-    if (GetWindowLongA(hwnd, GWL_EXSTYLE) & WS_EX_TOOLWINDOW) return TRUE;
-    if (!ctx->wnd) ctx->wnd = hwnd;   /* first = main window */
-    return TRUE;
-}
-
 static void fit_game(void)
 {
     if (g_hostWnd && g_gameWnd && IsWindow(g_gameWnd) && IsWindow(g_hostWnd)) {
@@ -217,16 +206,21 @@ static LRESULT CALLBACK host_subclass_proc(HWND hwnd, UINT msg, WPARAM wp, LPARA
 
 static void try_embed(HWND gameWnd)
 {
-    struct OwnCtx oc;
     LONG_PTR st;
     HWND host;
+    DWORD hostPid = 0;
     char line[128];
 
-    oc.pid = GetCurrentProcessId(); oc.wnd = NULL;
-    EnumWindows(enum_own_cb, (LPARAM)&oc);
-    host = oc.wnd;
-    if (!host) { dblog("embed: no own window yet\r\n"); return; }
-    dblog("embed: own window found\r\n");
+    /* The host is the NSM main window, found by class so it also works while
+     * still HIDDEN (the launcher no longer shows it before the game is real).
+     * It must belong to our own process (NSM.exe) - never touch a window of
+     * another process. */
+    host = FindWindowA("NSMMainWindow", NULL);
+    if (!host) { dblog("embed: NSMMainWindow not found - game stays a normal window\r\n"); return; }
+    GetWindowThreadProcessId(host, &hostPid);
+    if (hostPid != GetCurrentProcessId()) {
+        dblog("embed: NSMMainWindow belongs to another process - not embedding\r\n"); return; }
+    dblog("embed: NSM host window found\r\n");
     if (IsIconic(host)) { ShowWindow(host, SW_RESTORE); dblog("embed: host restored\r\n"); }
 
     /* re-parent FIRST - if this fails, touch nothing else */
@@ -266,6 +260,10 @@ static void try_embed(HWND gameWnd)
     g_gameWnd = gameWnd;
     fit_game();
     dblog("embed: fitted\r\n");
+    /* The window appears NOW - with the game already inside it. */
+    ShowWindow(host, SW_SHOW);
+    SetForegroundWindow(host);
+    dblog("embed: host window shown\r\n");
     {
         DWORD gtid = GetWindowThreadProcessId(gameWnd, NULL);
         DWORD mtid = GetCurrentThreadId();
@@ -319,14 +317,25 @@ static DWORD WINAPI embed_thread(LPVOID unused)
     char line[128];
     (void)unused;
     if (own_exe_is("GTA5.exe")) return 0;   /* never act inside the game */
-    Sleep(1500);                            /* let the client UI come up */
+    /* Embedding is done by the wrapper loaded inside NSM.exe itself. If the
+     * client (altv.exe) loads this DLL too, it must NOT embed anything - the
+     * game belongs in the NSM window, never in a client window. */
+    if (!own_exe_is("NSM.exe") && !own_exe_is("connect.exe")) {
+        dblog("embed: skipped - wrapper not running inside NSM.exe\r\n");
+        return 0;
+    }
+    /* Snapshot pre-existing GTA5.exe PIDs FIRST - before any sleep. If this
+     * ran after a delay, a game started by a fast Connect could be mistaken
+     * for a pre-existing game and never get embedded (real race, found by
+     * the E2E rig: connect at t=1s, GTA5 up at t=2s, snapshot at t=1.5s). */
+    g_initialN = gta_pids(g_initial, 8, 0);
+    _snprintf(line, sizeof line, "startup: %d GTA5.exe already running\r\n", g_initialN);
+    dblog(line);
     if (!embed_enabled_by_config()) {
         dblog("embed: disabled by config (embed_game_window = false)\r\n");
         return 0;
     }
-    g_initialN = gta_pids(g_initial, 8, 0);
-    _snprintf(line, sizeof line, "startup: %d GTA5.exe already running\r\n", g_initialN);
-    dblog(line);
+    Sleep(1500);                            /* let the client UI come up */
     for (;;) {
         DWORD found[8];
         int n = gta_pids(found, 8, 1);
@@ -415,7 +424,13 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)
 {
     (void)reserved;
     if (reason == DLL_PROCESS_ATTACH) {
+        char self[MAX_PATH * 2];
+        char *slash;
         DisableThreadLibraryCalls(h);
+        if (GetModuleFileNameA(h, self, sizeof self)) {
+            slash = strrchr(self, '\\');
+            if (slash) { *slash = 0; lstrcpynA(g_dllDir, self, sizeof g_dllDir); }
+        }
         CreateThread(NULL, 0, steam_thread, NULL, 0, NULL);
         CreateThread(NULL, 0, embed_thread, NULL, 0, NULL);
         CreateThread(NULL, 0, pack_guard_thread, NULL, 0, NULL);
