@@ -41,8 +41,8 @@ getjson(){ api | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get(
 getstate(){ getjson state; }
 kill_wine(){ pkill -f "NSM.ex[e]" 2>/dev/null; pkill -f "masterlist.ex[e]" 2>/dev/null
              pkill -f "gtamp-server.ex[e]" 2>/dev/null; pkill -f "altv.ex[e]" 2>/dev/null
-             pkill -f "GTA5.ex[e]" 2>/dev/null
-             WINEPREFIX=$1 $WINE wineserver -k 2>/dev/null; sleep 2; }
+             pkill -f "GTA5.ex[e]" 2>/dev/null; pkill -9 -f "winedevic[e]" 2>/dev/null
+             WINEPREFIX=$1 timeout 15 $WINE wineserver -k 2>/dev/null; sleep 2; }
 # visible NSM main-window count. Wine sets WM_CLASS to the process exe name
 # (NOT the win32 class), so windows are matched by TITLE (^NSM...) plus X11
 # Map State; the "Connection Error" dialog is excluded by its title.
@@ -76,7 +76,29 @@ dismiss_dialog(){ local w id w2
 echo "############ TEST MODE RIG SETUP (isolated environment) ############"
 pkill -x Xvfb 2>/dev/null; kill_wine /home/user/nsm/wineprefix 2>/dev/null; kill_wine /home/user/nsm/wineprefix2 2>/dev/null
 sleep 1
-rm -rf wineprefix wineprefix2
+rm -rf wineprefix wineprefix2 wineprefix-svc
+# ---- TEST PACKS (dummy payloads, deterministic) --------------------------
+# The PRODUCTION packs committed in client-new/packs carry the REAL alt:V
+# client (40-60MB payloads), which cannot run under Wine. If they were
+# installed into the rig, the real client would shadow the MOCK client and
+# Phase B could only test the timeout path. The rig therefore generates
+# small dummy packs with the SAME format (IV + AES-256-CBC/PKCS7, the key
+# from connect.cpp DecryptDataAES): extraction succeeds, no altv.exe comes
+# from the packs, and EnsureRuntimeInstalled installs the MOCK client from
+# the rig's altv-runtime dir. Production packs are never touched.
+rm -rf testpacks && mkdir -p testpacks
+python3 - <<'PYEOF'
+import subprocess, secrets
+key = bytes([0x2B,0x7E,0x15,0x16,0x28,0xAE,0xD2,0xA6,0xAB,0xF7,0x15,0x88,0x09,0xCF,0x4F,0x3C,
+             0x76,0x2E,0x71,0x60,0xF3,0x8B,0x4D,0xA5,0x6A,0x78,0x4D,0x90,0x45,0x19,0x0C,0xFE]).hex()
+for i in range(1, 8):
+    pt = (f"NSM E2E dummy test pack mp{i} - placeholder. ".encode() * 20000)[:900000]
+    iv = secrets.token_bytes(16)
+    ct = subprocess.run(["openssl","enc","-aes-256-cbc","-K",key,"-iv",iv.hex()],
+                        input=pt, capture_output=True, check=True).stdout
+    open(f"testpacks/mp{i}.pack","wb").write(iv + ct)
+print("testpacks:", [f"mp{i}.pack" for i in range(1,8)])
+PYEOF
 Xvfb :99 -screen 0 1600x1000x24 >/dev/null 2>&1 & XV=$!
 sleep 1
 HASH=39a4cb14b4afd8c1eef1667c74e3b5936238c44f
@@ -87,7 +109,7 @@ setup_prefix(){ # $1 = prefix dir; sets T (rig dir), CL (connect log), RT (runti
   T="$WINEPREFIX/drive_c/nsmtest"
   mkdir -p "$T/client-new/packs" "$T/server" "$T/masterlist" "$T/fakeGTA" "$T/altv-runtime/$HASH/libs"
   cp bin/NSM.exe bin/connect.exe bin/discord_rpc.dll mocks/discord_rpc_real.dll "$T/client-new/"
-  cp bin/packs/*.pack "$T/client-new/packs/"
+  cp testpacks/*.pack "$T/client-new/packs/"   # TEST packs (dummies) - see rig setup
   printf '218' > "$T/client-new/steam_appid.txt"
   printf "gta_path = 'C:\\\\nsmtest\\\\fakeGTA'\n\nmasterlist_url = 'http://127.0.0.1:8080'\n\nembed_game_window = true\n" > "$T/client-new/.config"
   cp mocks/mock_server.exe "$T/server/gtamp-server.exe"       # TEST asset (mock)
