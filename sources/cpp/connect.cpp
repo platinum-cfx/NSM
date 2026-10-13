@@ -591,6 +591,64 @@ inline void SetConfigGtaPath(const string& cfgPath, const string& gtaDir) {
     }
 }
 
+// ---- client skin download disable (crash fix, 2026-10-13) ----------------
+// The 16.3.7 client downloads the CURRENT skin from the global CDN and
+// crashes with exit code 0xC0000005 while reading it (log ends at
+// "[info] Reading skin", right after "cache\skin.bin" is written). Setting
+// launcherSkin = '' and putting 'default' into launcherSkinsDisabled makes
+// the client skip the whole skin flow (verified in the lab: the
+// "Updating skin" / "Downloading skin" lines disappear from launcher_*.log
+// and the client proceeds to platform validation).
+inline void DisableClientSkinDownload(const string& targetDir) {
+    string tomlPath = targetDir + "\\altv.toml";
+    ifstream in(tomlPath);
+    if (!in.is_open()) {
+        WriteLog("Warning: " + tomlPath + " could not be opened - skin-disable step skipped (error " +
+                 to_string(GetLastError()) + ").");
+        return;
+    }
+    vector<string> lines;
+    string line;
+    bool skinFound = false, disabledFound = false;
+    while (getline(in, line)) {
+        size_t eq = line.find('=');
+        if (eq != string::npos) {
+            string k = line.substr(0, eq);
+            auto trim = [](string& x) {
+                size_t a = x.find_first_not_of(" \t\r\n"), b = x.find_last_not_of(" \t\r\n");
+                x = (a == string::npos) ? "" : x.substr(a, b - a + 1);
+            };
+            trim(k);
+            if (k == "launcherSkin") {
+                lines.push_back("launcherSkin = ''");
+                skinFound = true;
+                continue;
+            }
+            if (k == "launcherSkinsDisabled") {
+                lines.push_back("launcherSkinsDisabled = ['default']");
+                disabledFound = true;
+                continue;
+            }
+        }
+        lines.push_back(line);
+    }
+    in.close();
+    if (!skinFound)     lines.insert(lines.begin(), "launcherSkin = ''");
+    if (!disabledFound) lines.insert(lines.begin() + (skinFound ? 1 : 0),
+                                     "launcherSkinsDisabled = ['default']");
+
+    ofstream out(tomlPath, ios::trunc);
+    if (out.is_open()) {
+        for (const auto& l : lines) out << l << "\n";
+        out.close();
+        WriteLog("Client skin download disabled in altv.toml (launcherSkin='', 'default' disabled) - "
+                 "the 16.3.7 client exits 0xC0000005 while reading the current CDN skin.");
+    } else {
+        WriteLog("Warning: could not write " + tomlPath + " (error " +
+                 to_string(GetLastError()) + ") - skin-disable step FAILED.");
+    }
+}
+
 inline string BrowseForGtaExe() {
     char szFile[MAX_PATH] = {0};
     OPENFILENAMEA ofn = {0};
@@ -1547,6 +1605,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             WriteLog("Warning: config.dll could not be loaded from " + configPath +
                      " (error " + to_string(GetLastError()) + ") - continuing with the existing client config.");
         }
+
+        // Crash fix: make sure the client never downloads/reads the CDN skin
+        // (runs after config.dll generated altv.toml, and also fixes up a
+        // file left over from a previous run when config.dll failed above).
+        DisableClientSkinDownload(targetDir);
 
         // ---- NSM host window policy (fixes the blank second window) ----------
         // The launcher NEVER shows NSMMainWindow itself. It stays hidden until
