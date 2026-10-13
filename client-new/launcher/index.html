@@ -2053,7 +2053,7 @@ button,input{font:inherit;color:inherit;font-family:inherit}
         : view==='fav' ? {t:'No favorites yet',b:'Select the heart on any server to pin it here.'}
         : view==='hist'? {t:'No history',b:'Servers you connect to will appear here.'}
         : servers.length? {t:'No servers match',b:'Try clearing your search or filters.'}
-        : {t:'No servers online',b:'Start <b>masterlist\\masterlist.exe</b> and make sure your server is announcing (<b>server\\.cfg</b> &rarr; <i>[masterlist]</i>), or <a href="#" id="emptyDirect">direct connect</a> by IP.'};
+        : {t:'No servers online',b:'The masterlist is served from the configured VPS - make sure it is reachable and that servers are announcing to it, or <a href="#" id="emptyDirect">direct connect</a> by IP.'};
       empty.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="7" rx="2"/><rect x="2" y="13" width="20" height="7" rx="2"/><path d="M6 7.5h.01M6 16.5h.01"/></svg>
         <h3>${m.t}</h3><p>${m.b}</p>`;
@@ -2188,13 +2188,13 @@ button,input{font:inherit;color:inherit;font-family:inherit}
           $('#connBadge').classList.add('in-game');
           $('#connBadgeText').textContent = 'IN-GAME';
           $('#connProgressBar').classList.add('in-game');
-          $('#connGameEngine').textContent = 'Running (GTA V Active)';
+          $('#connGameEngine').textContent = data.detail || 'Running (GTA V Active)';
           $('#connText').textContent = 'Currently in-game! Use vMenu (M or F1) to spawn vehicles, change peds, and more. When done, quit GTA or click Disconnect below.';
         } else if (data.state === 'connecting') {
           $('#connBadge').classList.remove('in-game');
           $('#connBadgeText').textContent = 'CONNECTING';
           $('#connProgressBar').classList.remove('in-game');
-          $('#connGameEngine').textContent = 'Starting GTA V & Loading Assets...';
+          $('#connGameEngine').textContent = data.detail || 'Starting GTA V & Loading Assets...';
         }
       } catch (e) {}
     }, 1000);
@@ -2222,6 +2222,13 @@ button,input{font:inherit;color:inherit;font-family:inherit}
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({host,port:Number(port)||7788,name:name||''})});
       if(!r.ok) throw new Error('HTTP '+r.status);
+      const rd = await r.json().catch(()=>({}));
+      if (rd && rd.busy) {
+        // a session is already starting/running - never launch a second client
+        $('#connText').textContent = 'A connection is already in progress - tracking it...';
+        pollGameState();
+        return;
+      }
       pollGameState();
     }catch(e){
       onGameFinished();
