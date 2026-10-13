@@ -57,17 +57,24 @@ PID, when GTA5.exe appeared, every embed event, the client's exit code if it
 died, and which timeout/error ended the session. With those two files the
 failing branch is identifiable without another round trip.
 
-## Watch-item: libce2.dll
+## RESOLVED (2026-10-13): libce2.dll - the real-machine root cause
 
-`libs\libce2.dll` is currently in no distribution channel: mp1.pack ships
-as a stub (the real 230MB pack exceeds GitHub's file limit and its
-background download was removed), and the shipped `altv-runtime` does not
-contain it either. The real client has been observed requesting it via the
-proxy (404). If the client fails to start GTA V on the real machine, check
-the proxy log for repeated `libs/libce2.dll -> 404` and, if needed, obtain
-the file from a full alt:V client install and place it in
-`%LOCALAPPDATA%\<hash>\libs\`. This must be resolved based on what the
-real-machine run shows.
+The owner's first diagnostic run confirmed it:
+`Client exited before starting GTA V (exit code 3221225477)` =
+0xC0000005 - the client crashes because `libs\libce2.dll` (listed in the
+client's own update hashList, SHA1 1affc48a...) was in no distribution
+channel. Fixed by:
+
+1. the `game-packs` release (real mp1.pack + standalone libce2.dll,
+   SHA1-verified against the client's hashList), and
+2. the wrapper's pack-guard, which detects the stub mp1.pack at startup
+   and downloads the full pack in the background (verified in the Wine
+   rig: 949,824 B stub auto-upgraded to the 226,614,288 B full pack).
+
+Manual quick fix if you prefer not to wait for the background download:
+download `libce2.dll` from the game-packs release and place it in
+`%LOCALAPPDATA%\39a4cb14b4afd8c1eef1667c74e3b5936238c44f\libs\`, or
+download `mp1.pack` into `client-new\packs\` (replacing the stub).
 
 ## Known limits (honest)
 
