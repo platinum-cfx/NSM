@@ -375,14 +375,13 @@ static DWORD WINAPI embed_thread(LPVOID unused)
 
 
 /* ---------------- game-pack repair ---------------- */
-/* The launcher refuses to Connect unless packs\mp1..mp7.pack exist next to
- * NSM.exe, and the game runtime at %LOCALAPPDATA%\<sha1("gtamp")> is wiped
- * on every reboot - the packs re-install it. The repo ZIP ships every pack
- * that fits GitHub's 100MB file limit; mp1.pack (230MB, carries
- * libs\libce2.dll) ships as a small stub and is upgraded to the full pack
- * from the GitHub release in the background. Loose mpN.pack files dropped
- * next to the exe are moved into packs\. All failures log and never break
- * the launcher - if a pack cannot be fetched, whatever is in place stays. */
+/* The launcher refuses to Connect unless packs\mp1..mp7.pack exist next
+ * to NSM.exe. The repo ZIP ships every pack that fits GitHub's 100MB file
+ * limit; mp1.pack (230MB, carries libs\libce2.dll) ships as a small stub.
+ * NOTE: the background download of the full mp1.pack was removed - the
+ * runtime now installs from the local altv-runtime folder
+ * (EnsureRuntimeInstalled in connect.cpp). The guard below only makes sure
+ * the pack files exist; it never downloads anything. */
 #define NSM_PACK_RELEASE "https://github.com/platinum-cfx/NSM/releases/download/game-packs/"
 
 static DWORD nsm_file_size(const char *path)
