@@ -57,6 +57,18 @@ PID, when GTA5.exe appeared, every embed event, the client's exit code if it
 died, and which timeout/error ended the session. With those two files the
 failing branch is identifiable without another round trip.
 
+## Watch-item: libce2.dll
+
+`libs\libce2.dll` is currently in no distribution channel: mp1.pack ships
+as a stub (the real 230MB pack exceeds GitHub's file limit and its
+background download was removed), and the shipped `altv-runtime` does not
+contain it either. The real client has been observed requesting it via the
+proxy (404). If the client fails to start GTA V on the real machine, check
+the proxy log for repeated `libs/libce2.dll -> 404` and, if needed, obtain
+the file from a full alt:V client install and place it in
+`%LOCALAPPDATA%\<hash>\libs\`. This must be resolved based on what the
+real-machine run shows.
+
 ## Known limits (honest)
 
 - The launcher observes process/window-level truth (GTA5.exe alive, game
