@@ -16,16 +16,29 @@ embedded RCDATA payloads.
 
 ## What ships here
 
-- `mp1.pack` - STUB (no payload). The real one is 226.6 MB (carries
-  `libs\libce2.dll`, SHA1 1affc48a243bc183076544bf46c94f4cae1becb9 - the
-  file the alt:V client requires and verifies against its own update
-  hashList). It exceeds GitHub's 100 MB git limit, so it lives in the
-  `game-packs` release:
+- `mp1.pack` - STUB (no payload). The full pack carries `libs\\libce2.dll`
+  (226,394,112 B, SHA1 1affc48a243bc183076544bf46c94f4cae1becb9 - the file
+  the alt:V client requires and verifies against its own update hashList);
+  without it the client exits with code 0xC0000005 before starting GTA V.
+  It exceeds GitHub's 100 MB git limit, so it lives in the `game-packs`
+  release:
   https://github.com/platinum-cfx/NSM/releases/download/game-packs/mp1.pack
-  The wrapper's pack-guard detects the stub at startup and downloads the
-  full pack in the background, swapping it in ("pack: mp1.pack upgraded -
-  press Connect again" in nsm-embed-debug.log). Without libce2.dll the
-  client exits with code 0xC0000005 before starting GTA V.
+  IMPORTANT (2026-10-13 root-cause fix): the full pack previously served on
+  that release (226,614,288 B, SHA1 6bb251b7dd141fb0ec561a398df5a2ca9612f22c)
+  came from the original gtamp distribution and was encrypted with an
+  INCOMPATIBLE key - the launcher could never decrypt it, which surfaced as
+  the misleading "packs/mp1.pack not found" error even though the file was
+  present. The release now serves a REBUILT full pack (228,682,672 B, SHA1
+  2b75525b54e0880b9d42b3518e6598bec3ab5770): the authentic libce2.dll
+  embedded as RCDATA 314 in an extractor built from
+  `sources/cpp/mp1_extractor.cpp`, encrypted with the launcher's key by
+  `sources/cpp/packer_fixed.cpp` (do NOT use the old `sources/cpp/packer.cpp`
+  - it derives a different key from a secret string and writes no IV, so its
+  output can never be decrypted by the launcher).
+  The wrapper's pack-guard detects the stub (<10 MB) AND the known-bad old
+  full pack (exactly 226,614,288 B) at startup and downloads the fixed pack
+  in the background, swapping it in ("pack: mp1.pack upgraded - press
+  Connect again" in nsm-embed-debug.log).
 - `mp2.pack` - full: carries `backup\GTA5.exe` recovered from the runtime
   upload.
 - `mp3..mp7.pack` - full payloads recovered from the user's runtime upload,
