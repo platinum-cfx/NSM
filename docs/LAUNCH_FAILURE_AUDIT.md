@@ -135,3 +135,28 @@ REAL_WINDOWS_TEST.md for the runbook.
 Not changed (deliberately): the external app-window browser (works; WebView2
 is the researched upgrade, gated and documented), the masterlist/VPS and
 owner-run server model, pack extraction, the alt:V runtime itself.
+
+## 7. Real-machine confirmation (2026-10-13, owner's Windows machine)
+
+The owner's connect.log from the diagnostic build closed the loop:
+
+```
+Pre-launch: client = C:\Users\austi\AppData\Local\39a4...\altv.exe [present]
+Pre-launch: gta_path = C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V [GTA5.exe present]
+Launching: "...\altv.exe" -connecturl altv://connect/127.0.0.1:7788 -directlaunch -customui http://127.0.0.1:9988/ui/index.html
+Client started (pid 27412).
+Client exited before starting GTA V (exit code 3221225477).
+```
+
+3221225477 = 0xC0000005 (STATUS_ACCESS_VIOLATION): the client crashes
+before starting GTA V - section 5 candidate 1/2 territory, with the crash
+caused by `libs\libce2.dll` being absent from every distribution channel
+(mp1 stub, background download removed, altv-runtime lacking it), while
+the client's own update hashList (`proxy\update_release_modified.json`)
+requires it with SHA1 1affc48a243bc183076544bf46c94f4cae1becb9.
+
+Fix shipped with this evidence: the `game-packs` release (real mp1.pack +
+SHA1-verified libce2.dll), the wrapper pack-guard background download
+(stub -> full pack swap, verified in the Wine rig: 949,824 B stub
+auto-upgraded to 226,614,288 B), and an explicit launcher WARNING when
+libce2.dll is missing after pack extraction.
