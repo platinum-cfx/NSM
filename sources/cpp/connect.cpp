@@ -1324,6 +1324,169 @@ static bool NsmTailEmbedLog(const string& baseDir, long long& offset, string& ou
     return true;
 }
 
+// ---- client status tailing (one-window UX, packfix5) ----------------------
+// The client writes clean stage lines into targetDir\logs\launcher_*.log
+// ("Backup file ... valid", "Starting gtamp patches injection", ...). We tail
+// them, echo them into connect.log, and map them to the NSM status line so
+// the client window itself can stay hidden.
+static string NsmClientLogDir(const string& targetDir) {
+    return targetDir + "\\logs";
+}
+
+// Newest launcher_*.log by name (timestamps sort lexicographically).
+static string NsmClientLogNewest(const string& targetDir) {
+    string dir = NsmClientLogDir(targetDir);
+    string pattern = "launcher_";
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA((dir + "\\launcher_*.log").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return "";
+    string best = "";
+    do {
+        string n = fd.cFileName;
+        if (n.size() > 20 && n.compare(0, pattern.size(), pattern) == 0) {
+            if (n > best) best = n;                 // lexicographic = newest
+        }
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+    return best.empty() ? "" : (dir + "\\" + best);
+}
+
+static bool NsmTailFile(const string& path, long long& offset, string& outLine) {
+    ifstream f(path, ios::binary);
+    if (!f.is_open()) return false;
+    f.seekg((streamoff)offset);
+    if (!f.good()) return false;
+    string line;
+    if (!std::getline(f, line)) return false;
+    if (f.eof()) return false;
+    offset = (long long)f.tellg();
+    while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
+    outLine = line;
+    return true;
+}
+
+// Map a raw client log line to a friendly NSM status ("" = no status change).
+static string NsmClientStageText(const string& line) {
+    if (line.find("No skin specified") != string::npos)        return "preparing the client";
+    if (line.find("Backup file") != string::npos &&
+        line.find("valid") != string::npos)                    return "verifying GTA V files";
+    if (line.find("Backup file copied") != string::npos)       return "updating GTA V files";
+    if (line.find("Starting gtamp patches injection") != string::npos)
+                                                                return "starting GTA V";
+    if (line.find("Injected gtamp patches successfully") != string::npos)
+                                                                return "starting GTA V (patches applied)";
+    if (line.find("gtamp patches executed") != string::npos)   return "loading GTA V";
+    if (line.find("Launcher patch completed") != string::npos) return "loading GTA V";
+    if (line.find("Starting gtamp injection") != string::npos) return "injecting the multiplayer client";
+    if (line.find("Injected DLL successfully") != string::npos ||
+        line.find("Connect address is") != string::npos)       return "connecting to the server";
+    if (line.find("Injection finished") != string::npos)       return "joining the server";
+    if (line.find("Waiting for the window") != string::npos)   return "waiting for the game window";
+    return "";
+}
+
+// True when a client log line means "the client needs a human" (error dialog,
+// password prompt, path picker) - the hidden window must be restored.
+static bool NsmClientLineNeedsUser(const string& line) {
+    return line.find("Possible solutions") != string::npos ||
+           line.find("Enter password") != string::npos ||
+           line.find("ERR_NOT_PLATFORM_PATH") != string::npos;
+}
+
+// Restore every top-level window of the given process id (the hidden client).
+struct NsmEnumCtx { DWORD pid; bool shown; };
+static BOOL CALLBACK NsmEnumWindowsProc(HWND hwnd, LPARAM lp) {
+    NsmEnumCtx* ctx = (NsmEnumCtx*)lp;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == ctx->pid) {
+        ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd);
+        ctx->shown = true;
+    }
+    return TRUE;
+}
+static bool NsmShowClientWindows(DWORD pid) {
+    NsmEnumCtx ctx = { pid, false };
+    EnumWindows(NsmEnumWindowsProc, (LPARAM)&ctx);
+    return ctx.shown;
+}
+
+// Non-blocking error dialog: the session loop must keep running (a blocked
+// MessageBox would prevent the next Connect until it is dismissed - found by
+// the reconnect test in the Wine rig). The UI also shows the failure via
+// /api/gamestate detail, so this is a secondary channel.
+static void NsmShowErrorAsync(const string& title, const string& message) {
+    std::thread([title, message]() {
+        MessageBoxA(NULL, message.c_str(), title.c_str(), MB_ICONERROR | MB_OK);
+    }).detach();
+}
+
+// ---- startup preflight (one-window UX, packfix5) ---------------------------
+// Fast checks for the UI badge: GTA path + GTA5.exe, critical runtime files,
+// and the client's forbidden-file rules in the GTA folder. The deep verify
+// (hash + patch) still happens inside the client at connect time (~2 s there).
+static string NsmPreflightJson() {
+    string baseDir = GetExecutableDir();
+    string gtaPath = ReadConfigValue(baseDir, "gta_path", "");
+    bool gtaExe = !gtaPath.empty() &&
+        GetFileAttributesA((gtaPath + "\\GTA5.exe").c_str()) != INVALID_FILE_ATTRIBUTES;
+
+    char localAppData[MAX_PATH] = {0};
+    ExpandEnvironmentStringsA("%LOCALAPPDATA%", localAppData, MAX_PATH);
+    string targetDir = string(localAppData) + "\\" + ComputeHash("gtamp");
+
+    // Critical runtime files (the full 94-file verification stays at connect).
+    static const char* runtimeFiles[] = {
+        "\\altv.exe", "\\altv-client.dll", "\\config.dll", "\\discord_rpc.dll",
+        "\\ui\\index.html", "\\backup\\GTA5.exe", "\\proxy\\proxy.dll",
+        "\\libs\\libce2.dll"
+    };
+    const int runtimeTotal = 8;
+    int haveRuntime = 0;
+    string missingRuntime;
+    for (const char* f : runtimeFiles) {
+        if (GetFileAttributesA((targetDir + f).c_str()) != INVALID_FILE_ATTRIBUTES) haveRuntime++;
+        else if (missingRuntime.empty()) missingRuntime = f + 1;
+    }
+    bool runtimeOk = (haveRuntime == runtimeTotal);
+
+    // Files whose presence makes the client reject the GTA folder (its own
+    // validation checklist - see docs/client-crash-investigation.md).
+    static const char* forbidden[] = {
+        "7launcher", "7lcfg_gtav.ini", "Run_GTAV.exe", "commandline.txt",
+        "d3d11.dll", "dinput8.dll", "dsound.dll", "dxgi.dll",
+        "socialclub.ini", "steam000.wow", "steam001.wow", "steam_api.ini"
+    };
+    string forbiddenFound;
+    if (!gtaPath.empty()) {
+        for (const char* f : forbidden) {
+            if (GetFileAttributesA((gtaPath + "\\" + f).c_str()) != INVALID_FILE_ATTRIBUTES) {
+                forbiddenFound += (forbiddenFound.empty() ? "" : ", ") + string(f);
+            }
+        }
+    }
+
+    string message;
+    bool ok = true;
+    if (gtaPath.empty())              { ok = false; message = "GTA V path not set yet"; }
+    else if (!gtaExe)                 { ok = false; message = "GTA5.exe not found in the configured folder"; }
+    else if (!forbiddenFound.empty()) { ok = false; message = "unsupported mod files in the GTA V folder: " + forbiddenFound; }
+    else if (!runtimeOk)              { message = "GTA V verified; runtime installs on first connect"; }
+    else                              { message = "GTA V verified"; }
+
+    string json = "{";
+    json += "\"ok\":" + string(ok ? "true" : "false") + ",";
+    json += "\"gtaPath\":" + gtamp::JsonStr(gtaPath) + ",";
+    json += "\"gtaExe\":" + string(gtaExe ? "true" : "false") + ",";
+    json += "\"runtimeOk\":" + string(runtimeOk ? "true" : "false") + ",";
+    json += "\"runtimeFiles\":" + to_string(haveRuntime) + ",";
+    json += "\"forbiddenFound\":" + gtamp::JsonStr(forbiddenFound) + ",";
+    json += "\"message\":" + gtamp::JsonStr(message);
+    json += "}";
+    return json;
+}
+
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -1409,6 +1572,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     EnsureGtaPathConfigured(baseDir, false);
     string masterlistUrl = ReadConfigValue(baseDir, "masterlist_url", "http://127.0.0.1:8080");
 
+    // One-window UX: fast GTA/runtime preflight for the UI badge
+    gtamp::g_preflightProvider = NsmPreflightJson;
 
     // Start embedded launcher server and open dedicated FiveM-styled launcher window
     if (!gtamp::StartLauncherServer(baseDir, masterlistUrl, !hasConnect)) {
@@ -1437,11 +1602,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         string pickedName = "";
 
         if (!hasConnect) {
-            // Reset launcher state to idle so server list is visible
+            // Reset launcher state to idle so server list is visible.
+            // NOTE: stateDetail is deliberately NOT cleared here - if the
+            // previous session ended in failure its error must stay visible
+            // (UI + E2E surface it). It is cleared on the next /api/connect
+            // and on clean session ends.
             {
                 std::lock_guard<std::mutex> lk(gtamp::g_launcherState.m);
                 gtamp::g_launcherState.gameState = "idle";
-                gtamp::g_launcherState.stateDetail = "";
                 gtamp::g_launcherState.currentServer = "";
                 gtamp::g_launcherState.serverName = "";
                 gtamp::g_launcherState.disconnectRequested = false;
@@ -1657,12 +1825,36 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         // Start the client
         string cmdLine = "\"" + altvExe + "\" " + connectArgs + " -directlaunch -customui " + customUiStr;
         STARTUPINFOA si = { sizeof(si) };
-        PROCESS_INFORMATION pi;
-        SetEnvironmentVariableA("SteamAppId", "271590");
+        si.dwFlags = STARTF_USESHOWWINDOW;      // one-window UX (packfix5): the client's
+        si.wShowWindow = SW_HIDE;               // own window stays hidden; its status is
+        PROCESS_INFORMATION pi;                 // piped into the NSM window instead. If it
+        SetEnvironmentVariableA("SteamAppId", "271590"); // needs input, we restore it below.
 
         NsmSetDetail("launching client");
         WriteLog("Launching: " + cmdLine);
+        WriteLog("Client window hidden - its status is shown in this window and it is "
+                 "restored automatically if it needs user input.");
         long long embedOffset = NsmEmbedLogStart(baseDir);
+
+        // Client status tailing: track TWO logs. "Primary" is the ORIGINAL
+        // client instance's log (the first NEW launcher_*.log after launch) -
+        // its final lines decide restart detection even after the client
+        // relaunches itself elevated. "Latest" is the newest log (the
+        // restarted instance) and feeds the status line.
+        string clientLogBefore = NsmClientLogNewest(targetDir);
+        long long clientLogBeforeOff = 0;
+        {
+            ifstream f(clientLogBefore, ios::binary | ios::ate);
+            if (f.is_open()) clientLogBeforeOff = (long long)f.tellg();
+        }
+        string clientPrimaryLog = "";
+        long long clientPrimaryOff = 0;
+        bool clientPrimarySet = false;
+        string clientLatestLog = clientLogBefore;
+        long long clientLatestOff = clientLogBeforeOff;
+        if (!clientLogBefore.empty()) {
+            WriteLog("Client status log (before launch): " + clientLogBefore);
+        }
 
         if (CreateProcessA(NULL, (LPSTR)cmdLine.c_str(), NULL, NULL, FALSE, 0, NULL, targetDir.c_str(), &si, &pi)) {
             CloseHandle(pi.hThread);
@@ -1679,9 +1871,31 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
             bool gtaSeen = false, embedSettled = false, embedDone = false, embedFailed = false;
             bool reportedInGame = false;
+            bool clientRestarting = false;
+            bool restartWaitLogged = false;
             string failReason = "";
+            string clientNeedsUserReason = "";
+            auto lastClientLineAt = chrono::steady_clock::now();
+            bool clientWindowRestored = false;
+            string lastClientErrors = "";
 
             NsmSetDetail("waiting for GTA V");
+
+            // One place that processes every client log line (status stages,
+            // errors, restart detection, needs-user detection).
+            auto handleClientLine = [&](const string& cline) {
+                lastClientLineAt = chrono::steady_clock::now();
+                if (cline.empty()) return;
+                WriteLog("Client: " + cline);
+                if (cline.find("[error]") != string::npos && lastClientErrors.size() < 400)
+                    lastClientErrors += (lastClientErrors.empty() ? "" : " | ") + cline;
+                string stage = NsmClientStageText(cline);
+                if (!stage.empty()) NsmSetDetail(stage);
+                if (NsmClientLineNeedsUser(cline) && clientNeedsUserReason.empty())
+                    clientNeedsUserReason = cline;
+                if (cline.find("Restarting as admin") != string::npos)
+                    clientRestarting = true;
+            };
 
             while (!gtamp::g_launcherState.disconnectRequested && !gtamp::g_launcherState.shouldQuit) {
                 // 1) real embed outcome from the wrapper (not process-name guesses)
@@ -1707,9 +1921,66 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                     }
                 }
 
+                // 1b) client status: tail the client's launcher_*.log(s), map the
+                // stage lines into the NSM status line, and watch for states where
+                // the hidden client window needs a human. Primary log = our
+                // original client instance; latest = newest (e.g. the elevated
+                // restart the client performs itself).
+                {
+                    string newest = NsmClientLogNewest(targetDir);
+                    if (!newest.empty()) {
+                        if (!clientPrimarySet && newest != clientLogBefore) {
+                            clientPrimaryLog = newest;
+                            clientPrimaryOff = 0;
+                            clientPrimarySet = true;
+                            WriteLog("Client status log (client instance): " + clientPrimaryLog);
+                        }
+                        if (newest != clientLatestLog) {
+                            clientLatestLog = newest;
+                            clientLatestOff = 0;
+                            if (newest != clientPrimaryLog)
+                                WriteLog("Client status log (restarted instance): " + newest);
+                        }
+                    }
+                    string cline;
+                    // primary (original instance) - decides restart detection
+                    if (clientPrimarySet) {
+                        while (NsmTailFile(clientPrimaryLog, clientPrimaryOff, cline))
+                            handleClientLine(cline);
+                    } else if (!clientLogBefore.empty()) {
+                        while (NsmTailFile(clientLogBefore, clientLogBeforeOff, cline))
+                            handleClientLine(cline);
+                    }
+                    // latest (restarted instance) - status only, skip if same file
+                    if (clientLatestLog != (clientPrimarySet ? clientPrimaryLog : clientLogBefore) &&
+                        !clientLatestLog.empty()) {
+                        while (NsmTailFile(clientLatestLog, clientLatestOff, cline))
+                            handleClientLine(cline);
+                    }
+                }
+
                 // 2) process truth: our child handle + the game process
                 bool altvRunning = (WaitForSingleObject(pi.hProcess, 0) == WAIT_TIMEOUT);
                 bool gtaRunning = IsProcessRunning("GTA5.exe");
+
+                // 2b) hidden client stuck waiting for a human? restore its window
+                //     (error dialog / password prompt / silent stall).
+                if (altvRunning && !gtaSeen && !clientWindowRestored) {
+                    bool anyLogKnown = clientPrimarySet || !clientLatestLog.empty();
+                    bool stalled = anyLogKnown &&
+                        (chrono::duration_cast<chrono::seconds>(
+                            chrono::steady_clock::now() - lastClientLineAt).count() > 20);
+                    if (!clientNeedsUserReason.empty() || stalled) {
+                        clientWindowRestored = true;
+                        if (NsmShowClientWindows(pi.dwProcessId)) {
+                            WriteLog(string("Client window restored - it is waiting for user input") +
+                                     (clientNeedsUserReason.empty()
+                                          ? string(" (no new status for 20s)")
+                                          : string(" (") + clientNeedsUserReason + string(")")) + ".");
+                            NsmSetDetail("the client needs your input (its window is now visible)");
+                        }
+                    }
+                }
 
                 if (!gtaSeen && gtaRunning) {
                     gtaSeen = true;
@@ -1724,10 +1995,25 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
                 if (!altvRunning && !gtaSeen) {
                     Sleep(3000);                       // tolerate spawn-then-exit launchers
                     if (IsProcessRunning("GTA5.exe")) continue;
+                    // The client can restart itself elevated ("Restarting as admin").
+                    // Our child handle is the ORIGINAL instance - if a restarted
+                    // client is now running, keep waiting for it (bounded by the
+                    // game-start timeout above).
+                    if (clientRestarting && IsProcessRunning("altv.exe") &&
+                        chrono::steady_clock::now() <= deadlineNoGta) {
+                        if (!restartWaitLogged) {
+                            restartWaitLogged = true;
+                            WriteLog("Original client exited after requesting an admin restart; "
+                                     "a restarted client instance is running - continuing to wait.");
+                        }
+                        continue;
+                    }
                     DWORD code = 0; GetExitCodeProcess(pi.hProcess, &code);
                     WriteLog("Client exited before starting GTA V (exit code " + to_string(code) + ").");
                     failReason = "The multiplayer client exited before starting GTA V (exit code " +
                                  to_string(code) + ").";
+                    if (!lastClientErrors.empty())
+                        failReason += "\nClient log: " + lastClientErrors;
                     break;
                 }
 
@@ -1772,17 +2058,22 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             if (!failReason.empty()) {
                 NsmSetState("idle", failReason);
                 string emsg = failReason + "\n\nFull launch trace: " + g_logFilePath;
-                MessageBoxA(NULL, emsg.c_str(), "NSM - Connection Error", MB_ICONERROR | MB_OK);
-                NsmSetDetail("");
+                NsmShowErrorAsync("NSM - Connection Error", emsg);
+                // keep failReason in the detail: the UI (and E2E) surface it;
+                // it is cleared when the next connect begins.
+            } else {
+                // Clean session end (the game ran and exited normally): back
+                // to idle with no stale stage text.
+                NsmSetState("idle", "");
             }
         } else {
             DWORD e = GetLastError();
             string err = "Failed to launch the client: " + altvExe + " (Windows error " + to_string(e) + ")";
             WriteLog(err);
             NsmSetState("idle", err);
-            MessageBoxA(NULL, (err + "\n\nSee the pre-launch checklist in the log: " + g_logFilePath).c_str(),
-                        "NSM - Connection Error", MB_ICONERROR | MB_OK);
-            NsmSetDetail("");
+            NsmShowErrorAsync("NSM - Connection Error",
+                              err + "\n\nSee the pre-launch checklist in the log: " + g_logFilePath);
+            // detail keeps the error; cleared on the next connect.
         }
 
         // Notify leave immediately to update masterlist & server decrements

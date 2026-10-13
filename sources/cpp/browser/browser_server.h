@@ -55,6 +55,9 @@ inline std::string g_baseDir = "";
 inline std::string g_masterlistUrl = "";
 inline std::string g_uiDir = "";
 inline int g_launcherPort = GTAMP_LAUNCHER_PORT;
+// Installed by connect.cpp: returns the preflight JSON (GTA path / runtime /
+// forbidden-files check) for the /api/preflight endpoint.
+inline std::string (*g_preflightProvider)() = nullptr;
 
 inline std::string ReadTextFile(const std::string& path) {
     if (path.empty()) return "";
@@ -490,6 +493,7 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
             g_launcherState.currentServer = host + ":" + port;
             g_launcherState.serverName = g_launcherState.pendingServerName;
             g_launcherState.gameState = "connecting";
+            g_launcherState.stateDetail = "";           // never leak the previous session's error
             g_launcherState.disconnectRequested = false;
             g_launcherState.hasConnectPending = true;
         }
@@ -509,6 +513,20 @@ inline bool StartLauncherServer(const std::string& baseDir, const std::string& m
             "\"clientId\":\"" + g_launcherState.clientId + "\""
         "}";
         res.set_content(json, "application/json");
+    });
+
+    // One-window UX (packfix5): fast startup verification for the UI badge.
+    // The provider is installed by connect.cpp (it owns the GTA/runtime logic);
+    // returns {ok, gtaPath, gtaExe, runtimeOk, forbiddenFound[], message}.
+    svr.Get("/api/preflight", [](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Cache-Control", "no-store");
+        if (!g_preflightProvider) {
+            res.status = 503;
+            res.set_content("{\"ok\":false,\"message\":\"preflight not ready\"}", "application/json");
+            return;
+        }
+        res.set_content(g_preflightProvider(), "application/json");
     });
 
     svr.Post("/api/disconnect", [](const httplib::Request&, httplib::Response& res) {
