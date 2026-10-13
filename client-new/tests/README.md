@@ -30,6 +30,8 @@ launcher log must contain no auto-start attempts.
 - `mock_altv.c` — mock altv.exe client stub
 - `mock_gta5.c` — mock GTA5.exe with a real `grcWindow`-class window,
   PeekMessage loop, self-exits after ~22s (safe when embedded headless)
+- `mock_altv_fail.c` — mock client that exits immediately with code 42
+- `mock_altv_hang.c` — mock client that stays alive without starting GTA V
 - `mock_discord_real.c` — mock Discord RPC forwarder
 
 Build (mingw): `x86_64-w64-mingw32-gcc -O2 -mwindows -static -o <name>.exe <name>.c`
