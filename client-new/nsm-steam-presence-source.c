@@ -410,11 +410,43 @@ static DWORD WINAPI pack_guard_thread(LPVOID unused)
     _snprintf(pack, sizeof pack, "%s\\packs", dir);
     CreateDirectoryA(pack, NULL);
 
-    /* NOTE: fetching the large mp1.pack from a GitHub release was removed -
- * the launcher now installs the game runtime directly from the local
- * altv-runtime folder shipped in the same ZIP (EnsureRuntimeInstalled in
- * connect.cpp), so no release download is needed. Existing packs are left
- * exactly as they are. */
+    /* mp1.pack carries libs\libce2.dll (226 MB), which exceeds GitHub's
+ * 100 MB git limit - the repo ships a small STUB. The runtime install
+ * from the local altv-runtime folder does NOT provide libce2.dll either,
+ * and without it the alt:V client exits with code 0xC0000005 before
+ * starting GTA V. So: if we see the stub (or nothing), fetch the full
+ * pack from the game-packs release in the background and swap it in.
+ * The next Connect then extracts libce2.dll and verification passes.
+ * All failures just log and leave whatever is in place. */
+    {
+        char mp1[MAX_PATH * 3];
+        _snprintf(mp1, sizeof mp1, "%s\\mp1.pack", pack);
+        if (nsm_file_size(mp1) < 10 * 1024 * 1024) {
+            HMODULE um = LoadLibraryA("urlmon.dll");
+            if (um) {
+                typedef HRESULT (WINAPI *PDLT)(void*, LPCSTR, LPCSTR, DWORD, void*);
+                PDLT dl = (PDLT)GetProcAddress(um, "URLDownloadToFileA");
+                _snprintf(tmp, sizeof tmp, "%s\\mp1.pack.tmp", pack);
+                _snprintf(url, sizeof url, "%smp1.pack", NSM_PACK_RELEASE);
+                dblog("pack: mp1.pack is the small stub - downloading the full pack in the background...\r\n");
+                if (dl && dl(NULL, url, tmp, 0, NULL) == S_OK &&
+                    nsm_file_size(tmp) > 200 * 1024 * 1024) {
+                    if (MoveFileExA(tmp, mp1, MOVEFILE_REPLACE_EXISTING)) {
+                        dblog("pack: mp1.pack upgraded to the full pack - press Connect again\r\n");
+                    } else {
+                        dblog("pack: could not swap mp1.pack into place\r\n");
+                        DeleteFileA(tmp);
+                    }
+                } else {
+                    dblog("pack: full-pack download failed - keeping the stub (get it manually from the game-packs release)\r\n");
+                    DeleteFileA(tmp);
+                }
+                FreeLibrary(um);
+            } else {
+                dblog("pack: urlmon unavailable - cannot download the full pack\r\n");
+            }
+        }
+    }
         dblog("pack: guard done\r\n");
     return 0;
 }

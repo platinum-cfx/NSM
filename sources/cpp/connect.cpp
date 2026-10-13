@@ -1158,6 +1158,15 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             continue;
         }
 
+        // The one file the STUB mp1.pack cannot provide: libs\libce2.dll.
+        // Without it the alt:V client exits with 0xC0000005 before starting
+        // GTA V. Warn loudly instead of letting the client crash silently.
+        if (GetFileAttributesA((targetDir + "\\libs\\libce2.dll").c_str()) == INVALID_FILE_ATTRIBUTES) {
+            WriteLog("WARNING: libs\\libce2.dll is missing - the small stub mp1.pack cannot provide it.");
+            WriteLog("The full mp1.pack downloads in the background once NSM starts (see nsm-embed-debug.log:");
+            WriteLog("'pack: mp1.pack upgraded' - then press Connect again). Manual: github.com/platinum-cfx/NSM/releases -> game-packs.");
+        }
+
         // NOTE: the game runtime in %LOCALAPPDATA% is intentionally NOT wiped on
         // reboot anymore. Files persist; anything missing is re-installed from the
         // local altv-runtime folder - no 230MB pack download is ever needed.
