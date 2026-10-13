@@ -92,7 +92,10 @@ import subprocess, secrets
 key = bytes([0x2B,0x7E,0x15,0x16,0x28,0xAE,0xD2,0xA6,0xAB,0xF7,0x15,0x88,0x09,0xCF,0x4F,0x3C,
              0x76,0x2E,0x71,0x60,0xF3,0x8B,0x4D,0xA5,0x6A,0x78,0x4D,0x90,0x45,0x19,0x0C,0xFE]).hex()
 for i in range(1, 8):
-    pt = (f"NSM E2E dummy test pack mp{i} - placeholder. ".encode() * 20000)[:900000]
+    # mp1 dummy is 12MB: bigger than the 10MB stub threshold so the wrapper's
+    # background full-pack download never fires inside the test rig
+    size = 12000000 if i == 1 else 900000
+    pt = (f"NSM E2E dummy test pack mp{i} - placeholder. ".encode() * 300000)[:size]
     iv = secrets.token_bytes(16)
     ct = subprocess.run(["openssl","enc","-aes-256-cbc","-K",key,"-iv",iv.hex()],
                         input=pt, capture_output=True, check=True).stdout
