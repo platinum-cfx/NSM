@@ -1,4 +1,4 @@
-# NSM Single-Window Experience
+# NSM Single-Window Experience (game window)
 
 > Status: implemented; full connect → embed → leave → reconnect cycle verified
 > end-to-end in the Wine test rig (mock game, real launcher binaries — see
@@ -25,6 +25,8 @@ server list is back → reconnect without restart.
    - The selected server is checked for reachability first. If it is
      offline, a clear "Connection Error" dialog is shown and NSM returns
      to the browser - it NEVER starts a server locally.
+   - The browser UI shows live stage detail ("preparing game files",
+     "launching client", "waiting for GTA V") from /api/gamestate.
    - If the GTA path is still not known, the GTA5.exe folder picker appears
      NOW (never at startup), and the choice is saved to `.config`.
    - The game packs are checked/extracted as before.
@@ -55,8 +57,13 @@ GTA5.exe. No injection, no patching, no DRM/anti-cheat interference.
 ## Settings (client-new\.config)
 
 ```toml
-# Show the game inside the NSM window (false = GTA V opens in its own window)
+# Show the game inside the NSM window (false = GTA V opens in its own window).
+# The NSM window appears only once the game window is actually embedded.
 embed_game_window = true
+
+# Supervision timeouts (seconds); on timeout: clear error + back to browser
+game_start_timeout_sec = 120
+embed_timeout_sec = 90
 ```
 
 `embed_game_window = false` is the emergency fallback for troubleshooting:
@@ -89,6 +96,9 @@ driven through the real launcher HTTP API:
 
     Starting connect.exe / NSM.exe
     Extracting game packs into ... / Packs successfully extracted.
+    Pre-launch checklist (client/GTA5.exe/wrapper/working dir)
+    Launching: ... / Client started (pid N) / GTA5.exe appeared Ns after launch
+    Embed: ... / In game: embedded in the NSM window.
     Installing game runtime from: ...\altv-runtime\39a4... / Game runtime install complete.
     Launching: "...altv.exe" -connecturl altv://connect/127.0.0.1:7788 ...
 
@@ -96,11 +106,17 @@ driven through the real launcher HTTP API:
     child style set → frame updated → parent verified → fitted →
     focus set → DONE → game exited
 
-Full cycle proven twice in one NSM process: connect → `in_game` → game
-exit → `idle` (browser back) → connect again → `in_game` → exit → `idle`.
-Production-behavior phase verified separately: NSM opens with no services
-running, spawns no masterlist/gtamp-server processes, and an offline server
-produces a clear connection error instead of starting anything.
+E2E v3 (client-new/tests/e2e-production.sh): **42/42 PASS** across four
+phases. Production phase: NSM opens with no services, spawns nothing, an
+offline server produces a clear error, and no NSM window ever appears.
+Online phase (mocks started by the test): full cycle twice in one process
+(connect → embed → in_game → exit → idle → reconnect), the host window is
+shown strictly AFTER the verified embed (log-order assert), duplicate
+Connect is refused, and the game window embeds into NSMMainWindow with the
+parent verified. Failure phases: a client that exits instantly is reported
+with its real exit code (42) and the same NSM process recovers on the next
+connect; a client that hangs without starting GTA V is terminated by the
+game-start timeout with a clear error. All mock tests are TEST MODE labeled.
 
 Remaining for the owner's machine: one real GTA V run (real alt:V client,
 real game process, real input/F8) — see the acceptance checklist below.
